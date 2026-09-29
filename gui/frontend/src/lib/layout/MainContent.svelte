@@ -3,6 +3,7 @@
   import TabBar from "./TabBar.svelte";
   import FieldEditor from "../FieldEditor.svelte";
   import GeometryPanel from "../config/GeometryPanel.svelte";
+  import ColorPanel from "../config/ColorPanel.svelte";
   import ConfigCategoryPlaceholder from "../config/ConfigCategoryPlaceholder.svelte";
 
   let category = $derived(selectedCategory());
@@ -16,6 +17,8 @@
     <FieldEditor />
   {:else if nav.selectedCategoryId === "geometry"}
     <GeometryPanel {category} {instance} />
+  {:else if nav.selectedCategoryId === "color"}
+    <ColorPanel {instance} />
   {:else}
     <ConfigCategoryPlaceholder {category} {instance} />
   {/if}

@@ -263,6 +263,51 @@ func (s *VisionServer) handlePutLineCorners() http.HandlerFunc {
 	}
 }
 
+// handleGetColor reads back the instance's config.yml color: block (see
+// geometry.ReadColorConfig), including vision_processor's own hardcoded
+// fallback for any color left commented out -- there's no "unset" state to
+// degrade to here, unlike line corners, since every color always resolves to
+// something the instance is actually running.
+func (s *VisionServer) handleGetColor() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cfg, err := geometry.ReadColorConfig(s.configFile)
+		if err != nil {
+			slog.Error("reading color config", "path", s.configFile, "err", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		if err := json.NewEncoder(w).Encode(cfg); err != nil {
+			slog.Error("writing color config response", "err", err)
+		}
+	}
+}
+
+// handlePutColor writes the color panel's reference colors and update
+// weights into the instance's own config.yml -- see geometry.WriteColorConfig.
+// Same not-yet-built-internal/config stand-in as handlePutLineCorners.
+func (s *VisionServer) handlePutColor() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req geometry.ColorConfig
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "malformed request body: "+err.Error(), http.StatusBadRequest)
+
+			return
+		}
+
+		if err := geometry.WriteColorConfig(s.configFile, req); err != nil {
+			respondGeometryErr(w, err, "writing color config", "path", s.configFile)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 // fieldPresets are the rulebook defaults, read live from the same files a
 // human would open (geometry-divA.yml, geometry-divB.yml at the repo root) --
 // not a copy that could drift from them. See geometry.ReadOnlyFiles: saves

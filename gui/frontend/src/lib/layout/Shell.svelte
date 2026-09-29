@@ -1,5 +1,6 @@
 <script lang="ts">
   import { connectionState } from "../wrapper-bus";
+  import { preferences } from "../preferences.svelte";
   import InstanceList from "./InstanceList.svelte";
   import ConfigNav from "./ConfigNav.svelte";
   import MainContent from "./MainContent.svelte";
@@ -15,7 +16,28 @@
   }
 
   let { below }: Props = $props();
+
+  // Global settings menu (gear, top-right) -- preferences (../preferences.svelte)
+  // is app-wide state, not scoped to any one tab, so it belongs in the shell
+  // rather than wherever happened to need it first.
+  let settingsOpen = $state(false);
+  let settingsEl: HTMLDivElement | undefined = $state();
+
+  function toggleSettings(): void {
+    settingsOpen = !settingsOpen;
+  }
+
+  // Closes on any click outside the button+menu -- a click on the gear
+  // itself is inside settingsEl too, so this never fights toggleSettings's
+  // own open/close.
+  function handleWindowClick(event: MouseEvent): void {
+    if (settingsOpen && !settingsEl?.contains(event.target as Node)) {
+      settingsOpen = false;
+    }
+  }
 </script>
+
+<svelte:window onclick={handleWindowClick} />
 
 <div class="shell">
   <header>
@@ -23,6 +45,30 @@
     <span class="badge" data-state={$connectionState}>
       {$connectionState.toUpperCase()} ({location.host})
     </span>
+
+    <div class="settings" bind:this={settingsEl}>
+      <button
+        type="button"
+        class="settings-button"
+        aria-label="Settings"
+        onclick={toggleSettings}
+      >
+        ⚙
+      </button>
+
+      {#if settingsOpen}
+        <div class="settings-menu">
+          <label>
+            <input type="checkbox" bind:checked={preferences.tooltipsEnabled} />
+            Show extra tooltips
+          </label>
+          <label>
+            <input type="checkbox" bind:checked={preferences.expertUser} />
+            Expert mode
+          </label>
+        </div>
+      {/if}
+    </div>
   </header>
 
   <aside class="sidebar">
@@ -86,6 +132,54 @@
   .badge[data-state="closed"] {
     background: #f8d7da;
     color: #721c24;
+  }
+
+  .settings {
+    position: relative;
+    margin-left: auto;
+  }
+
+  .settings-button {
+    width: 2rem;
+    height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #ccc;
+    border-radius: 50%;
+    background: white;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .settings-button:hover {
+    background: #f5f5f5;
+  }
+
+  .settings-menu {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    z-index: 20;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    font-size: 0.85rem;
+    color: #333;
+  }
+
+  .settings-menu label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
   }
 
   .sidebar {

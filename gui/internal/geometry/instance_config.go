@@ -32,7 +32,6 @@ type Corner struct {
 }
 
 var (
-	geometryHeader   = regexp.MustCompile(`^geometry:\s*$`)
 	lineCornersKey   = regexp.MustCompile(`^(\s*)line_corners:\s*$`)
 	goalSideMarkerKV = regexp.MustCompile(`^(\s*)goal_side_marker:.*$`)
 )
@@ -133,13 +132,16 @@ func ReadLineCorners(path string) ([]Corner, int, error) {
 	return corners, cfg.Geometry.GoalSideMarker, nil
 }
 
-// geometrySectionBounds finds the 'geometry:' top-level key and the line
-// index where its section ends (the next top-level key, or len(lines)).
-func geometrySectionBounds(lines []string) (start, end int, err error) {
+// sectionBounds finds the given top-level YAML key's line ("geometry:",
+// "color:", ...) and the line index where its section ends (the next
+// top-level key, or len(lines)). Shared by every instance-config writer that
+// splices a single top-level section in place.
+func sectionBounds(lines []string, key string) (start, end int, err error) {
+	header := regexp.MustCompile(`^` + regexp.QuoteMeta(key) + `:\s*$`)
 	start = -1
 
 	for i, line := range lines {
-		if geometryHeader.MatchString(line) {
+		if header.MatchString(line) {
 			start = i
 
 			break
@@ -147,7 +149,7 @@ func geometrySectionBounds(lines []string) (start, end int, err error) {
 	}
 
 	if start == -1 {
-		return 0, 0, fmt.Errorf("missing top-level 'geometry' section")
+		return 0, 0, fmt.Errorf("missing top-level '%s' section", key)
 	}
 
 	end = len(lines)
@@ -161,6 +163,13 @@ func geometrySectionBounds(lines []string) (start, end int, err error) {
 	}
 
 	return start, end, nil
+}
+
+// geometrySectionBounds is sectionBounds pinned to the 'geometry:' section --
+// kept as a named wrapper since every call site below reads more clearly
+// naming the section than repeating the string literal.
+func geometrySectionBounds(lines []string) (start, end int, err error) {
+	return sectionBounds(lines, "geometry")
 }
 
 // spliceLineCorners is the pure text transform behind WriteLineCorners' list

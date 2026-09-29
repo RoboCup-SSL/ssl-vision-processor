@@ -18,6 +18,8 @@ func (s *VisionServer) addRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/geometry/presets", s.handleGetFieldPresets())
 	mux.Handle("GET /api/config/line-corners", s.handleGetLineCorners())
 	mux.Handle("PUT /api/config/line-corners", s.handlePutLineCorners())
+	mux.Handle("GET /api/config/color", s.handleGetColor())
+	mux.Handle("PUT /api/config/color", s.handlePutColor())
 	mux.Handle("GET /api/snapshots", snapshot.HandleList(s.imgDir))
 	mux.Handle("GET /api/snapshot/{camID}/{view}", snapshot.HandleGet(s.imgDir))
 	mux.Handle("/api/", http.NotFoundHandler())
