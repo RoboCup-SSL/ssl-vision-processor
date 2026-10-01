@@ -44,6 +44,24 @@ public:
 
 	// Bound to the driver for reproducibility during testing with files.
 	virtual double getTime();
+
+	virtual uint32_t getWidth() = 0;
+	virtual uint32_t getHeight() = 0;
+	virtual void setResolution(uint32_t width, uint32_t height) = 0;
+
+	virtual float getExposure() = 0;
+	virtual void setExposure(float exposure) = 0;
+
+	virtual float getGain() = 0;
+	virtual void setGain(float gain) = 0;
+
+	virtual float getGamma() = 0;
+	virtual void setGamma(float gamma) = 0;
+
+	virtual WhiteBalanceType getWhiteBalanceType() = 0;
+	virtual float getWhiteBalanceBlue() = 0;
+	virtual float getWhiteBalanceRed() = 0;
+	virtual void setWhiteBalance(WhiteBalanceType type, float blue, float red) = 0;
 };
 
 
