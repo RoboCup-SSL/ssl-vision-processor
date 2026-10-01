@@ -16,8 +16,12 @@
 #include "cameradriver.h"
 
 #include "driver/opencvdriver.h"
+#ifdef SPINNAKER
 #include "driver/spinnakerdriver.h"
+#endif
+#ifdef MVIMPACT
 #include "driver/mvimpactdriver.h"
+#endif
 
 #include <yaml-cpp/yaml.h>
 
@@ -85,6 +89,5 @@ std::unique_ptr<CameraDriver> openCamera(const CameraConfig& config) {
 	if(config.driverType == "OPENCV")
 		return std::make_unique<OpenCVDriver>(config);
 
-	std::cerr << "[Resources] Unknown camera/image driver defined: " << config.driverType << std::endl;
-	exit(1);
+	FATAL("Unknown camera/image driver defined: " << config.driverType);
 }

@@ -1,5 +1,5 @@
 /*
-     Copyright 2024 Felix Weinmann
+     Copyright 2026 Felix Weinmann
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -14,13 +14,8 @@
      limitations under the License.
  */
 #pragma once
+#include <iostream>
 
-#include <string>
-#include <vector>
-
-#include "proto/vision/ssl_vision_detection.pb.h"
-
-
-std::vector<SSL_DetectionFrame> parseGroundTruth(const std::string& source);
-const SSL_DetectionFrame& getCorrespondingFrame(const std::vector<SSL_DetectionFrame>& groundTruth, uint32_t frameId);
-
+#define LOG(data) std::cout << "[" << __FILE__ << ":" << __LINE__ << "] " << data << std::endl
+#define WARN(data) std::cerr << "[" << __FILE__ << ":" << __LINE__ << "] " << data << std::endl
+#define FATAL(data) { WARN(data); exit(1); }

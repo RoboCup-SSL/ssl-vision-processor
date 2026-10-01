@@ -14,13 +14,13 @@
      limitations under the License.
  */
 #include <csignal>
-#include <iostream>
+#include "log.h"
 #include <opencv2/bgsegm.hpp>
 #include <yaml-cpp/yaml.h>
 
 #include "CameraModel.h"
-#include "proto/ssl_vision_geometry.pb.h"
-#include "proto/ssl_vision_wrapper.pb.h"
+#include "proto/vision/ssl_vision_geometry.pb.h"
+#include "proto/vision/ssl_vision_wrapper.pb.h"
 #include "Resources.h"
 #include "calib/GeomModel.h"
 #include "pattern.h"
@@ -164,8 +164,8 @@ void filterStddevScore(std::list<std::unique_ptr<T>>& bots, float threshold) {
 
 static inline bool closerThanCamEdgeDistance(const Resources& r, const Eigen::Vector2f& pos, const Eigen::Vector2f& border) {
 	const SSL_GeometryFieldSize& field = r.perspective->field;
-	const float halfFieldLength = field.field_length()/2 + goalBoundaryWidth(field);
-	const float halfFieldWidth = field.field_width()/2 + field.boundary_width();
+	const float halfFieldLength = field.field_length()/2.0f + goalBoundaryWidth(field);
+	const float halfFieldWidth = field.field_width()/2.0f + field.boundary_width();
 
 	Eigen::Vector2f borderPos = r.perspective->model.image2field(border, (float)r.gcSocket->maxBotHeight).head<2>();
 
@@ -313,7 +313,7 @@ int main(int argc, char* argv[]) {
 				}
 
 				if(counterMap[0] > r.maxBlobs)
-					std::cerr << "[main] max blob amount reached: " << counterMap[0] << "/" << r.maxBlobs << std::endl;
+					WARN("max blob amount reached: " << counterMap[0] << "/" << r.maxBlobs);
 			}
 
 			std::list<std::unique_ptr<BotHypothesis>> botHypotheses;
@@ -362,7 +362,7 @@ int main(int argc, char* argv[]) {
 
 #if BENCHMARK
 			detection->set_t_sent(startTime + processingTime);
-			std::cout << "[main] time " << processingTime * 1000.0 << " ms " << matches.size() << " blobs " << detection->balls().size() << " balls " << (detection->robots_yellow_size() + detection->robots_blue_size()) << " bots" << std::endl;
+			LOG("time " << processingTime * 1000.0 << " ms " << matches.size() << " blobs " << detection->balls().size() << " balls " << (detection->robots_yellow_size() + detection->robots_blue_size()) << " bots");
 			r.openCl->printRuntimes();
 #else
 			detection->set_t_sent(r.camera->getTime());
@@ -372,7 +372,7 @@ int main(int argc, char* argv[]) {
 			r.openCl->clearEvents();
 
 			if(processingTime > r.camera->expectedFrametime())
-				std::cout << "[main] frame time overrun: " << processingTime * 1000.0 << " ms " << matches.size() << " blobs " << detection->balls().size() << " balls " << (detection->robots_yellow_size() + detection->robots_blue_size()) << " bots" << std::endl;
+				LOG("frame time overrun: " << processingTime * 1000.0 << " ms " << matches.size() << " blobs " << detection->balls().size() << " balls " << (detection->robots_yellow_size() + detection->robots_blue_size()) << " bots");
 
 			if(r.rawFeed) {
 				r.streamQuad(channels);
@@ -417,11 +417,11 @@ int main(int argc, char* argv[]) {
 				r.snapshotWriter->offer(r.quad2rgba(channels), "img/" + std::to_string(r.camId) + ".raw.jpg");
 				lastDebugSaveTime = realStartTime;
 				if(frameId == 100)
-					std::cout << "[main] Saved sample image" << std::endl;
+					LOG("Saved sample image");
 			}
 		}
 	}
 
-	std::cout << "Stopping vision_processor" << std::endl;
+	LOG("Stopping vision_processor");
 	return 0;
 }
