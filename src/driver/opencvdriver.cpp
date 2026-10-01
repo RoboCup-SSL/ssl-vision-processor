@@ -14,6 +14,8 @@
      limitations under the License.
  */
 #include "opencvdriver.h"
+#include "driver/cameradriver.h"
+#include <opencv2/videoio.hpp>
 
 OpenCVDriver::OpenCVDriver(const CameraConfig& config): capture(config.path, cv::CAP_ANY, {cv::CAP_PROP_HW_ACCELERATION, cv::VIDEO_ACCELERATION_ANY}), name(config.path) {
 	std::replace(name.begin(), name.end(), '/', '_');
@@ -86,4 +88,77 @@ double OpenCVDriver::getTime() {
 		return getRealTime();
 
 	return pos / capture.get(cv::CAP_PROP_FPS);
+}
+
+uint32_t OpenCVDriver::getWidth() {
+    return (uint32_t)capture.get(cv::CAP_PROP_FRAME_WIDTH);
+}
+
+uint32_t OpenCVDriver::getHeight() {
+    return (uint32_t)capture.get(cv::CAP_PROP_FRAME_HEIGHT);
+}
+
+void OpenCVDriver::setResolution(uint32_t width, uint32_t height) {
+	capture.set(cv::CAP_PROP_FRAME_WIDTH, width);
+	capture.set(cv::CAP_PROP_FRAME_HEIGHT, height);
+}
+
+float OpenCVDriver::getExposure() {
+	if(capture.get(cv::CAP_PROP_AUTO_EXPOSURE) == 1.0) {
+		return 0.0f;
+	} else {
+    	return (float)capture.get(cv::CAP_PROP_EXPOSURE) / 1000.0f;
+	}
+}
+
+void OpenCVDriver::setExposure(float exposure) {
+	if(exposure == 0.0f) {
+		capture.set(cv::CAP_PROP_AUTO_EXPOSURE, 1.0);
+		return;
+	} else {
+		capture.set(cv::CAP_PROP_AUTO_EXPOSURE, 0.0);
+		capture.set(cv::CAP_PROP_EXPOSURE, exposure * 1000.0);
+	}
+}
+
+float OpenCVDriver::getGain() {
+    return (float)capture.get(cv::CAP_PROP_GAIN);
+}
+
+void OpenCVDriver::setGain(float gain) {
+	capture.set(cv::CAP_PROP_GAIN, gain);
+}
+
+float OpenCVDriver::getGamma() {
+    return (float)capture.get(cv::CAP_PROP_GAMMA);
+}
+
+void OpenCVDriver::setGamma(float gamma) {
+	capture.set(cv::CAP_PROP_GAMMA, gamma);
+}
+
+WhiteBalanceType OpenCVDriver::getWhiteBalanceType() {
+	if(capture.get(cv::CAP_PROP_AUTO_WB) == 1.0) {
+		return WhiteBalanceType::WhiteBalanceType_AutoOutdoor;
+	} else {
+    	return WhiteBalanceType::WhiteBalanceType_Manual;
+	}
+}
+
+float OpenCVDriver::getWhiteBalanceBlue() {
+    return (float)capture.get(cv::CAP_PROP_WHITE_BALANCE_BLUE_U);
+}
+
+float OpenCVDriver::getWhiteBalanceRed() {
+    return (float)capture.get(cv::CAP_PROP_WHITE_BALANCE_RED_V);
+}
+
+void OpenCVDriver::setWhiteBalance(WhiteBalanceType type, float blue, float red) {
+	if(type != WhiteBalanceType::WhiteBalanceType_Manual) {
+		capture.set(cv::CAP_PROP_AUTO_WB, 1.0);
+	} else {
+		capture.set(cv::CAP_PROP_AUTO_WB, 0.0);
+		capture.set(cv::CAP_PROP_WHITE_BALANCE_BLUE_U, blue);
+		capture.set(cv::CAP_PROP_WHITE_BALANCE_RED_V, red);
+	}
 }

@@ -27,13 +27,13 @@ uint32_t DummyDriver::getHeight() {
 void DummyDriver::setResolution(uint32_t width, uint32_t height) {}
 
 float DummyDriver::getExposure() {
-    return 1.0f;
+    return 0.0f;
 }
 
 void DummyDriver::setExposure(float exposure) {}
 
 float DummyDriver::getGain() {
-    return 1.0f;
+    return 0.0f;
 }
 
 void DummyDriver::setGain(float gain) {}
@@ -45,7 +45,7 @@ float DummyDriver::getGamma() {
 void DummyDriver::setGamma(float gamma) {}
 
 WhiteBalanceType DummyDriver::getWhiteBalanceType() {
-    return WhiteBalanceType::WhiteBalanceType_Manual;
+    return WhiteBalanceType::WhiteBalanceType_AutoOutdoor;
 }
 
 float DummyDriver::getWhiteBalanceBlue() {
@@ -55,3 +55,5 @@ float DummyDriver::getWhiteBalanceBlue() {
 float DummyDriver::getWhiteBalanceRed() {
     return 1.0f;
 }
+
+void DummyDriver::setWhiteBalance(WhiteBalanceType type, float blue, float red) {}
