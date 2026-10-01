@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+/*
+Required for flowbite-svelte, confirmed against the library's own app.css
+(github.com/themesberg/flowbite-svelte/blob/main/src/app.css):
+
+- @plugin/@custom-variant register the plugin and dark-mode variant its
+  components' classes assume.
+- @source is the one that actually mattered for the reported symptoms
+  (unrounded corners, unpadded buttons, a Stepper that never visibly
+  updated): Tailwind v4 only scans this project's own source by default, not
+  node_modules, so classes referenced only inside flowbite-svelte's compiled
+  .svelte templates (rounded-lg, px-5 py-2.5, the Stepper's active/complete
+  styling, ...) never had CSS generated for them at all.
+*/
+@plugin "flowbite/plugin";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+Also required, confirmed against flowbite-svelte's own "Colors" doc page
+(flowbite-svelte.com/docs/pages/colors): a default-colored Button (no `color`
+prop, e.g. the wizard's Next/Save buttons) renders `bg-primary-700` etc. with
+no fallback. Without these tokens defined, `--color-primary-700` is an
+undefined custom property, so the background resolves to fully transparent --
+a real, invisible button, confirmed live (white text on a transparent
+background, sitting on the modal's own white body). These are their
+documented default values, not a deliberate brand choice on this project's
+part.
+*/
+@theme {
+  --color-primary-50: #fff5f2;
+  --color-primary-100: #fff1ee;
+  --color-primary-200: #ffe4de;
+  --color-primary-300: #ffd5cc;
+  --color-primary-400: #ffbcad;
+  --color-primary-500: #fe795d;
+  --color-primary-600: #ef562f;
+  --color-primary-700: #eb4f27;
+  --color-primary-800: #cc4522;
+  --color-primary-900: #a5371b;
+
+  --color-secondary-50: #f0f9ff;
+  --color-secondary-100: #e0f2fe;
+  --color-secondary-200: #bae6fd;
+  --color-secondary-300: #7dd3fc;
+  --color-secondary-400: #38bdf8;
+  --color-secondary-500: #0ea5e9;
+  --color-secondary-600: #0284c7;
+  --color-secondary-700: #0369a1;
+  --color-secondary-800: #075985;
+  --color-secondary-900: #0c4a6e;
+}
+
+@source "../node_modules/flowbite-svelte/dist";
+
+/*
+Tailwind's preflight (pulled in by @import "tailwindcss" above) zeroes every
+element's margin/padding/border and strips native button/select chrome
+(background, border) globally -- normal for a project that styles everything
+with utility classes, but this one predates Tailwind: FieldEditor.svelte and
+friends are still plain hand-written <style> blocks that assumed the browser's
+own defaults (a fieldset's padding, a <button>'s background/border) were still
+there. Confirmed live: a plain <button> like FieldEditor's Save/Save As/Load
+rendered with padding:0, border:0, and a transparent background -- effectively
+invisible, not just unstyled.
+
+@layer base, not a bare rule: keeps these behind Tailwind's own utility layer
+in the cascade, so any flowbite-svelte or utility-class-based button/fieldset
+(the wizard's, mainly) still wins regardless of selector specificity.
+*/
+@layer base {
+  button {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #f3f4f6;
+    cursor: pointer;
+  }
+
+  button:hover:not(:disabled) {
+    background: #e5e7eb;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  fieldset {
+    padding: 0.75rem 1rem;
+  }
+
+  legend {
+    padding: 0 0.4rem;
+  }
+}

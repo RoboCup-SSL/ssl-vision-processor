@@ -3,7 +3,9 @@
 /src/cl_kernels.S
 /src/proto
 /python/proto
-/wrapper_backend/proto
+/gui/internal/vision
+/gui/internal/gamecontroller
+/gui/frontend/src/proto
 __pycache__
 
 # Cam viewer
@@ -12,11 +14,35 @@ __pycache__
 # Debug and test image directories
 /img
 /test-data
+*.log
+
+# Device/venue-specific configs -- only the reference templates below are
+# tracked. Anything else matching config*.yml/geometry*.yml at the repo root
+# (config-camtest.yml, a real venue's calibration, ...) is a personal/local
+# working file per the README's config[X].yml/geometry[X].yml convention, not
+# shipped source -- `git add -A` has swept these in by accident before.
+/config*.yml
+/geometry*.yml
+!/config.yml
+!/config-minimal.yml
+!/geometry-divA.yml
+!/geometry-divB.yml
+
+# gui/'s own working copies of the above, bootstrapped from geometry-divB.yml
+# / vision_processor's own config.yml default -- same reasoning.
+/gui/config.yml
+/gui/geometry.yml
 
 #Output binaries
 vision_processor
 blob_benchmark
 geometry_benchmark
+/gui/bin
+/gui/ssl-vision-processor-gui
+
+# Makefile sentinels for the frontend build and protobuf codegen
+/gui/.frontend
+/gui/.proto
 
 #CMake files
 /build

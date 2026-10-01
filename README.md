@@ -12,12 +12,12 @@ The geometry publisher `geom_publisher.py` publishes the field geometry
 for all vision_processors, teams and the game controller.
 `cam_viewer.py` opens the `mpv` video player with the camera streams from the vision_processor instances.
 
-## Wrapper
+## GUI
 
-A modular replacement for `geom_publisher.py` plus a browser UI:
+A Go host plus a browser UI, replacing `geom_publisher.py` for anyone running it:
 
-- `wrapper_backend/` — async Python (uv-managed). Owns the field geometry, absorbs incoming calibrations, exposes the bus over WebSocket. Run with `./start_wrapper.sh` (defaults to `geometry-divB.yml`). See [`wrapper_backend/README.md`](wrapper_backend/README.md).
-- `wrapper-frontend/` — Svelte 5 + TypeScript + Vite. Connects to the backend's WebSocket and renders the operator UI. Run with `cd wrapper-frontend && npm install && npm run dev`. See [`wrapper-frontend/README.md`](wrapper-frontend/README.md).
+- `gui/` — Go host (`cmd/ssl-vision-processor-gui`). Owns the field geometry, absorbs calibrations from vision processors over multicast, and serves the embedded frontend, JSON API, a WebSocket for live updates, and debug snapshot images all on one port. Run with `cd gui && make run` (defaults to `geometry-divB.yml`). See [`gui/README.md`](gui/README.md) for development and [`gui/ARCHITECTURE.md`](gui/ARCHITECTURE.md) for its design.
+- `gui/frontend/` — Svelte 5 + TypeScript + Vite, embedded into the Go binary. Run standalone with `cd gui && make proto && cd frontend && npm install && npm run dev` (proxies `/api` and `/ws` to the Go host), or serve it from the Go host directly with `make run`. `make proto` regenerates the protobuf bindings the frontend imports (not committed to git; needs `buf`, or use `nix develop`, see [`gui/CLAUDE.md`](gui/CLAUDE.md)) and only needs to be rerun after the `proto/` submodule changes. See [`gui/frontend/README.md`](gui/frontend/README.md).
 
 ## Dependency installation and compilation
 
@@ -84,6 +84,12 @@ Installation with PIP: `pip install protobuf pyyaml`
    The calibration is successful when the reprojected livestream views are parallel to the image frame.
    If the calibration is unsuccessful, restart the geom_publisher for a new geometry calibration.
    For setups with multiple cameras it is recommended to tune the calibration by hand.
+
+Your own `config[X].yml`/`geometry[X].yml` files (camera or venue specific) are gitignored by
+default and won't be committed. Only the reference templates -- `config.yml`, `config-minimal.yml`,
+`geometry-divA.yml`, `geometry-divB.yml` -- are tracked; `gui/config.yml` and `gui/geometry.yml`
+(the GUI's own working copies, bootstrapped from these) are gitignored the same way. If you need to
+track a variant anyway, `git add -f` it.
 
 
 ## Troubleshooting

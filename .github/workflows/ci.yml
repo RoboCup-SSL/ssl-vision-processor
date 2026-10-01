@@ -34,10 +34,14 @@ jobs:
             make -C build -j"$(nproc)" vision_processor geometry_benchmark blob_benchmark
           '
 
-  python:
-    name: Python (wrapper_backend)
+  gui-go:
+    name: Go (gui)
     runs-on: ubuntu-latest
     steps:
+      # gui/internal/{vision,gamecontroller} are generated, not committed (see
+      # gui/buf.gen.yaml) -- the proto/ submodule and a `buf generate` (via
+      # `make .proto`, local plugins, no network needed) are needed before
+      # anything here builds.
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -45,40 +49,35 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      # Importing wrapper_backend runs protoc against the submodule and
-      # generates wrapper_backend/proto/, which mypy needs on its path even
-      # though it excludes the generated files themselves.
-      - name: Lint and type check
+      - name: Format, vet, build, test
         run: |
           nix develop --command bash -c '
-            uv sync --locked
-            uv run python -c "import wrapper_backend"
-            uv run ruff check wrapper_backend/
-            uv run ruff format --check wrapper_backend/
-            uv run mypy
+            cd gui
+            make .proto
+            test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+            make vet
+            make build
+            make go-test
           '
 
   frontend:
-    name: Frontend (wrapper-frontend)
+    name: Frontend (gui/frontend)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: wrapper-frontend
     steps:
+      # frontend/src/proto is generated, not committed (see gui/buf.gen.yaml)
+      # -- this job now needs the proto/ submodule and buf/go (hence nix,
+      # same as gui-go) to produce it before npm can build against it.
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: wrapper-frontend/package-lock.json
+          submodules: recursive
 
-      - run: npm ci
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - run: npm run lint
-
-      - run: npm run format:check
-
-      - run: npm run check
-
-      - run: npm run build
+      - name: Lint, check, build
+        run: |
+          nix develop --command bash -c '
+            cd gui
+            make frontend-test
+            make frontend
+          '
