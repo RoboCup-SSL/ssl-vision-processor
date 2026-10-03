@@ -5,41 +5,54 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 )
 
-func TestBootstrapGeometryFileSeedsFromPreset(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "geometry.yml")
+func TestBootstrapConfigImportsLegacyFiles(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vision.yml")
 
-	if err := bootstrapGeometryFile(path, "testdata/geometry.yml"); err != nil {
-		t.Fatalf("bootstrapGeometryFile: %v", err)
+	if err := bootstrapConfig(path, "testdata/geometry.yml", "testdata/config.yml", "missing-preset.yml"); err != nil {
+		t.Fatalf("bootstrapConfig: %v", err)
 	}
 
-	got, err := os.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
 
-	want, err := os.ReadFile("testdata/geometry.yml")
+	doc, err := config.Parse(data)
 	if err != nil {
-		t.Fatalf("ReadFile preset: %v", err)
+		t.Fatalf("bootstrapped file doesn't parse: %v", err)
 	}
 
-	if string(got) != string(want) {
-		t.Error("bootstrapped file does not match the preset byte-for-byte")
+	if len(doc.Cameras) != 1 || doc.Cameras[0].ConfigPath != "testdata/config.yml" || doc.Cameras[0].Seed == nil {
+		t.Fatalf("cameras = %+v, want the legacy config imported as camera with its corners", doc.Cameras)
 	}
 }
 
-func TestBootstrapGeometryFileLeavesExistingFileAlone(t *testing.T) {
+func TestBootstrapConfigFallsBackToThePreset(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "geometry.yml")
+	path := filepath.Join(dir, "vision.yml")
+
+	if err := bootstrapConfig(path, filepath.Join(dir, "none.yml"), filepath.Join(dir, "none.yml"), "testdata/geometry.yml"); err != nil {
+		t.Fatalf("bootstrapConfig: %v", err)
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("no file created: %v", err)
+	}
+}
+
+func TestBootstrapConfigLeavesExistingFileAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vision.yml")
 
 	if err := os.WriteFile(path, []byte("already here"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	if err := bootstrapGeometryFile(path, "testdata/geometry.yml"); err != nil {
-		t.Fatalf("bootstrapGeometryFile: %v", err)
+	if err := bootstrapConfig(path, "testdata/geometry.yml", "", "testdata/geometry.yml"); err != nil {
+		t.Fatalf("bootstrapConfig: %v", err)
 	}
 
 	got, err := os.ReadFile(path)

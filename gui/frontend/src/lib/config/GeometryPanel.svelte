@@ -2,6 +2,7 @@
   import type { ConfigCategory } from "../layout/configCategories";
   import type { VisionInstance } from "../layout/nav.svelte";
   import CornerPicker from "../CornerPicker.svelte";
+  import CalibrationCard from "./CalibrationCard.svelte";
   import ConfigFieldList from "./ConfigFieldList.svelte";
 
   interface Props {
@@ -18,17 +19,26 @@
   {#if instance}
     <p class="hint">
       {instance.host} / cam {instance.cameraId}. The numeric settings below
-      (config.yml's <code>geometry:</code> block) aren't wired to a backend yet; the
-      corner picker further down already is (writes to this host's configured config.yml
-      automatically).
+      (config.yml's <code>geometry:</code> block) aren't editable here yet; the calibration
+      and corner picker are, and apply live.
     </p>
   {:else}
     <p class="hint">Select a vision processor on the left first.</p>
   {/if}
 
+  {#if instance}
+    {#key instance.cameraId}
+      <CalibrationCard cameraId={instance.cameraId} />
+    {/key}
+  {/if}
+
   <ConfigFieldList fields={category.fields} />
 
-  <CornerPicker />
+  {#if instance}
+    {#key instance.cameraId}
+      <CornerPicker cameraId={instance.cameraId} />
+    {/key}
+  {/if}
 </section>
 
 <style>

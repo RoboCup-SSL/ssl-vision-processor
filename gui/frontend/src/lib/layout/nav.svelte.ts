@@ -2,38 +2,38 @@
 // instance and which config category are selected. A module-level $state
 // object, per the project convention (see CLAUDE.md).
 import { CONFIG_CATEGORIES, type ConfigCategory } from "./configCategories";
+import { config } from "../config.svelte";
 
-// One row in the instance list: a single camera role on a single host, not a
-// machine. A host running all 4 cameras of a quad setup appears as 4 rows
-// sharing the same host, one per camera_id -- see the note in App.svelte
-// about internal/discovery not existing yet.
+// One row in the instance list: a single camera role, keyed by camera_id (its
+// position on the field) -- a host running all 4 cameras of a quad setup
+// appears as 4 rows. Comes from vision.yml's cameras list.
 export interface VisionInstance {
   id: string;
   host: string;
   cameraId: number;
 }
 
-// TODO(discovery): mock data. Replace with instances built from SSL_VPConfig
-// announces once internal/discovery exists (see gui/CLAUDE.md's "Not yet
-// built"). Kept non-empty so the panel has something to click while that's
-// unbuilt, rather than looking broken.
-const MOCK_INSTANCES: VisionInstance[] = [
-  { id: "camtest:0", host: "camtest-host", cameraId: 0 },
-  { id: "camtest:1", host: "camtest-host", cameraId: 1 },
-];
-
 export const nav = $state<{
-  instances: VisionInstance[];
   selectedInstanceId: string | null;
   selectedCategoryId: string;
 }>({
-  instances: MOCK_INSTANCES,
-  selectedInstanceId: MOCK_INSTANCES[0]?.id ?? null,
+  selectedInstanceId: null,
   selectedCategoryId: "field",
 });
 
+export function instances(): VisionInstance[] {
+  return (config.doc?.cameras ?? []).map((c) => ({
+    id: `cam:${String(c.cameraId)}`,
+    host: c.instance ?? "",
+    cameraId: c.cameraId,
+  }));
+}
+
+// The selected camera, or the first one until something's been picked.
 export function selectedInstance(): VisionInstance | undefined {
-  return nav.instances.find((i) => i.id === nav.selectedInstanceId);
+  const all = instances();
+
+  return all.find((i) => i.id === nav.selectedInstanceId) ?? all[0];
 }
 
 export function selectedCategory(): ConfigCategory {

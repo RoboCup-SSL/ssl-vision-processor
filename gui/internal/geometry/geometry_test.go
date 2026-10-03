@@ -2,8 +2,6 @@ package geometry
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -12,24 +10,16 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// testGeometry loads a *copy* of the fixture into a temp dir, never the
-// checked-in testdata/geometry.yml directly -- UpdateField writes back to
-// whatever path it was loaded from, and a test calling it against the shared
-// fixture would silently rewrite a tracked file on every run.
+// testGeometry builds a Geometry from the fixture's field template.
 func testGeometry(t *testing.T) *Geometry {
 	t.Helper()
 
-	src, err := os.ReadFile("testdata/geometry.yml")
+	field, optional, models, err := LoadFieldFile("testdata/geometry.yml")
 	if err != nil {
-		t.Fatalf("ReadFile fixture: %v", err)
+		t.Fatalf("LoadFieldFile: %v", err)
 	}
 
-	path := filepath.Join(t.TempDir(), "geometry.yml")
-	if err := os.WriteFile(path, src, 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	g, err := New(path)
+	g, err := New(field, optional, models)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -167,6 +157,76 @@ func TestConcurrentAbsorbAndRead(t *testing.T) {
 
 	if got := len(g.Snapshot().GetGeometry().GetCalib()); got != 8 {
 		t.Fatalf("calib count = %d, want 8", got)
+	}
+}
+
+func TestLockedCalibrationOverridesAbsorbed(t *testing.T) {
+	g := testGeometry(t)
+
+	if err := g.SetLocked(map[uint32]*vision.SSL_GeometryCameraCalibration{0: calib(0, 300)}); err != nil {
+		t.Fatalf("SetLocked: %v", err)
+	}
+
+	g.Absorb(&vision.SSL_GeometryData{Calib: []*vision.SSL_GeometryCameraCalibration{calib(0, 400)}})
+
+	got := g.Snapshot().GetGeometry().GetCalib()
+	if len(got) != 1 || got[0].GetFocalLength() != 300 {
+		t.Fatalf("published calib = %v, want the locked one (300)", got)
+	}
+
+	if live := g.LiveCalibration(0); live == nil || live.GetFocalLength() != 400 {
+		t.Fatalf("LiveCalibration = %v, want the absorbed one (400)", live)
+	}
+}
+
+func TestPublishedCalibrationsAreOrderedByCameraID(t *testing.T) {
+	g := testGeometry(t)
+
+	g.Absorb(&vision.SSL_GeometryData{Calib: []*vision.SSL_GeometryCameraCalibration{calib(2, 400)}})
+
+	if err := g.SetLocked(map[uint32]*vision.SSL_GeometryCameraCalibration{1: calib(1, 300)}); err != nil {
+		t.Fatalf("SetLocked: %v", err)
+	}
+
+	g.Absorb(&vision.SSL_GeometryData{Calib: []*vision.SSL_GeometryCameraCalibration{calib(0, 500)}})
+
+	got := g.Snapshot().GetGeometry().GetCalib()
+	for i, c := range got {
+		if c.GetCameraId() != uint32(i) {
+			t.Fatalf("calib order = %v, want camera ids 0, 1, 2", got)
+		}
+	}
+}
+
+func TestUnlockWithholdsTheCamerasCalibration(t *testing.T) {
+	g := testGeometry(t)
+
+	if err := g.SetLocked(map[uint32]*vision.SSL_GeometryCameraCalibration{0: calib(0, 300)}); err != nil {
+		t.Fatalf("SetLocked: %v", err)
+	}
+
+	g.Absorb(&vision.SSL_GeometryData{Calib: []*vision.SSL_GeometryCameraCalibration{calib(0, 400), calib(1, 410)}})
+
+	if err := g.Unlock(0); err != nil {
+		t.Fatalf("Unlock: %v", err)
+	}
+
+	got := g.Snapshot().GetGeometry().GetCalib()
+	if len(got) != 1 || got[0].GetCameraId() != 1 {
+		t.Fatalf("published calib = %v, want only camera 1", got)
+	}
+
+	if live := g.LiveCalibration(0); live != nil {
+		t.Fatalf("LiveCalibration(0) = %v, want nil after Unlock", live)
+	}
+}
+
+func TestSetLockedRejectsAnIncompleteCalibration(t *testing.T) {
+	g := testGeometry(t)
+
+	incomplete := &vision.SSL_GeometryCameraCalibration{CameraId: proto.Uint32(0)}
+	if err := g.SetLocked(map[uint32]*vision.SSL_GeometryCameraCalibration{0: incomplete}); err == nil {
+		t.Fatal("SetLocked accepted an incomplete calibration")
 	}
 }
 

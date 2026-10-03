@@ -580,6 +580,8 @@
   <div class="plane-row">
     <div
       class="plane"
+      role="application"
+      aria-label="YUV reference plane"
       bind:this={containerEl}
       onpointerdown={startPlaneDrag}
       onpointermove={onPlaneDrag}
@@ -602,7 +604,10 @@
             style:top={`${String(vToScreenFraction(m.yuv.v) * 100)}%`}
             style:background={rgbToCss(CANONICAL_COLORS[m.cls])}
             title={`${CLASS_LABELS[m.cls]} reference`}
-            onpointerdown={(e) => selectMarkerClass(m.cls, e)}
+            role="presentation"
+            onpointerdown={(e) => {
+              selectMarkerClass(m.cls, e);
+            }}
           >
             {CLASS_LETTERS[m.cls]}
           </div>
@@ -681,7 +686,12 @@
         ></div>
 
         <div class="restore-buttons">
-          <Button size="xs" color="light" outline onclick={restoreSelectedColor}>
+          <Button
+            size="xs"
+            color="light"
+            outline
+            onclick={restoreSelectedColor}
+          >
             Restore selected color
           </Button>
           <Button
@@ -711,13 +721,20 @@
     </div>
   </div>
 
-  <Modal title="Restore all colors?" bind:open={showRestoreAllConfirm} size="xs">
+  <Modal
+    title="Restore all colors?"
+    bind:open={showRestoreAllConfirm}
+    size="xs"
+  >
     <p>
       Resets all six reference colors to their defaults. Undo can step back
       through them one color at a time.
     </p>
     {#snippet footer()}
-      <Button color="alternative" onclick={() => (showRestoreAllConfirm = false)}>
+      <Button
+        color="alternative"
+        onclick={() => (showRestoreAllConfirm = false)}
+      >
         Cancel
       </Button>
       <Button color="red" onclick={confirmRestoreAllColors}>Restore all</Button>

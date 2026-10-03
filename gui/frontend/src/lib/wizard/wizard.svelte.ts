@@ -4,15 +4,15 @@
 // dimension fields are even worth asking about (a field with no penalty box
 // has no penalty box depth/width to enter). See WizardDimensions.svelte.
 // There's no dedicated save step: finish is a summary/confirm gate, and
-// confirming there is what copies `draft` into the live virtualField state
-// (see finishWizard below) -- persisting that to disk stays the normal
-// Save/Save As action in the main Virtual Field panel.
-import {
-  virtualField,
-  type FieldConfig,
-  type OptionalFieldLines,
-  type FieldPreset,
+// confirming there is what copies `draft` into the host's working document
+// (see finishWizard below), where it applies live -- persisting it to disk is
+// the normal Save in the settings menu.
+import type {
+  FieldConfig,
+  OptionalFieldLines,
+  FieldPreset,
 } from "../geometry.svelte";
+import { config } from "../config.svelte";
 
 export const WIZARD_STEPS = [
   "start",
@@ -34,9 +34,9 @@ export const wizard = $state<{
   fieldLayout: "full" | "half";
   cameraCount: number;
   // A working copy the wizard's own steps read and write, kept separate from
-  // virtualField so an abandoned wizard (closed without reaching Finish)
+  // config.doc so an abandoned wizard (closed without reaching Finish)
   // never leaves a half-entered field applied to the live editor/webpage.
-  // Only finishWizard() below copies this into virtualField.
+  // Only finishWizard() below copies this into config.doc.
   draft: { field: FieldConfig; optionalFieldLines: OptionalFieldLines };
 }>({
   open: false,
@@ -60,13 +60,15 @@ export function openWizard(): void {
   wizard.cameraCount = 1;
   // Seed from the current live field, not blank -- reopening the wizard to
   // adjust an already-configured field should start from what's there.
-  // $state.snapshot, not structuredClone: virtualField.field is itself a
-  // $state proxy, and structuredClone throws ("Proxy object could not be
-  // cloned") on one directly -- snapshot first to get a plain object.
-  wizard.draft.field = $state.snapshot(virtualField.field);
-  wizard.draft.optionalFieldLines = $state.snapshot(
-    virtualField.optionalFieldLines,
-  );
+  // $state.snapshot, not structuredClone: config.doc is a $state proxy, and
+  // structuredClone throws ("Proxy object could not be cloned") on one
+  // directly -- snapshot first to get a plain object.
+  if (config.doc) {
+    wizard.draft.field = $state.snapshot(config.doc.field);
+    wizard.draft.optionalFieldLines = $state.snapshot(
+      config.doc.optionalFieldLines,
+    );
+  }
   wizard.open = true;
 }
 
@@ -75,7 +77,7 @@ export function goToStep(step: WizardStep): void {
 }
 
 // The Division A/B short-circuit: loads the preset into the draft (not
-// virtualField directly) and skips straight past layout/optional lines/
+// config.doc directly) and skips straight past layout/optional lines/
 // dimensions, since a preset already supplies all three.
 export function applyPresetToDraft(preset: FieldPreset): void {
   wizard.draft.field = $state.snapshot(preset.field);
@@ -86,15 +88,16 @@ export function skipToFinish(): void {
   wizard.step = "finish";
 }
 
-// Only place the draft ever reaches virtualField: called from Finish's
-// confirm action. Marks dirty so the main panel's own Save/Save As (unchanged)
-// is what actually persists it.
+// Only place the draft ever reaches config.doc: called from Finish's confirm
+// action. It applies live from there; Save persists it.
 export function finishWizard(): void {
-  virtualField.field = $state.snapshot(wizard.draft.field);
-  virtualField.optionalFieldLines = $state.snapshot(
-    wizard.draft.optionalFieldLines,
-  );
-  virtualField.dirty = true;
+  if (config.doc) {
+    config.doc.field = $state.snapshot(wizard.draft.field);
+    config.doc.optionalFieldLines = $state.snapshot(
+      wizard.draft.optionalFieldLines,
+    );
+  }
+
   wizard.open = false;
 }
 

@@ -1,6 +1,26 @@
 <script lang="ts">
-  import { nav } from "./nav.svelte";
+  import { nav, selectedInstance } from "./nav.svelte";
   import { CONFIG_CATEGORIES, TAB_CATEGORY_IDS } from "./configCategories";
+  import { changesFor, type Section } from "../config.svelte";
+
+  // Tab id -> which section of unsaved changes marks it dirty. Shared
+  // sections (the field) count regardless of camera; per-camera ones only for
+  // the selected camera.
+  const TAB_SECTIONS: Record<string, Section> = {
+    field: "field",
+    geometry: "geometry",
+    color: "color",
+  };
+
+  function isDirty(tabId: string): boolean {
+    const section = TAB_SECTIONS[tabId];
+    if (!section) return false;
+
+    const cameraId =
+      section === "field" ? undefined : selectedInstance()?.cameraId;
+
+    return changesFor(section, cameraId).length > 0;
+  }
 
   // Same source data as the sidebar (CONFIG_CATEGORIES), just a curated
   // subset in a fixed order -- both bind to nav.selectedCategoryId, so
@@ -25,7 +45,7 @@
         nav.selectedCategoryId = tab.id;
       }}
     >
-      {tab.label}
+      {tab.label}{isDirty(tab.id) ? "*" : ""}
     </button>
   {/each}
 </div>

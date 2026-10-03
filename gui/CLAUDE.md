@@ -14,7 +14,7 @@ which still import it directly — do not delete `geom_publisher.py`.
 All run from `gui/`.
 
 ```
-make run       # regenerate proto, build frontend, run the Go host on :8085
+make run       # regenerate proto, build frontend, run the Go host on :8085 (-config vision.yml)
 make test      # frontend check/lint/format + go test -race, all packages
 make install   # go install after a frontend build
 make proto     # regenerate internal/{vision,gamecontroller} and frontend/src/proto
@@ -39,7 +39,9 @@ cd frontend && npm run dev   # Vite HMR on :5173, proxies /api and /ws to :8085
 ```
 cmd/ssl-vision-processor-gui/   entry point: flags, wiring, HTTP server
 internal/
-  geometry/    field config + calibration merge + 1Hz publish loop
+  config/      vision.yml store: working/disk copies, save/load, locked
+               calibrations, disk watcher, generated config.yml files
+  geometry/    live field template + published calibrations + 1Hz publish loop
   multicast/   bridge to the SSL vision multicast group
   hub/         topic pub/sub + the /ws handler
   snapshot/    debug image listing/serving
@@ -113,16 +115,33 @@ filesystem.** This is unchanged from the Python `snapshot.py` it replaces and
 is a known limitation, not an oversight -- it does not work once vision
 processors run on other hosts. See "Not yet built."
 
-**`internal/geometry.WriteLineCorners` edits vision_processor's per-instance
-`config.yml` as text, not as decoded/re-encoded YAML.** That file ships full
-of comments and commented-out example values meant to be hand-read; a
-decode/re-encode round trip through `gopkg.in/yaml.v3` (confirmed while
-building this) drops comments elsewhere in the document and drifts
-indentation. A line-based splice around the `line_corners:` key touches
-nothing else. This is a stand-in for the not-yet-built `internal/config`
-(single, same-host instance, matching `-imgDir`'s assumption) -- see "Not yet
-built" -- kept in `internal/geometry` for now since the corner picker needed
-it working immediately; move it if/when `internal/config` exists.
+**`vision.yml` is the one host-owned config file; `internal/config.Store`
+holds a working copy and a disk copy.** Browser edits replace the working copy
+and apply live immediately (field to `Geometry`, locked calibrations to
+`Geometry.SetLocked`, regenerated `config.yml` for local cameras); Save writes
+the working copy to disk. The diff between the two is the "unsaved changes"
+list, and its section classification drives the tab asterisks. A 1Hz watcher
+records edits made outside the GUI so the browser can offer load-or-overwrite.
+Comments in `vision.yml` are not preserved on save; it's machine-written.
+
+**Calibrations are locked explicitly, never auto-persisted.** A camera's
+published calibration is its locked one, else the latest absorbed. A
+vision_processor only skips startup calibration if the packet holds a
+calibration for its camera_id, so publishing locked ones is what stops host or
+VP restarts from triggering recalibration. Unlock withholds the camera's
+calibration; a running VP keeps its model (no live recalibrate in the
+protocol), so it recalibrates on its next restart.
+
+**Each local camera's `config.yml` is generated, not edited.** It's the
+transport until vision_processor accepts config over the network:
+`defaults` deep-merged with the camera's `config`, plus derived `cam_id`,
+`camera_amount` (number of cameras) and `line_corners` (from the seed). This
+supersedes the old line-splice writers, which existed to preserve the file's
+comments -- irrelevant once the file is generated.
+
+**Numbers in free-form blocks are normalized** (integral floats to int). JSON
+from the browser makes every number a float64 and YAML makes integers ints;
+without this every edit diffs as `1920 -> 1920`.
 
 **buf reads the proto submodule directly**: `inputs: [{directory:
 ../proto/proto}]` in `buf.gen.yaml`. No vendored copy to drift. Generated
@@ -143,8 +162,7 @@ one stays committed: `dist/` is the frontend's actual build *output*, not
 codegen from a source of truth already in the tree, so there's nothing to
 regenerate it from without first running the build it's the output of.
 
-**Discovery is multicast-announce-based, config is host-owned** -- both
-still unimplemented; see below.
+**Discovery is multicast-announce-based** -- still unimplemented; see below.
 
 ## Gotchas
 
@@ -204,11 +222,12 @@ Not automated -- there is no CI hardware to run it on.
 
 - **`internal/discovery`** -- parsing `SSL_VPConfig` announces off multicast
   into an instance table. The C++ side does not emit these yet.
-- **`internal/config`** -- the host-owned config store and the diff-based
-  reprovision loop (push desired config to an instance when its announced
-  config doesn't match, rather than trying to detect death). Blocked on
-  discovery above and on a C++-side HTTP config-apply endpoint (another
-  contributor's work, not started).
+- **Config push / reprovision loop** -- `internal/config` exists as the
+  host-owned store, but delivery is still a regenerated local `config.yml`.
+  The diff-based reprovision loop (push desired config to an instance when its
+  announced config doesn't match) is blocked on discovery above and on a
+  C++-side config-apply endpoint (another contributor's work). That endpoint
+  should also carry a way to ask a running instance to recalibrate.
 - **Bootstrap identity.** `SSL_VPConfig.instance` is `required`, but the plan
   drops VP-local config files entirely. Nothing yet decides what a freshly
   started, unconfigured VP calls itself before it has ever been provisioned.

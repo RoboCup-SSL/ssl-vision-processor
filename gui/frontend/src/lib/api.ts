@@ -1,5 +1,5 @@
 // Shared fetch helpers, used by every module that owns request state
-// (geometry.svelte.ts, lineCorners.svelte.ts, App.svelte's snapshot poll):
+// (geometry.svelte.ts, App.svelte's snapshot poll):
 // the same "set a loading/saving flag, clear the error, run the request,
 // catch and format any failure, always clear the flag" and "throw the
 // backend's own error text on a non-2xx response" shapes were previously

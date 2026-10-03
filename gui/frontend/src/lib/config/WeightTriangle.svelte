@@ -314,6 +314,8 @@
     <svg
       bind:this={svgEl}
       viewBox="0 0 100 110"
+      role="application"
+      aria-label="Color weight triangle"
       onpointerdown={startDrag}
       onpointermove={onDrag}
       onpointerup={endDrag}

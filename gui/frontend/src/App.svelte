@@ -5,6 +5,7 @@
   import { nav, selectedCategory } from "./lib/layout/nav.svelte";
   import { requestJSON } from "./lib/api";
   import SetupWizard from "./lib/wizard/SetupWizard.svelte";
+  import { loadConfig } from "./lib/config.svelte";
 
   let subscribed = $state(false);
   let wrapperPacket = $state<Record<string, unknown> | null>(null);
@@ -64,6 +65,7 @@
   }
 
   onMount(() => {
+    void loadConfig();
     void refreshSnapshotList();
     const listId = setInterval(() => void refreshSnapshotList(), 5000);
     const imgId = setInterval(() => {

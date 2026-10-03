@@ -33,6 +33,11 @@ __pycache__
 /gui/config.yml
 /gui/geometry.yml
 
+# The GUI host's unified config (field, per-camera config, locked
+# calibrations) is venue-specific for the same reason.
+/vision*.yml
+/gui/vision*.yml
+
 #Output binaries
 vision_processor
 blob_benchmark

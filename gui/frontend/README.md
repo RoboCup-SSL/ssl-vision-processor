@@ -8,10 +8,12 @@ together. This document covers the frontend's own layout and scripts.
 The UI is organized as a two column shell: an instance list and config
 category nav on the left, the selected category's panel on the right. A tab
 bar above the panel gives quick access to the categories used most, Virtual
-Field, Geometry, and Color. Virtual Field edits the shared `geometry.yml`
-field template. Geometry embeds the corner picker, which lets an operator
-mark a calibration corner on a debug snapshot and save it into that
-instance's `config.yml`. Debug snapshots (via `GET /api/snapshots`) are only
+Field, Geometry, and Color. All three edit the host's `vision.yml` working
+copy, which applies live; Save in the settings menu writes it to disk, and a
+tab shows an asterisk while it has unsaved changes. Virtual Field edits the
+shared field. Geometry holds the selected camera's calibration lock and the
+corner picker, which marks calibration corners on a debug snapshot. Debug
+snapshots (via `GET /api/snapshots`) are only
 meaningful when the browser and the vision processor share a filesystem, see
 the root [README.md](../../README.md).
 

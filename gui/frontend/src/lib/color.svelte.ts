@@ -1,9 +1,8 @@
-// Shared state for the Color config tab, same pattern as lineCorners.svelte.ts:
-// a module-level $state object plus load/save built on api.ts's shared
-// request/loading-state helpers. Mirrors gui's ColorConfig (see
-// internal/geometry/colorconfig.go) field-for-field -- this is the JSON
-// shape /api/config/color actually sends and accepts.
-import { requestJSON, withLoadingState } from "./api";
+// Shared state for the Color config tab. colorConfig.config is an editing
+// buffer the color widgets bind to; ColorPanel keeps it in sync with the
+// selected camera's color: block in the host's working document (see
+// colorFromDoc/writeColorToDoc below), where edits go live.
+import { config, cameraDoc } from "./config.svelte";
 
 export interface RGB {
   r: number;
@@ -155,9 +154,8 @@ export interface ColorConfigData {
 }
 
 // Matches vision_processor's own Resources.cpp fallbacks (see
-// colorReferenceDefaults in colorconfig.go) so the panel shows something
-// sane for the instant before the first load response arrives, rather than
-// black/zeroed swatches.
+// colorReferenceDefaults in internal/config/color.go) -- what a camera runs
+// for anything neither it nor the shared defaults set.
 export function defaultColorConfig(): ColorConfigData {
   return {
     referenceForce: 0.1,
@@ -172,18 +170,8 @@ export function defaultColorConfig(): ColorConfigData {
   };
 }
 
-export const colorConfig = $state<{
-  config: ColorConfigData;
-  loading: boolean;
-  saving: boolean;
-  error: string | null;
-  savedAt: number | null;
-}>({
+export const colorConfig = $state<{ config: ColorConfigData }>({
   config: defaultColorConfig(),
-  loading: false,
-  saving: false,
-  error: null,
-  savedAt: null,
 });
 
 // Whether the minimum-reference-weight floor has been unlocked for editing
@@ -196,40 +184,113 @@ export const colorConfig = $state<{
 // on a full page reload, since it's never persisted anywhere.
 export const minReferenceForceUnlock = $state({ unlocked: false });
 
-// Loads the instance's config.yml color: block (see
-// geometry.ReadColorConfig) -- always a complete, concrete config, since
-// every color/force resolves to either what's set or vision_processor's own
-// default, never "unset."
-export async function loadColorConfig(): Promise<void> {
-  await withLoadingState(
-    (v) => (colorConfig.loading = v),
-    (v) => (colorConfig.error = v),
-    async () => {
-      const response = await requestJSON("/api/config/color");
-      colorConfig.config = (await response.json()) as ColorConfigData;
-    },
+// config.yml's own key for each force field.
+const FORCE_KEYS = {
+  referenceForce: "reference_force",
+  historyForce: "history_force",
+  minReferenceForce: "min_reference_force",
+} as const;
+
+type Block = Record<string, unknown>;
+
+function asBlock(value: unknown): Block {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Block)
+    : {};
+}
+
+function fromBlock(block: Block, base: ColorConfigData): ColorConfigData {
+  const out: ColorConfigData = {
+    ...base,
+    ...Object.fromEntries(COLOR_CLASSES.map((cls) => [cls, { ...base[cls] }])),
+  };
+
+  for (const [field, key] of Object.entries(FORCE_KEYS) as [
+    keyof typeof FORCE_KEYS,
+    string,
+  ][]) {
+    const value = block[key];
+    if (typeof value === "number") out[field] = value;
+  }
+
+  for (const cls of COLOR_CLASSES) {
+    const value = block[cls];
+    if (
+      Array.isArray(value) &&
+      value.length === 3 &&
+      value.every((n) => typeof n === "number")
+    ) {
+      const [r, g, b] = value as [number, number, number];
+      out[cls] = { r, g, b };
+    }
+  }
+
+  return out;
+}
+
+// What a camera runs before its own overrides: vision_processor's built-in
+// fallbacks under the document's shared defaults.color.
+function inheritedColor(): ColorConfigData {
+  return fromBlock(
+    asBlock(asBlock(config.doc?.defaults)["color"]),
+    defaultColorConfig(),
   );
 }
 
-// Saves the given config to the instance's config.yml (see
-// geometry.WriteColorConfig). Server-side validation (force ranges, the
-// minReferenceForce floor, 0-255 channels) can reject this -- the error
-// message from requestJSON is the backend's own, surfaced as-is.
-export async function saveColorConfig(cfg: ColorConfigData): Promise<void> {
-  colorConfig.savedAt = null;
-
-  await withLoadingState(
-    (v) => (colorConfig.saving = v),
-    (v) => (colorConfig.error = v),
-    async () => {
-      await requestJSON("/api/config/color", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cfg),
-      });
-
-      colorConfig.config = cfg;
-      colorConfig.savedAt = Date.now();
-    },
+// The camera's effective color settings.
+export function colorFromDoc(cameraId: number): ColorConfigData {
+  return fromBlock(
+    asBlock(asBlock(cameraDoc(cameraId)?.config)["color"]),
+    inheritedColor(),
   );
+}
+
+// Writes data as the camera's own color: overrides, keeping the block
+// minimal: a value equal to what the camera inherits is only written if the
+// camera already overrode it, so an untouched color doesn't show up as a
+// change to save.
+export function writeColorToDoc(cameraId: number, data: ColorConfigData): void {
+  const camera = cameraDoc(cameraId);
+  if (!camera) return;
+
+  const existing = asBlock(asBlock(camera.config)["color"]);
+  const inherited = inheritedColor();
+  const block: Block = {};
+
+  const put = (key: string, value: unknown, inheritedValue: unknown): void => {
+    if (
+      key in existing ||
+      JSON.stringify(value) !== JSON.stringify(inheritedValue)
+    ) {
+      block[key] = value;
+    }
+  };
+
+  for (const [field, key] of Object.entries(FORCE_KEYS) as [
+    keyof typeof FORCE_KEYS,
+    string,
+  ][]) {
+    put(key, data[field], inherited[field]);
+  }
+
+  for (const cls of COLOR_CLASSES) {
+    const { r, g, b } = data[cls];
+    const base = inherited[cls];
+    put(cls, [r, g, b], [base.r, base.g, base.b]);
+  }
+
+  // Keys this panel doesn't edit ride along unchanged.
+  for (const [key, value] of Object.entries(existing)) {
+    if (!(key in block)) block[key] = value;
+  }
+
+  if (JSON.stringify(block) === JSON.stringify(existing)) return;
+
+  camera.config ??= {};
+
+  if (Object.keys(block).length === 0) {
+    delete camera.config["color"];
+  } else {
+    camera.config["color"] = block;
+  }
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { virtualField } from "../../geometry.svelte";
+  import { config } from "../../config.svelte";
   import { wizard } from "../wizard.svelte";
   import { OPTIONAL_LINE_FIELDS } from "../../fieldConfigFields";
 
@@ -10,7 +10,7 @@
 
 <div class="flex flex-col gap-3">
   <p class="text-sm text-gray-700">
-    Review, then apply to load these values into the editor.
+    Review, then apply to put these values live on the field.
   </p>
 
   <ul class="flex flex-col gap-1 text-sm text-gray-700">
@@ -25,9 +25,9 @@
   </ul>
 
   <p class="text-sm text-gray-600">
-    Applying loads these values into the Virtual Field editor but doesn't save
-    them -- use its own Save button to write <code
-      >{virtualField.path || "geometry.yml"}</code
+    Applying takes effect immediately but doesn't save -- use Save in the
+    settings menu (or Ctrl+S) to write <code
+      >{config.state?.path ?? "vision.yml"}</code
     >, then calibrate each camera on its own Geometry tab.
   </p>
 </div>

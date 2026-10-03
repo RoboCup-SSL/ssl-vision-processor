@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { untrack } from "svelte";
   import type { VisionInstance } from "../layout/nav.svelte";
+  import { config } from "../config.svelte";
   import {
     colorConfig,
-    loadColorConfig,
-    saveColorConfig,
+    colorFromDoc,
+    writeColorToDoc,
     rgbToCss,
     rgbToYuv,
     COLOR_CLASSES,
@@ -21,7 +22,6 @@
     TableBody,
     TableBodyRow,
     TableBodyCell,
-    Button,
   } from "flowbite-svelte";
 
   // No `category` prop, unlike GeometryPanel/ConfigCategoryPlaceholder:
@@ -42,17 +42,46 @@
   // contributor's protobuf work will eventually add).
   let selectedClass = $state<ColorClass>("orange");
 
-  onMount(() => {
-    void loadColorConfig();
+  let cameraId = $derived(instance?.cameraId);
+
+  // Which camera colorConfig.config currently mirrors. Edits are only
+  // written back once it has been filled from that camera's document entry --
+  // otherwise the placeholder defaults would overwrite its real overrides.
+  let syncedCamera = $state<number | undefined>(undefined);
+
+  // Document -> buffer: on camera switch, and whenever the document's color
+  // changes underneath (a load, a reload, another tab).
+  $effect(() => {
+    if (cameraId === undefined || !config.doc) return;
+
+    const fresh = colorFromDoc(cameraId);
+    const id = cameraId;
+
+    untrack(() => {
+      if (
+        JSON.stringify(fresh) !==
+        JSON.stringify($state.snapshot(colorConfig.config))
+      ) {
+        colorConfig.config = fresh;
+      }
+
+      syncedCamera = id;
+    });
+  });
+
+  // Buffer -> document: every edit goes live through the working document.
+  $effect(() => {
+    const data = $state.snapshot(colorConfig.config);
+    const id = cameraId;
+
+    untrack(() => {
+      if (id !== undefined && id === syncedCamera) writeColorToDoc(id, data);
+    });
   });
 
   let updateForce = $derived(
     1 - colorConfig.config.referenceForce - colorConfig.config.historyForce,
   );
-
-  function handleSave(): void {
-    void saveColorConfig(colorConfig.config);
-  }
 </script>
 
 <section class="color-panel">
@@ -67,7 +96,7 @@
     <p class="hint">Select a vision processor on the left first.</p>
   {/if}
 
-  {#if colorConfig.loading}
+  {#if !config.doc}
     <p class="hint">Loading...</p>
   {/if}
 
@@ -202,23 +231,6 @@
       </TableBodyRow>
     </TableBody>
   </Table>
-
-  <div class="save-row">
-    <Button
-      size="sm"
-      color="primary"
-      onclick={handleSave}
-      disabled={colorConfig.saving}
-    >
-      {colorConfig.saving ? "Saving..." : "Save to config.yml"}
-    </Button>
-    {#if colorConfig.savedAt}
-      <span class="saved">Saved.</span>
-    {/if}
-    {#if colorConfig.error}
-      <span class="error">Error: {colorConfig.error}</span>
-    {/if}
-  </div>
 </section>
 
 <style>
@@ -284,22 +296,5 @@
 
   .rgb-editor input {
     width: 4.5rem;
-  }
-
-  .save-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 1.5rem;
-  }
-
-  .saved {
-    color: #1b5e20;
-    font-size: 0.85rem;
-  }
-
-  .error {
-    color: #b00020;
-    font-size: 0.85rem;
   }
 </style>

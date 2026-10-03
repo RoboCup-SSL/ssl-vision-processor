@@ -5,21 +5,23 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type VisionServer struct {
-	geometry   *geometry.Geometry
-	hub        *hub.Hub
-	imgDir     string
-	configFile string
+	geometry *geometry.Geometry
+	store    *config.Store
+	hub      *hub.Hub
+	imgDir   string
 }
 
-func NewVisionServer(geom *geometry.Geometry, wsHub *hub.Hub, imgDir, configFile string) http.Handler {
-	s := &VisionServer{geometry: geom, hub: wsHub, imgDir: imgDir, configFile: configFile}
+func NewVisionServer(geom *geometry.Geometry, store *config.Store, wsHub *hub.Hub, imgDir string) http.Handler {
+	s := &VisionServer{geometry: geom, store: store, hub: wsHub, imgDir: imgDir}
 
 	mux := http.NewServeMux()
 	s.addRoutes(mux)
@@ -29,11 +31,7 @@ func NewVisionServer(geom *geometry.Geometry, wsHub *hub.Hub, imgDir, configFile
 
 func (s *VisionServer) handleHealth() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Error("writing health response", "err", err)
-		}
+		writeJSON(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -57,67 +55,64 @@ func (s *VisionServer) handleGetGeometry() http.HandlerFunc {
 	}
 }
 
-// fieldConfigResponse is the "virtual field" shape: just the editable
-// dimensions and optional-line toggles, not the full wrapper packet (calib,
-// source, generated field_lines/arcs) that handleGetGeometry serves. Path is
-// which file this came from / would be saved to -- omitted on requests where
-// it doesn't apply (PUT), populated on every response.
-type fieldConfigResponse struct {
-	Path               string                       `json:"path,omitempty"`
-	Field              geometry.FieldConfig         `json:"field"`
-	OptionalFieldLines geometry.OptionalLinesConfig `json:"optionalFieldLines"`
+// configResponse is the working document plus the store's state.
+type configResponse struct {
+	Document config.Document `json:"document"`
+	State    config.State    `json:"state"`
 }
 
-func (s *VisionServer) handleGetFieldConfig() http.HandlerFunc {
+func (s *VisionServer) handleGetConfig() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		field, optional := s.geometry.FieldConfig()
+		doc, _ := s.store.Working()
+		writeJSON(w, configResponse{Document: doc, State: s.store.State()})
+	}
+}
 
-		w.Header().Set("Content-Type", "application/json")
+type revisionResponse struct {
+	Revision int64 `json:"revision"`
+}
 
-		resp := fieldConfigResponse{Path: s.geometry.Path(), Field: field, OptionalFieldLines: optional}
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			slog.Error("writing field config response", "err", err)
+type putConfigRequest struct {
+	Revision int64           `json:"revision"`
+	Document config.Document `json:"document"`
+}
+
+// handlePutConfig replaces the working document, applying it live. Nothing
+// is written to vision.yml until a save.
+func (s *VisionServer) handlePutConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req putConfigRequest
+		if !decodeJSON(w, r, &req) {
+			return
 		}
-	}
-}
 
-// respondGeometryErr classifies an error from a geometry package call and
-// writes the matching HTTP response: a caller-fixable *ValidationError or
-// *ReadOnlyError becomes 400 (the error's own message is safe to return --
-// both types exist specifically to describe the caller's mistake back to
-// them), anything else is logged and reported as a generic 500. Shared by
-// every handler whose geometry call can fail either way.
-//
-// handlePostLoad deliberately does not use this: every LoadFrom failure is
-// about the path the caller gave, not an internal failure on our part, so
-// it's unconditionally 400 regardless of error type -- see its own comment.
-func respondGeometryErr(w http.ResponseWriter, err error, logMsg string, logArgs ...any) {
-	var validation *geometry.ValidationError
-	var readOnly *geometry.ReadOnlyError
-
-	switch {
-	case errors.As(err, &validation), errors.As(err, &readOnly):
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	default:
-		slog.Error(logMsg, append(logArgs, "err", err)...)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-	}
-}
-
-// handlePutFieldConfig edits the virtual field: dimensions and which optional
-// markings exist. Regenerates the derived field lines/arcs and persists to
-// geometry.yml -- see geometry.Geometry.UpdateField.
-func (s *VisionServer) handlePutFieldConfig() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req fieldConfigResponse
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "malformed request body: "+err.Error(), http.StatusBadRequest)
+		rev, err := s.store.Update(req.Revision, req.Document)
+		if err != nil {
+			respondConfigErr(w, err, "updating config")
 
 			return
 		}
 
-		if err := s.geometry.UpdateField(req.Field, req.OptionalFieldLines); err != nil {
-			respondGeometryErr(w, err, "updating field config")
+		writeJSON(w, revisionResponse{Revision: rev})
+	}
+}
+
+type saveRequest struct {
+	Revision int64 `json:"revision"`
+	// Force overwrites vision.yml even if it changed on disk since it was
+	// loaded -- the "overwrite disk" answer to the external-change prompt.
+	Force bool `json:"force"`
+}
+
+func (s *VisionServer) handleSave() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req saveRequest
+		if !decodeJSON(w, r, &req) {
+			return
+		}
+
+		if err := s.store.Save(req.Revision, req.Force); err != nil {
+			respondConfigErr(w, err, "saving config")
 
 			return
 		}
@@ -126,19 +121,15 @@ func (s *VisionServer) handlePutFieldConfig() http.HandlerFunc {
 	}
 }
 
-// saveAsRequest is fieldConfigResponse's shape with Path meaning "save here"
-// instead of "loaded from here" -- same fields, different direction, kept as
-// a distinct type so the two aren't confused at the call site.
-type saveAsRequest = fieldConfigResponse
+type saveAsRequest struct {
+	Revision int64  `json:"revision"`
+	Path     string `json:"path"`
+}
 
-// handlePostSaveAs writes the given field config to Path and switches
-// Geometry to editing that file from now on -- see geometry.Geometry.SaveAs.
-func (s *VisionServer) handlePostSaveAs() http.HandlerFunc {
+func (s *VisionServer) handleSaveAs() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req saveAsRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "malformed request body: "+err.Error(), http.StatusBadRequest)
-
+		if !decodeJSON(w, r, &req) {
 			return
 		}
 
@@ -148,8 +139,8 @@ func (s *VisionServer) handlePostSaveAs() http.HandlerFunc {
 			return
 		}
 
-		if err := s.geometry.SaveAs(req.Path, req.Field, req.OptionalFieldLines); err != nil {
-			respondGeometryErr(w, err, "saving field config as", "path", req.Path)
+		if err := s.store.SaveAs(req.Revision, req.Path); err != nil {
+			respondConfigErr(w, err, "saving config as", "path", req.Path)
 
 			return
 		}
@@ -162,16 +153,12 @@ type loadRequest struct {
 	Path string `json:"path"`
 }
 
-// handlePostLoad replaces the live geometry with whatever's in the given
-// path and returns it, so the frontend doesn't need a second round trip --
-// see geometry.Geometry.LoadFrom. Any failure to load is reported as 400:
-// it's about the path the caller gave, not an internal failure on our part.
-func (s *VisionServer) handlePostLoad() http.HandlerFunc {
+// handleLoad switches to editing another vision.yml, replacing the working
+// document (unsaved changes included) and applying it live.
+func (s *VisionServer) handleLoad() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req loadRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "malformed request body: "+err.Error(), http.StatusBadRequest)
-
+		if !decodeJSON(w, r, &req) {
 			return
 		}
 
@@ -181,80 +168,8 @@ func (s *VisionServer) handlePostLoad() http.HandlerFunc {
 			return
 		}
 
-		if err := s.geometry.LoadFrom(req.Path); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-
-			return
-		}
-
-		field, optional := s.geometry.FieldConfig()
-
-		w.Header().Set("Content-Type", "application/json")
-
-		resp := fieldConfigResponse{Path: s.geometry.Path(), Field: field, OptionalFieldLines: optional}
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			slog.Error("writing load response", "err", err)
-		}
-	}
-}
-
-type lineCornersRequest struct {
-	Corners []geometry.Corner `json:"corners"`
-	// GoalSideMarker is 1-based, matching the corner picker's on-screen
-	// number for whichever marker was chosen as the goal-side corner.
-	GoalSideMarker int `json:"goalSideMarker"`
-}
-
-// handleGetLineCorners reads back whatever was last written to the
-// instance's config.yml (see geometry.ReadLineCorners), so the corner picker
-// can restore its markers instead of always starting from the default inset
-// rectangle. A file with nothing saved yet -- or that can't be read at all --
-// degrades to an empty response rather than an error: not being calibrated
-// yet is the normal state, not a failure.
-func (s *VisionServer) handleGetLineCorners() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		corners, marker, err := geometry.ReadLineCorners(s.configFile)
-		if err != nil {
-			slog.Warn("no existing line corners to load", "path", s.configFile, "err", err)
-
-			corners, marker = nil, 0
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		resp := lineCornersRequest{Corners: corners, GoalSideMarker: marker}
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			slog.Error("writing line corners response", "err", err)
-		}
-	}
-}
-
-// handlePutLineCorners writes the corner picker's calibration hint into the
-// instance's own config.yml (geometry.line_corners) -- see
-// geometry.WriteLineCorners. This isn't part of the shared field template
-// (Geometry/geometry.yml); it's a stand-in for the not-yet-built
-// internal/config (see gui/CLAUDE.md's "Not yet built"), kept in
-// internal/geometry for now since it's already of immediate use.
-func (s *VisionServer) handlePutLineCorners() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req lineCornersRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "malformed request body: "+err.Error(), http.StatusBadRequest)
-
-			return
-		}
-
-		if len(req.Corners) != 4 {
-			http.Error(w, "corners: exactly 4 required", http.StatusBadRequest)
-
-			return
-		}
-
-		// goalSideMarker's own range check lives in WriteLineCorners, not
-		// duplicated here -- it returns a *ValidationError for exactly this
-		// case, which respondGeometryErr turns back into a 400.
-		if err := geometry.WriteLineCorners(s.configFile, req.Corners, req.GoalSideMarker); err != nil {
-			respondGeometryErr(w, err, "writing line corners", "path", s.configFile)
+		if err := s.store.Load(req.Path); err != nil {
+			respondConfigErr(w, err, "loading config", "path", req.Path)
 
 			return
 		}
@@ -263,55 +178,89 @@ func (s *VisionServer) handlePutLineCorners() http.HandlerFunc {
 	}
 }
 
-// handleGetColor reads back the instance's config.yml color: block (see
-// geometry.ReadColorConfig), including vision_processor's own hardcoded
-// fallback for any color left commented out -- there's no "unset" state to
-// degrade to here, unlike line corners, since every color always resolves to
-// something the instance is actually running.
-func (s *VisionServer) handleGetColor() http.HandlerFunc {
+// handleReload accepts the current file on disk over the working document:
+// both the "load from disk" answer to the external-change prompt and the
+// menu's "revert to disk".
+func (s *VisionServer) handleReload() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cfg, err := geometry.ReadColorConfig(s.configFile)
-		if err != nil {
-			slog.Error("reading color config", "path", s.configFile, "err", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		if err := json.NewEncoder(w).Encode(cfg); err != nil {
-			slog.Error("writing color config response", "err", err)
-		}
-	}
-}
-
-// handlePutColor writes the color panel's reference colors and update
-// weights into the instance's own config.yml -- see geometry.WriteColorConfig.
-// Same not-yet-built-internal/config stand-in as handlePutLineCorners.
-func (s *VisionServer) handlePutColor() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req geometry.ColorConfig
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "malformed request body: "+err.Error(), http.StatusBadRequest)
-
-			return
-		}
-
-		if err := geometry.WriteColorConfig(s.configFile, req); err != nil {
-			respondGeometryErr(w, err, "writing color config", "path", s.configFile)
+		if err := s.store.Reload(); err != nil {
+			respondConfigErr(w, err, "reloading config")
 
 			return
 		}
 
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func (s *VisionServer) handleLockCalibration() http.HandlerFunc {
+	return s.calibrationHandler(s.store.LockCalibration, "locking calibration")
+}
+
+func (s *VisionServer) handleUnlockCalibration() http.HandlerFunc {
+	return s.calibrationHandler(s.store.UnlockCalibration, "unlocking calibration")
+}
+
+func (s *VisionServer) calibrationHandler(action func(int) (int64, error), logMsg string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil {
+			http.Error(w, "id: want a camera_id", http.StatusBadRequest)
+
+			return
+		}
+
+		rev, err := action(id)
+		if err != nil {
+			respondConfigErr(w, err, logMsg, "cam", id)
+
+			return
+		}
+
+		writeJSON(w, revisionResponse{Revision: rev})
+	}
+}
+
+// conflictResponse is the body of a 409, so the frontend can tell a stale
+// edit (refetch) from a file changed on disk (prompt the user).
+type conflictResponse struct {
+	Error   string `json:"error"`
+	Message string `json:"message"`
+}
+
+// respondConfigErr maps a config.Store error to an HTTP response: caller
+// mistakes are 400 with the error's own message, conflicts 409 with a code,
+// anything else a logged 500.
+func respondConfigErr(w http.ResponseWriter, err error, logMsg string, logArgs ...any) {
+	conflict := func(code string) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+
+		if err := json.NewEncoder(w).Encode(conflictResponse{Error: code, Message: err.Error()}); err != nil {
+			slog.Error("writing conflict response", "err", err)
+		}
+	}
+
+	switch {
+	case config.IsValidation(err):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, config.ErrStale):
+		conflict("stale")
+	case errors.Is(err, config.ErrDiskChanged):
+		conflict("disk_changed")
+	case errors.Is(err, config.ErrNoLiveCalibration):
+		conflict("no_live_calibration")
+	case errors.Is(err, config.ErrUnknownCamera):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	default:
+		slog.Error(logMsg, append(logArgs, "err", err)...)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 	}
 }
 
 // fieldPresets are the rulebook defaults, read live from the same files a
 // human would open (geometry-divA.yml, geometry-divB.yml at the repo root) --
-// not a copy that could drift from them. See geometry.ReadOnlyFiles: saves
-// through handlePutFieldConfig refuse to touch these paths.
+// not a copy that could drift from them. Saves refuse to touch these paths.
 var fieldPresets = []struct {
 	Name string
 	Path string
@@ -321,14 +270,14 @@ var fieldPresets = []struct {
 }
 
 type fieldPresetResponse struct {
-	Name string `json:"name"`
-	fieldConfigResponse
+	Name               string                       `json:"name"`
+	Field              geometry.FieldConfig         `json:"field"`
+	OptionalFieldLines geometry.OptionalLinesConfig `json:"optionalFieldLines"`
 }
 
-// handleGetFieldPresets serves the rulebook presets for the "start from a
-// preset" feature. A preset file that can't be read (wrong working
-// directory, for one) is skipped with a warning rather than failing the
-// whole request -- the other preset(s) are still useful.
+// handleGetFieldPresets serves the rulebook presets for the setup wizard. A
+// preset file that can't be read (wrong working directory, for one) is
+// skipped with a warning rather than failing the whole request.
 func (s *VisionServer) handleGetFieldPresets() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		presets := make([]fieldPresetResponse, 0, len(fieldPresets))
@@ -341,16 +290,27 @@ func (s *VisionServer) handleGetFieldPresets() http.HandlerFunc {
 				continue
 			}
 
-			presets = append(presets, fieldPresetResponse{
-				Name:                p.Name,
-				fieldConfigResponse: fieldConfigResponse{Field: field, OptionalFieldLines: optional},
-			})
+			presets = append(presets, fieldPresetResponse{Name: p.Name, Field: field, OptionalFieldLines: optional})
 		}
 
-		w.Header().Set("Content-Type", "application/json")
+		writeJSON(w, presets)
+	}
+}
 
-		if err := json.NewEncoder(w).Encode(presets); err != nil {
-			slog.Error("writing field presets response", "err", err)
-		}
+func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		http.Error(w, "malformed request body: "+err.Error(), http.StatusBadRequest)
+
+		return false
+	}
+
+	return true
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Error("writing response", "err", err)
 	}
 }

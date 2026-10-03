@@ -87,8 +87,8 @@ Installation with PIP: `pip install protobuf pyyaml`
 
 Your own `config[X].yml`/`geometry[X].yml` files (camera or venue specific) are gitignored by
 default and won't be committed. Only the reference templates -- `config.yml`, `config-minimal.yml`,
-`geometry-divA.yml`, `geometry-divB.yml` -- are tracked; `gui/config.yml` and `gui/geometry.yml`
-(the GUI's own working copies, bootstrapped from these) are gitignored the same way. If you need to
+`geometry-divA.yml`, `geometry-divB.yml` -- are tracked; the GUI's unified `vision.yml` (and the
+older `gui/config.yml` and `gui/geometry.yml` working copies) are gitignored the same way. If you need to
 track a variant anyway, `git add -f` it.
 
 

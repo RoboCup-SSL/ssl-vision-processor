@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/logging"
@@ -26,20 +28,16 @@ var address = flag.String("address", ":8085", "The address on which the vision p
 var visionAddress = flag.String("visionAddress", "224.5.23.2:10006", "The multicast address of field vision, default: 224.5.23.2:10006")
 var skipInterfaces = flag.String("skipInterfaces", "", "Comma separated list of interface names to ignore when receiving multicast packets")
 
-// geometry-divA.yml/geometry-divB.yml are read-only rulebook presets (see
-// geometry.ReadOnlyFiles) -- the default here must never be one of them, or
-// the first Save in the Virtual Field editor would silently overwrite a
-// tracked competition preset instead of a working copy.
-var geometryFile = flag.String("geometryFile", "geometry.yml", "Field geometry config file, default: geometry.yml")
-var geometryPreset = flag.String("geometryPreset", "geometry-divB.yml", "Preset to seed -geometryFile from if it doesn't exist yet, default: geometry-divB.yml")
-var imgDir = flag.String("imgDir", "img", "Directory the vision processor writes debug snapshot images to, default: img")
+// vision.yml holds everything the host owns: the field template, shared and
+// per-camera vision_processor settings, and locked calibrations.
+var configPath = flag.String("config", "vision.yml", "Host configuration file (field, cameras, calibrations), default: vision.yml")
 
-// The vision_processor instance's own config file -- distinct from
-// -geometryFile (the shared field template). Matches vision_processor's own
-// default (argv[1] falling back to "config.yml", see src/main.cpp). Assumes
-// a single, same-host instance, same as -imgDir; see gui/CLAUDE.md's
-// "internal/discovery"/"internal/config" notes for the multi-instance plan.
-var configFile = flag.String("configFile", "config.yml", "vision_processor instance config file to write calibration values into, default: config.yml")
+// Used only when -config doesn't exist yet, to build it from a pre-vision.yml
+// setup. Without -importGeometry the field comes from -geometryPreset.
+var importGeometry = flag.String("importGeometry", "geometry.yml", "Legacy field geometry file to import into a new -config, default: geometry.yml")
+var importConfig = flag.String("importConfig", "config.yml", "Legacy vision_processor config.yml to import into a new -config as its camera, default: config.yml")
+var geometryPreset = flag.String("geometryPreset", "geometry-divB.yml", "Field preset for a new -config when there's no -importGeometry, default: geometry-divB.yml")
+var imgDir = flag.String("imgDir", "img", "Directory the vision processor writes debug snapshot images to, default: img")
 var logLevelFlag = flag.String("logLevel", "Info", "Log Level: Debug, Info, Warn, Error. Default: Info")
 var logFile = flag.String("logFile", "logs/vision-processor-gui.log", "Rotating log file to write alongside stderr, empty to disable. Default: logs/vision-processor-gui.log")
 
@@ -74,18 +72,20 @@ func run() int {
 
 	slog.Info("Init VP GUI")
 
-	if err := bootstrapGeometryFile(*geometryFile, *geometryPreset); err != nil {
-		slog.Error("bootstrapping geometry file", "err", err)
+	if err := bootstrapConfig(*configPath, *importGeometry, *importConfig, *geometryPreset); err != nil {
+		slog.Error("creating config file", "err", err)
 
 		return 1
 	}
 
-	geom, err := geometry.New(*geometryFile)
+	geom, store, err := openConfig(*configPath)
 	if err != nil {
-		slog.Error("loading geometry", "err", err)
+		slog.Error("loading config", "path", *configPath, "err", err)
 
 		return 1
 	}
+
+	slog.Info("loaded config", "path", *configPath)
 
 	// register Ctrl+C handler
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -94,6 +94,8 @@ func run() int {
 	bridge := multicast.New(*visionAddress, splitInterfaces(*skipInterfaces), level == slog.LevelDebug)
 	wsHub := hub.New()
 
+	store.OnChange(func() { publishConfigState(wsHub, store) })
+
 	var wg sync.WaitGroup
 
 	runBackground(&wg, "multicast bridge", func() error { return bridge.Run(ctx, geom.Absorb) })
@@ -101,12 +103,16 @@ func run() int {
 		return geom.Run(ctx, func(encoded []byte) {
 			bridge.Send(encoded)
 			publishGeometryToHub(wsHub, geom)
+			// Live calibration state comes from the network, not the store, so
+			// it's refreshed on this tick rather than only on store changes.
+			publishConfigState(wsHub, store)
 		})
 	})
+	runBackground(&wg, "config file watcher", func() error { return store.Watch(ctx, configWatchInterval) })
 
 	srv := &http.Server{
 		Addr:              *address,
-		Handler:           NewVisionServer(geom, wsHub, *imgDir, *configFile),
+		Handler:           NewVisionServer(geom, store, wsHub, *imgDir),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -145,30 +151,98 @@ func run() int {
 	return 0
 }
 
-// bootstrapGeometryFile seeds path with a copy of preset if path doesn't
-// exist yet, so a fresh checkout with no working geometry.yml starts from a
-// real, complete config instead of failing at startup. A plain byte copy,
-// not a YAML round trip, so the preset's own comments survive into the new
-// working file. Never touches path if it already exists.
-func bootstrapGeometryFile(path, preset string) error {
+// configWatchInterval is how often vision.yml is checked for edits made
+// outside the GUI.
+const configWatchInterval = time.Second
+
+// bootstrapConfig creates path if it doesn't exist yet: imported from the
+// legacy geometry/config files where present, otherwise from preset. Never
+// touches an existing path.
+func bootstrapConfig(path, legacyGeometry, legacyConfig, preset string) error {
 	if _, err := os.Stat(path); err == nil {
-		return nil // already exists, nothing to do
+		return nil
 	} else if !os.IsNotExist(err) {
 		return err
 	}
 
-	data, err := os.ReadFile(preset)
+	geometrySource := preset
+	if fileExists(legacyGeometry) {
+		geometrySource = legacyGeometry
+	}
+
+	configSource := ""
+	if fileExists(legacyConfig) {
+		configSource = legacyConfig
+	}
+
+	doc, err := config.Import(geometrySource, configSource)
 	if err != nil {
-		return fmt.Errorf("read preset %s: %w", preset, err)
+		return fmt.Errorf("import %s / %q: %w", geometrySource, configSource, err)
+	}
+
+	data, err := config.Marshal(doc)
+	if err != nil {
+		return err
 	}
 
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 
-	slog.Info("seeded a fresh geometry file from preset", "path", path, "preset", preset)
+	slog.Info("created config file", "path", path, "geometry", geometrySource, "config", configSource)
 
 	return nil
+}
+
+// openConfig builds the live Geometry from path's field template and opens
+// the store that keeps it in sync with the file.
+func openConfig(path string) (*geometry.Geometry, *config.Store, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	doc, err := config.Parse(data)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	models, err := doc.ModelsProto()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	geom, err := geometry.New(doc.Field, doc.OptionalFieldLines, models)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	store, err := config.Open(path, geom)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return geom, store, nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+
+	return err == nil
+}
+
+// configStateTopic carries config.Store's State to the frontend.
+const configStateTopic = "config.state"
+
+func publishConfigState(wsHub *hub.Hub, store *config.Store) {
+	data, err := json.Marshal(store.State())
+	if err != nil {
+		slog.Error("marshalling config state", "err", err)
+
+		return
+	}
+
+	wsHub.Publish(configStateTopic, data)
 }
 
 // wrapperPacketTopic is the hub topic name the frontend already subscribes to

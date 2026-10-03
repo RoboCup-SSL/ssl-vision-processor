@@ -1,12 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import {
-    virtualField,
-    loadVirtualField,
-    saveVirtualField,
-    saveVirtualFieldAs,
-    loadVirtualFieldFrom,
-  } from "./geometry.svelte";
+  import { virtualField } from "./geometry.svelte";
+  import { config } from "./config.svelte";
   import FieldSketch from "./FieldSketch.svelte";
   import { computeFieldSlice, CAMERA_COUNT_OPTIONS } from "./fieldSplit";
   import { DIMENSION_FIELDS, OPTIONAL_LINE_FIELDS } from "./fieldConfigFields";
@@ -14,7 +8,7 @@
 
   // "Half field" is a data-entry convenience, not a wire concept: the backend
   // (SSL_GeometryFieldSize.field_length) only ever means the FULL field.
-  // virtualField.field.fieldLength keeps that meaning always; this toggle
+  // config.doc.field.fieldLength keeps that meaning always; this toggle
   // just changes what the length input shows and how it's written back, so
   // switching modes never silently mutates already-loaded data. See
   // gui/CLAUDE.md and src/CameraModel.cpp's visibleFieldExtentEstimation for
@@ -41,18 +35,17 @@
     computeFieldSlice(
       clampedCameraId,
       cameraAmount,
-      virtualField.field.fieldLength ?? 0,
-      virtualField.field.fieldWidth ?? 0,
+      config.doc?.field.fieldLength ?? 0,
+      config.doc?.field.fieldWidth ?? 0,
     ),
   );
 
   let halfLength = $derived(
-    Math.round((virtualField.field.fieldLength ?? 0) / 2),
+    Math.round((config.doc?.field.fieldLength ?? 0) / 2),
   );
 
   function setHalfLength(value: number): void {
-    virtualField.field.fieldLength = value * 2;
-    markDirty();
+    if (config.doc) config.doc.field.fieldLength = value * 2;
   }
 
   function setFieldLayout(layout: "full" | "half"): void {
@@ -63,206 +56,128 @@
       cameraCount = options[0] ?? 1;
     }
   }
-
-  let saveAsPath = $state("");
-  let loadPath = $state("");
-
-  function handleSaveAs(): void {
-    if (!saveAsPath) return;
-    void saveVirtualFieldAs(saveAsPath);
-  }
-
-  function handleLoad(): void {
-    if (!loadPath) return;
-    if (virtualField.dirty && !confirm("Discard unsaved changes?")) return;
-    void loadVirtualFieldFrom(loadPath);
-  }
-
-  // virtualField is a module-level singleton, not component-local state --
-  // switching tabs away and back destroys and recreates this component
-  // (MainContent's {#if}/{:else if}), re-running onMount, but virtualField
-  // itself survives that unmount with whatever dirty edits were in progress.
-  // Reloading unconditionally would silently discard them; guard it exactly
-  // like handleLoad below does for the same class of data loss.
-  onMount(() => {
-    if (!virtualField.dirty || confirm("Discard unsaved changes?")) {
-      void loadVirtualField();
-    }
-  });
-
-  function markDirty(): void {
-    virtualField.dirty = true;
-  }
-
-  function handleSave(): void {
-    void saveVirtualField();
-  }
 </script>
 
 <section class="field-editor">
   <div class="title-row">
     <h2>Virtual field</h2>
-    <span class="path">{virtualField.path || "(unsaved)"}</span>
+    <span class="path">{config.state?.path ?? ""}</span>
     <button type="button" class="wizard-button" onclick={openWizard}>
       Run setup wizard
     </button>
   </div>
 
-  {#if virtualField.error}
-    <p class="error">Error: {virtualField.error}</p>
-  {/if}
+  {#if config.doc}
+    {@const doc = config.doc}
+    <div class="layout">
+      <form>
+        <fieldset>
+          <legend>Field layout</legend>
 
-  <div class="layout">
-    <form
-      onsubmit={(e) => {
-        e.preventDefault();
-        handleSave();
-      }}
-    >
-      <fieldset disabled={virtualField.loading}>
-        <legend>File</legend>
-        <div class="file-actions">
-          <button
-            type="submit"
-            disabled={virtualField.saving || !virtualField.dirty}
-          >
-            {virtualField.saving ? "Saving..." : "Save"}
-          </button>
-          {#if virtualField.dirty && !virtualField.saving}
-            <span class="hint">*new changes</span>
+          <label class="radio-row">
+            <span>
+              <input
+                type="radio"
+                name="fieldLayout"
+                checked={fieldLayout === "full"}
+                onchange={() => {
+                  setFieldLayout("full");
+                }}
+              />
+              Full field
+            </span>
+            <span>
+              <input
+                type="radio"
+                name="fieldLayout"
+                checked={fieldLayout === "half"}
+                onchange={() => {
+                  setFieldLayout("half");
+                }}
+              />
+              Half field
+            </span>
+          </label>
+
+          {#if fieldLayout === "half"}
+            <label>
+              Half length (full: {doc.field.fieldLength ?? 0}mm)
+              <input
+                type="number"
+                value={halfLength}
+                oninput={(e) => {
+                  setHalfLength(e.currentTarget.valueAsNumber);
+                }}
+              />
+            </label>
           {/if}
-        </div>
 
-        <label>
-          Save as
-          <span>
-            <input type="text" bind:value={saveAsPath} placeholder="path.yml" />
-            <button type="button" onclick={handleSaveAs} disabled={!saveAsPath}
-              >Save as</button
-            >
-          </span>
-        </label>
-
-        <label>
-          Load
-          <span>
-            <input type="text" bind:value={loadPath} placeholder="path.yml" />
-            <button type="button" onclick={handleLoad} disabled={!loadPath}
-              >Load</button
-            >
-          </span>
-        </label>
-      </fieldset>
-
-      <fieldset disabled={virtualField.loading}>
-        <legend>Field layout</legend>
-
-        <label class="radio-row">
-          <span>
-            <input
-              type="radio"
-              name="fieldLayout"
-              checked={fieldLayout === "full"}
-              onchange={() => {
-                setFieldLayout("full");
-              }}
-            />
-            Full field
-          </span>
-          <span>
-            <input
-              type="radio"
-              name="fieldLayout"
-              checked={fieldLayout === "half"}
-              onchange={() => {
-                setFieldLayout("half");
-              }}
-            />
-            Half field
-          </span>
-        </label>
-
-        {#if fieldLayout === "half"}
           <label>
-            Half length (full: {virtualField.field.fieldLength ?? 0}mm)
-            <input
-              type="number"
-              value={halfLength}
-              oninput={(e) => {
-                setHalfLength(e.currentTarget.valueAsNumber);
+            Cameras (camera_amount: {cameraAmount})
+            <select
+              value={cameraCount}
+              onchange={(e) => {
+                cameraCount = Number(e.currentTarget.value);
               }}
-            />
+            >
+              {#each CAMERA_COUNT_OPTIONS[fieldLayout] as count (count)}
+                <option value={count}>{count}</option>
+              {/each}
+            </select>
           </label>
-        {/if}
 
-        <label>
-          Cameras (camera_amount: {cameraAmount})
-          <select
-            value={cameraCount}
-            onchange={(e) => {
-              cameraCount = Number(e.currentTarget.value);
-            }}
-          >
-            {#each CAMERA_COUNT_OPTIONS[fieldLayout] as count (count)}
-              <option value={count}>{count}</option>
-            {/each}
-          </select>
-        </label>
-
-        <label>
-          This camera (camera_id)
-          <select
-            value={clampedCameraId}
-            onchange={(e) => {
-              cameraId = Number(e.currentTarget.value);
-            }}
-          >
-            {#each Array.from(Array(cameraAmount).keys()) as id (id)}
-              <option value={id}>{id}</option>
-            {/each}
-          </select>
-        </label>
-      </fieldset>
-
-      <fieldset disabled={virtualField.loading}>
-        <legend>Dimensions</legend>
-        {#each DIMENSION_FIELDS as { key, label } (key)}
           <label>
-            {label}
-            <input
-              type="number"
-              bind:value={virtualField.field[key]}
-              oninput={markDirty}
-            />
+            This camera (camera_id)
+            <select
+              value={clampedCameraId}
+              onchange={(e) => {
+                cameraId = Number(e.currentTarget.value);
+              }}
+            >
+              {#each Array.from(Array(cameraAmount).keys()) as id (id)}
+                <option value={id}>{id}</option>
+              {/each}
+            </select>
           </label>
-        {/each}
-      </fieldset>
+        </fieldset>
 
-      <fieldset disabled={virtualField.loading}>
-        <legend>Markings present on this field</legend>
-        {#each OPTIONAL_LINE_FIELDS as { key, label } (key)}
-          <label class="checkbox">
-            <input
-              type="checkbox"
-              bind:checked={virtualField.optionalFieldLines[key]}
-              onchange={markDirty}
-            />
-            {label}
-          </label>
-        {/each}
-      </fieldset>
-    </form>
+        <fieldset>
+          <legend>Dimensions</legend>
+          {#each DIMENSION_FIELDS as { key, label } (key)}
+            <label>
+              {label}
+              <input type="number" bind:value={doc.field[key]} />
+            </label>
+          {/each}
+        </fieldset>
 
-    <div class="sketch">
-      <FieldSketch
-        fieldLength={virtualField.field.fieldLength ?? 0}
-        fieldWidth={virtualField.field.fieldWidth ?? 0}
-        lines={virtualField.fieldLines}
-        arcs={virtualField.fieldArcs}
-        slice={fieldSlice}
-      />
+        <fieldset>
+          <legend>Markings present on this field</legend>
+          {#each OPTIONAL_LINE_FIELDS as { key, label } (key)}
+            <label class="checkbox">
+              <input
+                type="checkbox"
+                bind:checked={doc.optionalFieldLines[key]}
+              />
+              {label}
+            </label>
+          {/each}
+        </fieldset>
+      </form>
+
+      <div class="sketch">
+        <FieldSketch
+          fieldLength={doc.field.fieldLength ?? 0}
+          fieldWidth={doc.field.fieldWidth ?? 0}
+          lines={virtualField.fieldLines}
+          arcs={virtualField.fieldArcs}
+          slice={fieldSlice}
+        />
+      </div>
     </div>
-  </div>
+  {:else}
+    <p class="hint">Loading...</p>
+  {/if}
 </section>
 
 <style>
@@ -342,21 +257,6 @@
 
   input[type="number"] {
     width: 6rem;
-  }
-
-  input[type="text"] {
-    width: 10rem;
-  }
-
-  .file-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0.4rem 0;
-  }
-
-  .error {
-    color: #b00020;
   }
 
   .hint {
