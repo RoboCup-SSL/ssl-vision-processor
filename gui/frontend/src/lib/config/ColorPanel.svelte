@@ -21,6 +21,7 @@
     TableBody,
     TableBodyRow,
     TableBodyCell,
+    Button,
   } from "flowbite-svelte";
 
   // No `category` prop, unlike GeometryPanel/ConfigCategoryPlaceholder:
@@ -70,7 +71,6 @@
     <p class="hint">Loading...</p>
   {/if}
 
-  <h3>Reference colors</h3>
   <YuvPositionPane
     bind:color={colorConfig.config[selectedClass]}
     colors={colorConfig.config}
@@ -204,9 +204,14 @@
   </Table>
 
   <div class="save-row">
-    <button type="button" onclick={handleSave} disabled={colorConfig.saving}>
+    <Button
+      size="sm"
+      color="primary"
+      onclick={handleSave}
+      disabled={colorConfig.saving}
+    >
       {colorConfig.saving ? "Saving..." : "Save to config.yml"}
-    </button>
+    </Button>
     {#if colorConfig.savedAt}
       <span class="saved">Saved.</span>
     {/if}

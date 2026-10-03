@@ -5,6 +5,7 @@
   import ConfigNav from "./ConfigNav.svelte";
   import MainContent from "./MainContent.svelte";
   import type { Snippet } from "svelte";
+  import { Dropdown, DropdownGroup, Checkbox } from "flowbite-svelte";
 
   // `below` is where App.svelte puts the existing snapshot grid / WS dev
   // panel for now, until they become the mockup's real Video + Debug Console
@@ -19,25 +20,11 @@
 
   // Global settings menu (gear, top-right) -- preferences (../preferences.svelte)
   // is app-wide state, not scoped to any one tab, so it belongs in the shell
-  // rather than wherever happened to need it first.
+  // rather than wherever happened to need it first. Dropdown (flowbite-svelte)
+  // owns open/close and outside-click dismissal itself now -- previously
+  // hand-rolled here with a window click listener.
   let settingsOpen = $state(false);
-  let settingsEl: HTMLDivElement | undefined = $state();
-
-  function toggleSettings(): void {
-    settingsOpen = !settingsOpen;
-  }
-
-  // Closes on any click outside the button+menu -- a click on the gear
-  // itself is inside settingsEl too, so this never fights toggleSettings's
-  // own open/close.
-  function handleWindowClick(event: MouseEvent): void {
-    if (settingsOpen && !settingsEl?.contains(event.target as Node)) {
-      settingsOpen = false;
-    }
-  }
 </script>
-
-<svelte:window onclick={handleWindowClick} />
 
 <div class="shell">
   <header>
@@ -46,28 +33,28 @@
       {$connectionState.toUpperCase()} ({location.host})
     </span>
 
-    <div class="settings" bind:this={settingsEl}>
+    <div class="settings">
       <button
+        id="settings-trigger"
         type="button"
         class="settings-button"
         aria-label="Settings"
-        onclick={toggleSettings}
       >
         ⚙
       </button>
 
-      {#if settingsOpen}
-        <div class="settings-menu">
-          <label>
-            <input type="checkbox" bind:checked={preferences.tooltipsEnabled} />
+      <Dropdown
+        placement="bottom-end"
+        triggeredBy="#settings-trigger"
+        bind:isOpen={settingsOpen}
+      >
+        <DropdownGroup class="flex flex-col gap-2 p-3">
+          <Checkbox bind:checked={preferences.tooltipsEnabled}>
             Show extra tooltips
-          </label>
-          <label>
-            <input type="checkbox" bind:checked={preferences.expertUser} />
-            Expert mode
-          </label>
-        </div>
-      {/if}
+          </Checkbox>
+          <Checkbox bind:checked={preferences.expertUser}>Expert mode</Checkbox>
+        </DropdownGroup>
+      </Dropdown>
     </div>
   </header>
 
@@ -155,31 +142,6 @@
 
   .settings-button:hover {
     background: #f5f5f5;
-  }
-
-  .settings-menu {
-    position: absolute;
-    top: calc(100% + 0.5rem);
-    right: 0;
-    z-index: 20;
-    min-width: 180px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 0.6rem 0.75rem;
-    background: white;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    font-size: 0.85rem;
-    color: #333;
-  }
-
-  .settings-menu label {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    cursor: pointer;
   }
 
   .sidebar {

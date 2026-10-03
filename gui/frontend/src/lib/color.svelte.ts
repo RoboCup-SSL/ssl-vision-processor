@@ -57,6 +57,13 @@ export function yuvToRgb(c: YUV): RGB {
 // same convention as a CIE chromaticity diagram graying out everything
 // outside the sRGB triangle).
 export function yuvInGamut(c: YUV): boolean {
+  return yuvGamutOverflow(c) === 0;
+}
+
+// How far the unclamped decode lands outside [0,255], summed over R/G/B --
+// 0 means in gamut. Lets a caller pick the "least unreachable" Y for a U/V
+// that isn't reachable at any brightness, not just test yes/no.
+export function yuvGamutOverflow(c: YUV): number {
   const y = c.y - 16;
   const u = c.u - 128;
   const v = c.v - 128;
@@ -65,7 +72,8 @@ export function yuvInGamut(c: YUV): boolean {
   const g = (298 * y - 100 * u - 208 * v + 128) / 256;
   const b = (298 * y + 516 * u + 128) / 256;
 
-  return r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255;
+  const over = (ch: number): number => (ch < 0 ? -ch : ch > 255 ? ch - 255 : 0);
+  return over(r) + over(g) + over(b);
 }
 
 // The only Y values any real RGB (0-255 each) can ever produce -- see
@@ -104,6 +112,36 @@ export function rgbToCss(c: RGB): string {
   return `rgb(${String(c.r)}, ${String(c.g)}, ${String(c.b)})`;
 }
 
+// Each class's "identity" color, not its tunable reference value -- used
+// only when showing multiple classes' markers on the same YUV pane at once
+// (YuvPositionPane's "All" view), where six markers all drawn in their own
+// current reference color would frequently collide or be hard to tell apart
+// (two classes can easily sit close together in U/V, and a config gone
+// slightly astray could put one right on top of another). A fixed, primary
+// color per class is stable regardless of what's actually configured, so the
+// legend never changes shape. field is the one non-marker class (carpet, not
+// a robot/ball color) and gets neutral gray rather than a forced primary.
+export const CANONICAL_COLORS: Record<ColorClass, RGB> = {
+  yellow: { r: 255, g: 255, b: 0 },
+  blue: { r: 0, g: 0, b: 255 },
+  green: { r: 0, g: 255, b: 0 },
+  pink: { r: 255, g: 0, b: 255 },
+  orange: { r: 255, g: 165, b: 0 },
+  field: { r: 128, g: 128, b: 128 },
+};
+
+// One-letter marker badges for the "All" view -- a color-independent
+// fallback identifier (colorblindness, or two canonical colors landing close
+// together) alongside the fill color itself.
+export const CLASS_LETTERS: Record<ColorClass, string> = {
+  yellow: "Y",
+  blue: "B",
+  green: "G",
+  pink: "P",
+  orange: "O",
+  field: "F",
+};
+
 export interface ColorConfigData {
   referenceForce: number;
   historyForce: number;
@@ -120,7 +158,7 @@ export interface ColorConfigData {
 // colorReferenceDefaults in colorconfig.go) so the panel shows something
 // sane for the instant before the first load response arrives, rather than
 // black/zeroed swatches.
-function defaultColorConfig(): ColorConfigData {
+export function defaultColorConfig(): ColorConfigData {
   return {
     referenceForce: 0.1,
     historyForce: 0.7,

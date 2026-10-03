@@ -16,6 +16,7 @@
 
   import { minReferenceForceUnlock } from "../color.svelte";
   import { preferences } from "../preferences.svelte";
+  import { Button, Modal } from "flowbite-svelte";
 
   interface Props {
     referenceForce?: number;
@@ -365,9 +366,9 @@
         <dd>{pct(updateForce)}</dd>
       </dl>
 
-      <button type="button" class="reset" onclick={resetToDefaults}>
+      <Button size="xs" color="light" outline onclick={resetToDefaults}>
         Restore default weights
-      </button>
+      </Button>
 
       <div class="min-force-block">
         <label class="min-force">
@@ -385,32 +386,29 @@
         </label>
 
         {#if !minForceUnlocked}
-          <div class="unlock">
-            <button type="button" class="unlock-button" onclick={requestUnlock}>
-              Unlock
-            </button>
-            {#if showUnlockConfirm}
-              <div
-                class="unlock-popup"
-                role="dialog"
-                aria-label="Confirm unlocking the reference weight floor"
-              >
-                <p>
-                  This floor keeps the reference color from being tuned toward
-                  0. Reference is the only weight never gated on having samples
-                  this frame -- without a floor, a color that goes
-                  sample-starved for a while has nothing left pulling it back
-                  toward its configured value.
-                </p>
-                <div class="unlock-popup-actions">
-                  <button type="button" onclick={cancelUnlock}>Cancel</button>
-                  <button type="button" class="confirm" onclick={confirmUnlock}>
-                    I understand, unlock
-                  </button>
-                </div>
-              </div>
-            {/if}
-          </div>
+          <Button size="xs" color="light" outline onclick={requestUnlock}>
+            Unlock
+          </Button>
+
+          <Modal
+            title="Unlock the reference weight floor?"
+            bind:open={showUnlockConfirm}
+            size="xs"
+          >
+            <p>
+              This floor keeps the reference color from being tuned toward 0.
+              Reference is the only weight never gated on having samples this
+              frame -- without a floor, a color that goes sample-starved for a
+              while has nothing left pulling it back toward its configured
+              value.
+            </p>
+            {#snippet footer()}
+              <Button color="alternative" onclick={cancelUnlock}>Cancel</Button>
+              <Button color="red" onclick={confirmUnlock}>
+                I understand, unlock
+              </Button>
+            {/snippet}
+          </Modal>
         {/if}
       </div>
     </div>
@@ -510,16 +508,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .reset {
-    align-self: start;
-    padding: 0.3rem 0.6rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background: white;
-    font-size: 0.8rem;
-    cursor: pointer;
-  }
-
   .min-force-block {
     display: flex;
     flex-direction: column;
@@ -543,60 +531,5 @@
     background: #eee;
     color: #888;
     cursor: not-allowed;
-  }
-
-  .unlock {
-    position: relative;
-  }
-
-  .unlock-button {
-    padding: 0.3rem 0.6rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background: white;
-    font-size: 0.8rem;
-    cursor: pointer;
-  }
-
-  .unlock-popup {
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    z-index: 10;
-    width: 220px;
-    margin-bottom: 0.5rem;
-    padding: 0.6rem;
-    background: white;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    font-size: 0.78rem;
-    color: #444;
-  }
-
-  .unlock-popup p {
-    margin: 0;
-  }
-
-  .unlock-popup-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.4rem;
-    margin-top: 0.5rem;
-  }
-
-  .unlock-popup-actions button {
-    padding: 0.25rem 0.5rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background: #f5f5f5;
-    font-size: 0.75rem;
-    cursor: pointer;
-  }
-
-  .unlock-popup-actions .confirm {
-    background: #b00020;
-    border-color: #b00020;
-    color: white;
   }
 </style>
