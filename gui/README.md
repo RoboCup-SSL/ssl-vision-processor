@@ -40,6 +40,12 @@ If `-config` does not exist yet, the host creates it on startup. It imports `-im
 `geometry.yml`) and `-importConfig` (default `config.yml`) when they exist, and otherwise starts from
 `-geometryPreset`. An imported `config.yml` becomes a camera with that file as its `config_path`, so the host
 regenerates it from `vision.yml` from then on. Keep a copy if you want its comments.
+
+The vision and game controller multicast addresses are in the same file, under `defaults.network`. They are
+set on the Network page, which the two address badges in the header open. Changing one reopens the host's
+sockets at once. The same page chooses which network interfaces the host uses, automatically or by unticking
+the ones to skip; that choice is stored under `host.interfaces` and applies to this host only. There are no
+command line flags for any of these.
 | `make vet`     | `go vet` for every package.                                                    |
 | `make build`   | `go build` for every package, without installing.                            |
 | `make clean`   | Remove the frontend build, generated protobuf code, and build sentinels.      |

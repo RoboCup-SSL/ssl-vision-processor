@@ -211,7 +211,7 @@ tests are preferred over mocks where the real thing is cheap to stand up:
 and `cmd/.../server_test.go` load real `testdata/*.yml` fixtures rather than
 constructing Go structs by hand.
 
-The full loop (this package's `Geometry`/`multicast.Bridge` against a real
+The full loop (this package's `Geometry`/vision `multicast.Endpoint` against a real
 `vision_processor` binary and a real camera) has been manually verified once,
 end to end: the Go host published a field template, `vision_processor`
 calibrated against a real skewed webcam view, and the calibration came back

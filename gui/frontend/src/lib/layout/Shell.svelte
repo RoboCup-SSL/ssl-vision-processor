@@ -15,6 +15,8 @@
   import { config, reloadFromDisk } from "../config.svelte";
   import { fileDialogs } from "./fileDialogs.svelte";
   import ConfigDialogs from "./ConfigDialogs.svelte";
+  import { nav } from "./nav.svelte";
+  import { network, networkFromDoc } from "../network.svelte";
 
   // `below` is where App.svelte puts the existing snapshot grid / WS dev
   // panel for now, until they become the mockup's real Video + Debug Console
@@ -36,6 +38,23 @@
   let settingsOpen = $state(false);
 
   let unsaved = $derived(config.state?.changes.length ?? 0);
+
+  // Multicast badges: the address each host socket is open on, green while
+  // packets arrive there. Until the first network.state lands, the configured
+  // address stands in.
+  let configured = $derived(networkFromDoc());
+  let sockets = $derived([
+    {
+      label: "Vision",
+      status: network.state?.vision,
+      fallback: `${configured.vision_ip}:${String(configured.vision_port)}`,
+    },
+    {
+      label: "GC",
+      status: network.state?.gc,
+      fallback: `${configured.gc_ip}:${String(configured.gc_port)}`,
+    },
+  ]);
 
   // Clears app.css's base-layer button chrome and matches the preference
   // checkboxes below: same text, same left inset as their p-3 group.
@@ -66,6 +85,22 @@
 <div class="shell">
   <header>
     <h1>vision-processor</h1>
+    {#each sockets as socket (socket.label)}
+      <button
+        type="button"
+        class="badge socket"
+        data-state={socket.status?.receiving ? "open" : "silent"}
+        title={socket.status?.receiving
+          ? `Receiving on ${socket.status.address}. Click to configure.`
+          : "Nothing heard on this address. Click to configure."}
+        onclick={() => {
+          nav.selectedCategoryId = "network";
+        }}
+      >
+        {socket.label}
+        {socket.status?.address ?? socket.fallback}
+      </button>
+    {/each}
     <span class="badge" data-state={$connectionState}>
       {$connectionState.toUpperCase()} ({location.host})
     </span>
@@ -184,6 +219,20 @@
     border-radius: 999px;
     background: #ddd;
     color: #333;
+  }
+
+  .socket {
+    border: none;
+    cursor: pointer;
+  }
+
+  .socket:hover {
+    filter: brightness(0.95);
+  }
+
+  .badge[data-state="silent"] {
+    background: #eee;
+    color: #666;
   }
 
   .badge[data-state="open"] {

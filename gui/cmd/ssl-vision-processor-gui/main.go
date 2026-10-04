@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -25,8 +24,10 @@ import (
 )
 
 var address = flag.String("address", ":8085", "The address on which the vision processor GUI and API are served, default: :8085")
-var visionAddress = flag.String("visionAddress", "224.5.23.2:10006", "The multicast address of field vision, default: 224.5.23.2:10006")
-var skipInterfaces = flag.String("skipInterfaces", "", "Comma separated list of interface names to ignore when receiving multicast packets")
+
+// The vision and game controller addresses (vision.yml's defaults.network)
+// and the interfaces the host uses (host.interfaces) can change at runtime, so
+// there are no flags for them.
 
 // vision.yml holds everything the host owns: the field template, shared and
 // per-camera vision_processor settings, and locked calibrations.
@@ -91,21 +92,43 @@ func run() int {
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 
-	bridge := multicast.New(*visionAddress, splitInterfaces(*skipInterfaces), level == slog.LevelDebug)
+	warnLoopbackMulticast()
+
+	addrs, auto, ifaces := currentNetwork(store)
+	opts := multicast.Options{Verbose: level == slog.LevelDebug}
+	sockets := &networkSockets{
+		vision: multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(opts), multicast.VisionConsumer(geom.Absorb)),
+		gc:     multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, opts, multicast.RefereeConsumer()),
+		auto:   auto,
+		ifaces: ifaces,
+	}
 	wsHub := hub.New()
 
-	store.OnChange(func() { publishConfigState(wsHub, store) })
+	store.OnChange(func() {
+		// A changed address or interface selection takes effect at once: the
+		// endpoints close their sockets and reopen.
+		sockets.apply(store)
+
+		publishConfigState(wsHub, store)
+		publishNetworkState(wsHub, sockets)
+	})
 
 	var wg sync.WaitGroup
 
-	runBackground(&wg, "multicast bridge", func() error { return bridge.Run(ctx, geom.Absorb) })
+	runBackground(&wg, "vision multicast", func() error { return sockets.vision.Run(ctx) })
+	runBackground(&wg, "game controller multicast", func() error { return sockets.gc.Run(ctx) })
 	runBackground(&wg, "geometry publish loop", func() error {
 		return geom.Run(ctx, func(encoded []byte) {
-			bridge.Send(encoded)
+			sockets.vision.Send(encoded)
 			publishGeometryToHub(wsHub, geom)
-			// Live calibration state comes from the network, not the store, so
-			// it's refreshed on this tick rather than only on store changes.
+			// Live calibration and socket state come from the network, not the
+			// store, so they're refreshed on this tick rather than only on
+			// store changes.
 			publishConfigState(wsHub, store)
+			// Re-evaluated every tick so automatic interface selection
+			// follows cables, Wi-Fi, and containers coming and going.
+			sockets.apply(store)
+			publishNetworkState(wsHub, sockets)
 		})
 	})
 	runBackground(&wg, "config file watcher", func() error { return store.Watch(ctx, configWatchInterval) })
@@ -245,6 +268,111 @@ func publishConfigState(wsHub *hub.Hub, store *config.Store) {
 	wsHub.Publish(configStateTopic, data)
 }
 
+// networkSockets is the host's two multicast groups.
+type networkSockets struct {
+	vision *multicast.Endpoint
+	gc     *multicast.Endpoint
+
+	mu     sync.Mutex
+	auto   bool
+	ifaces []multicast.Interface
+}
+
+// apply moves both endpoints to the store's current addresses and interface
+// selection. Each endpoint reopens only if something it uses changed.
+func (s *networkSockets) apply(store *config.Store) {
+	addrs, auto, ifaces := currentNetwork(store)
+
+	s.vision.SetAddress(addrs.VisionAddress())
+	s.gc.SetAddress(addrs.GCAddress())
+	s.vision.SetInterfaces(ifaces)
+	s.gc.SetInterfaces(ifaces)
+
+	s.mu.Lock()
+	s.auto, s.ifaces = auto, ifaces
+	s.mu.Unlock()
+}
+
+// currentNetwork is the store's network block and its interface selection
+// applied to this machine's interfaces.
+func currentNetwork(store *config.Store) (config.Network, bool, []multicast.Interface) {
+	doc, _ := store.Working()
+
+	auto, skip := doc.InterfaceSelection()
+	ifaces, _ := multicast.Select(multicast.ListInterfaces(), auto, skip)
+
+	return hostNetwork(doc), auto, ifaces
+}
+
+// warnLoopbackMulticast logs once at startup if the loopback interface has
+// multicast off, as Ubuntu ships it. The fix needs root, so it's only
+// suggested.
+func warnLoopbackMulticast() {
+	if name, enabled, ok := multicast.LoopbackMulticast(); ok && !enabled {
+		slog.Warn("multicast is off on the loopback interface", "interface", name, "enable with", "sudo ip link set "+name+" multicast on")
+	}
+}
+
+// networkStateTopic carries each socket's address and what it has heard, plus
+// the host facts the Network page's presets and notes need.
+const networkStateTopic = "network.state"
+
+func publishNetworkState(wsHub *hub.Hub, sockets *networkSockets) {
+	now := time.Now()
+
+	sockets.mu.Lock()
+	auto, ifaces := sockets.auto, sockets.ifaces
+	sockets.mu.Unlock()
+
+	loopback, loopbackMulticast, _ := multicast.LoopbackMulticast()
+
+	data, err := json.Marshal(struct {
+		Vision                multicast.Status      `json:"vision"`
+		GC                    multicast.Status      `json:"gc"`
+		AutoInterfaces        bool                  `json:"autoInterfaces"`
+		Interfaces            []multicast.Interface `json:"interfaces"`
+		Loopback              string                `json:"loopback"`
+		LoopbackMulticast     bool                  `json:"loopbackMulticast"`
+		UnprivilegedPortStart int                   `json:"unprivilegedPortStart"`
+		Root                  bool                  `json:"root"`
+	}{
+		Vision:                sockets.vision.Status(now),
+		GC:                    sockets.gc.Status(now),
+		AutoInterfaces:        auto,
+		Interfaces:            ifaces,
+		Loopback:              loopback,
+		LoopbackMulticast:     loopbackMulticast,
+		UnprivilegedPortStart: multicast.UnprivilegedPortStart(),
+		Root:                  os.Geteuid() == 0,
+	})
+	if err != nil {
+		slog.Error("marshalling network state", "err", err)
+
+		return
+	}
+
+	wsHub.Publish(networkStateTopic, data)
+}
+
+// hostNetwork is doc's network block. The store only holds validated
+// documents, so the fallback is for a bug, not a user error.
+func hostNetwork(doc config.Document) config.Network {
+	n, err := doc.Network()
+	if err != nil {
+		slog.Error("reading network config, keeping defaults", "err", err)
+
+		n, _ = config.Document{}.Network()
+	}
+
+	return n
+}
+
+func withSend(opts multicast.Options) multicast.Options {
+	opts.Send = true
+
+	return opts
+}
+
 // wrapperPacketTopic is the hub topic name the frontend already subscribes to
 // (see gui/frontend/src/App.svelte).
 const wrapperPacketTopic = "wrapper_packet.out"
@@ -275,16 +403,6 @@ func runBackground(wg *sync.WaitGroup, name string, task func() error) {
 			slog.Error(name+" stopped", "err", err)
 		}
 	}()
-}
-
-// splitInterfaces turns the comma separated flag value into a slice, or nil
-// when the flag is unset -- an unset flag must not become []string{""}.
-func splitInterfaces(flagValue string) []string {
-	if flagValue == "" {
-		return nil
-	}
-
-	return strings.Split(flagValue, ",")
 }
 
 // formattedAddress turns -address into a URL a person can actually open. A

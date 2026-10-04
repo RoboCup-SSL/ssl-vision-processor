@@ -12,6 +12,7 @@ const (
 	SectionField    = "field"
 	SectionGeometry = "geometry"
 	SectionColor    = "color"
+	SectionNetwork  = "network"
 	SectionOther    = "other"
 )
 
@@ -119,9 +120,14 @@ func classify(path []string) (string, *int) {
 	switch first := path[0]; {
 	case first == "field" || first == "optional_field_lines" || first == "models":
 		return SectionField, nil
+	case first == "host":
+		return SectionNetwork, nil
 	case first == "defaults":
-		if segment(1) == "color" {
+		switch segment(1) {
+		case "color":
 			return SectionColor, nil
+		case "network":
+			return SectionNetwork, nil
 		}
 
 		return SectionOther, nil
@@ -136,6 +142,8 @@ func classify(path []string) (string, *int) {
 			switch segment(2) {
 			case "color":
 				return SectionColor, &id
+			case "network":
+				return SectionNetwork, &id
 			case "camera", "geometry", "":
 				return SectionGeometry, &id
 			default:

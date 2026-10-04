@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { nav, selectedInstance } from "./nav.svelte";
+  import { nav, selectedInstance, isCategoryDirty } from "./nav.svelte";
   import { CONFIG_CATEGORIES } from "./configCategories";
 
   let sharedCategories = $derived(
@@ -27,7 +27,7 @@
             nav.selectedCategoryId = category.id;
           }}
         >
-          {category.label}
+          {category.label}{isCategoryDirty(category.id) ? "*" : ""}
         </button>
       </li>
     {/each}
@@ -51,7 +51,7 @@
             nav.selectedCategoryId = category.id;
           }}
         >
-          {category.label}
+          {category.label}{isCategoryDirty(category.id) ? "*" : ""}
         </button>
       </li>
     {/each}

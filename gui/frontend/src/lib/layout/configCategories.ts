@@ -5,7 +5,7 @@
 // out a real form for a category, not invented.
 //
 // scope: "shared" categories are one thing for the whole deployment
-// (geometry.yml, edited by FieldEditor already). "per-instance" categories
+// (vision.yml's field, and its defaults.network addresses). "per-instance" categories
 // are a single vision processor's own config.yml, which this host does not
 // yet read, write, or push to any instance -- see gui/CLAUDE.md's "Not yet
 // built". Their panels are placeholders until that exists.
@@ -112,7 +112,9 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
   {
     id: "network",
     label: "Network",
-    scope: "per-instance",
+    // vision.yml's defaults.network: one pair of groups for the host and
+    // every vision_processor. Edited by config/NetworkPanel.svelte.
+    scope: "shared",
     yamlKey: "network",
     fields: [
       { name: "gc_ip / gc_port", comment: "game controller multicast" },

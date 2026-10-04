@@ -4,6 +4,7 @@
   import FieldEditor from "../FieldEditor.svelte";
   import GeometryPanel from "../config/GeometryPanel.svelte";
   import ColorPanel from "../config/ColorPanel.svelte";
+  import NetworkPanel from "../config/NetworkPanel.svelte";
   import ConfigCategoryPlaceholder from "../config/ConfigCategoryPlaceholder.svelte";
 
   let category = $derived(selectedCategory());
@@ -19,6 +20,8 @@
     <GeometryPanel {category} {instance} />
   {:else if nav.selectedCategoryId === "color"}
     <ColorPanel {instance} />
+  {:else if nav.selectedCategoryId === "network"}
+    <NetworkPanel />
   {:else}
     <ConfigCategoryPlaceholder {category} {instance} />
   {/if}

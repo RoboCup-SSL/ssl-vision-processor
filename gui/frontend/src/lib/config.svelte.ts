@@ -11,7 +11,7 @@ import {
   type OptionalFieldLines,
 } from "./geometry.svelte";
 
-export type Section = "field" | "geometry" | "color" | "other";
+export type Section = "field" | "geometry" | "color" | "network" | "other";
 
 // Mirrors gui/internal/config's Change: one leaf difference between two
 // documents, keyed by its vision.yml path.
@@ -76,6 +76,10 @@ export interface ConfigDocument {
   models?: Record<string, unknown>;
   defaults?: Record<string, unknown>;
   cameras: CameraDoc[];
+  // Settings for the GUI host alone; see gui/internal/config's Host.
+  host?: {
+    interfaces?: { auto?: boolean; skip?: string[] };
+  };
 }
 
 interface ConfigResponse {
@@ -358,5 +362,6 @@ export const SECTION_LABELS: Record<Section, string> = {
   field: "Virtual Field",
   geometry: "Geometry",
   color: "Color",
+  network: "Network",
   other: "Other settings",
 };

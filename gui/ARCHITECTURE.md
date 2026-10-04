@@ -45,26 +45,30 @@ HTTP and a WebSocket instead, covered under HTTP API and WebSocket protocol belo
 
 ## Process layout
 
-`ssl-vision-processor-gui` is one process with four concurrent responsibilities, wired together in
+`ssl-vision-processor-gui` is one process with five concurrent responsibilities, wired together in
 `cmd/ssl-vision-processor-gui/main.go`.
 
 ```mermaid
 graph TD
     main["main() / run()"]
     http["HTTP server\ngoroutine"]
-    bridge["multicast bridge\ngoroutine"]
+    vision["vision multicast\ngoroutine"]
+    gc["game controller multicast\ngoroutine"]
     publish["geometry publish loop\ngoroutine, 1Hz"]
     watch["vision.yml watcher\ngoroutine, 1Hz"]
 
     main --> http
-    main --> bridge
+    main --> vision
+    main --> gc
     main --> publish
     main --> watch
-    bridge -- "Absorb(calib)" --> Geometry
+    vision -- "Absorb(calib)" --> Geometry
     publish -- "Encoded()" --> Geometry
     http -- "reads/writes" --> Store
     watch -- "checkDisk()" --> Store
     Store -- "ApplyConfig / SetLocked" --> Geometry
+    Store -- "SetAddress" --> vision
+    Store -- "SetAddress" --> gc
 ```
 
 The goroutines share one `*config.Store` and one `*geometry.Geometry`, each guarded by its own mutex. The store
@@ -79,7 +83,7 @@ before returning.
 | `cmd/ssl-vision-processor-gui` | Flags, wiring, HTTP handlers and routes.                                |
 | `internal/config`      | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files. |
 | `internal/geometry`    | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state. |
-| `internal/multicast`   | Bridge to the SSL vision multicast group.                                     |
+| `internal/multicast`   | The vision and game controller multicast sockets, reopened when their address changes. |
 | `internal/hub`         | In-process topic pub/sub and the `/ws` WebSocket handler.                     |
 | `internal/snapshot`    | Debug image listing and serving.                                              |
 | `internal/logging`     | slog setup: a coloured console handler and a rotating file handler.           |
@@ -97,7 +101,7 @@ not safe to call from multiple goroutines without a lock.
 graph LR
     Absorb["Absorb(calib)\nfrom multicast"] -->|"validated"| State[("Geometry\n(wrapper + encoded)")]
     Store["config.Store\n(working document)"] -->|"ApplyConfig, SetLocked, Unlock"| State
-    State -->|"Encoded()"| Multicast["multicast bridge"]
+    State -->|"Encoded()"| Multicast["vision multicast"]
     State -->|"Snapshot() -> protojson"| API["GET /api/geometry"]
 ```
 
@@ -145,6 +149,24 @@ starts with a header saying it is generated. `reloadConfigIfChanged()` in `src/R
 `thresholds`, `tracking`, `color`, and `debug` every half second, but never `geometry`, `camera`, `network`, or
 `stream`. Changes to those take effect when the instance restarts.
 
+The host's own sockets use the shared `defaults.network` block (`vision_ip`, `vision_port`, `gc_ip`, `gc_port`),
+with vision_processor's defaults for missing keys. Each is a `multicast.Endpoint`. When an edit changes an
+address, the endpoint closes its sockets and opens new ones on the new address straight away. A multicast
+address joins the group. Any other IPv4 address, normally a broadcast address for switches whose IGMP snooping
+drops multicast, listens on the port instead; vision_processor handles broadcast too, since its socket sets
+`SO_BROADCAST`. The Network page offers the standard, backup (port + 10), legacy (10005), and broadcast choices,
+warns about addresses that aren't multicast or broadcast, and notes non-standard and privileged (below
+`ip_unprivileged_port_start`) choices when extra tooltips are on. vision_processor reads the same block, but only
+at startup.
+
+Which interfaces the host's own sockets use is `host.interfaces`, a section no vision_processor reads, since
+interface names only mean something on one machine. `auto` (the default) uses interfaces that are up, have
+carrier, support multicast, and have an IPv4 address, and skips loopback and virtual ones (Docker and VM bridges,
+VPN tunnels); it is re-evaluated every second. Otherwise `skip` is a blacklist. The selection matters because
+sslnet's multicast receiver listens on one interface at a time, so an idle bridge costs real packets. The host
+sends through its own sender rather than sslnet's `UdpClient`, which ignores the skip list. At startup the host
+warns if the loopback interface has multicast off, as Ubuntu ships it, and suggests the command that enables it.
+
 Every number in the free form blocks is normalized to an int or a float64. The browser sends every number as a
 JSON float and YAML decodes integers as ints, so without this every edit would show spurious changes such as
 `1920 -> 1920`.
@@ -190,6 +212,10 @@ frontend, with a fallback to `index.html` for client side routes.
 `config.state` carries `config.Store`'s state: the revision, unsaved changes, any change made to the file on disk,
 and per camera calibration status. It is published on every change and once per second, since live calibration
 status comes from the network rather than the store.
+`network.state` carries each multicast socket's address and what it has heard there: vision detection packets
+(the host's own looped back geometry doesn't count) and game controller referee messages. It is published once per
+second and on every config change.
+
 Every channel in this path, from a topic's own subscriber channel to a connection's shared outbound channel, is
 size limited and drops the oldest queued value in favor of the newest one. A slow client sees only the latest
 value once it catches up, never a growing backlog of stale ones.

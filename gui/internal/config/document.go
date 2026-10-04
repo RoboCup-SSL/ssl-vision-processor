@@ -40,6 +40,35 @@ type Document struct {
 	// geometry:, color:, thresholds:, ...) and applies to every camera.
 	Defaults map[string]any `yaml:"defaults,omitempty" json:"defaults,omitempty"`
 	Cameras  []Camera       `yaml:"cameras" json:"cameras"`
+	// Host is settings for this GUI host alone; no vision_processor reads it.
+	Host *Host `yaml:"host,omitempty" json:"host,omitempty"`
+}
+
+// Host is settings that only mean something on the machine running the GUI
+// host, such as its network interface names.
+type Host struct {
+	Interfaces *Interfaces `yaml:"interfaces,omitempty" json:"interfaces,omitempty"`
+}
+
+// Interfaces chooses which network interfaces the host's sockets use.
+type Interfaces struct {
+	// Auto (the default when unset) lets the host pick. Skip is then kept
+	// only so switching back to manual restores it.
+	Auto *bool `yaml:"auto,omitempty" json:"auto,omitempty"`
+	// Skip names interfaces not to use when choosing manually.
+	Skip []string `yaml:"skip,omitempty" json:"skip,omitempty"`
+}
+
+// InterfaceSelection is whether the host picks interfaces itself, and which
+// ones to skip when it doesn't.
+func (d Document) InterfaceSelection() (auto bool, skip []string) {
+	if d.Host == nil || d.Host.Interfaces == nil {
+		return true, nil
+	}
+
+	i := d.Host.Interfaces
+
+	return i.Auto == nil || *i.Auto, i.Skip
 }
 
 // Camera is one vision_processor instance, keyed by camera_id (its position
@@ -156,6 +185,12 @@ func (d Document) Validate() error {
 		add(err)
 	}
 
+	if n, err := d.Network(); err != nil {
+		add(fmt.Errorf("defaults: %w", err))
+	} else if err := n.Validate(); err != nil {
+		add(fmt.Errorf("defaults: %w", err))
+	}
+
 	seen := map[int]bool{}
 
 	for _, c := range d.Cameras {
@@ -182,6 +217,16 @@ func (d Document) Validate() error {
 				add(fmt.Errorf("%s.calibration: %w", prefix, err))
 			case int(p.GetCameraId()) != c.CameraID:
 				add(fmt.Errorf("%s.calibration.camera.camera_id: want %d, got %d", prefix, c.CameraID, p.GetCameraId()))
+			}
+		}
+
+		// The shared block is checked above; only a camera's own override can
+		// add a new problem here.
+		if c.Config["network"] != nil {
+			if n, err := networkFromBlock(d.Effective(c)["network"]); err != nil {
+				add(fmt.Errorf("%s: %w", prefix, err))
+			} else if err := n.Validate(); err != nil {
+				add(fmt.Errorf("%s: %w", prefix, err))
 			}
 		}
 

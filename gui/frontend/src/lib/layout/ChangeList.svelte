@@ -12,7 +12,13 @@
 
   let { changes }: Props = $props();
 
-  const SECTION_ORDER: Section[] = ["field", "geometry", "color", "other"];
+  const SECTION_ORDER: Section[] = [
+    "field",
+    "geometry",
+    "color",
+    "network",
+    "other",
+  ];
 
   // Grouped by tab, then camera, so the list reads the way the UI is laid out.
   let groups = $derived(
