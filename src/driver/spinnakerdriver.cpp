@@ -180,4 +180,94 @@ void SpinnakerDriver::restore(const RawImage& image) {
 	}
 }
 
+uint32_t SpinnakerDriver::getWidth() {
+    return pCam->Width.GetValue();
+}
+
+uint32_t SpinnakerDriver::getHeight() {
+    return pCam->Height.GetValue();
+}
+
+void SpinnakerDriver::setResolution(uint32_t width, uint32_t height) {
+	CATCH_SPINNAKER(pCam->Width.SetValue(width));
+	CATCH_SPINNAKER(pCam->Height.SetValue(height));
+}
+
+float SpinnakerDriver::getExposure() {
+    return pCam->ExposureTime.GetValue() / 1000.0f;
+}
+
+void SpinnakerDriver::setExposure(float exposure) {
+	if(exposure == 0.0f) {
+		CATCH_SPINNAKER(pCam->ExposureAuto.SetValue(Spinnaker::ExposureAuto_Continuous));
+		CATCH_SPINNAKER(pCam->AutoExposureMeteringMode.SetValue(Spinnaker::AutoExposureMeteringMode_Average));
+	} else {
+		CATCH_SPINNAKER(pCam->ExposureAuto.SetValue(Spinnaker::ExposureAuto_Off))
+		CATCH_SPINNAKER(pCam->ExposureTime.SetValue(exposure * 1000.0f))
+	}
+}
+
+float SpinnakerDriver::getGain() {
+    return pCam->Gain.GetValue();
+}
+
+void SpinnakerDriver::setGain(float gain) {
+	if(gain == 0.0f) {
+		CATCH_SPINNAKER(pCam->GainAuto.SetValue(Spinnaker::GainAuto_Continuous));
+	} else {
+		CATCH_SPINNAKER(pCam->GainAuto.SetValue(Spinnaker::GainAuto_Off));
+		CATCH_SPINNAKER(pCam->Gain.SetValue(gain));
+	}
+}
+
+float SpinnakerDriver::getGamma() {
+    return pCam->Gamma.GetValue();
+}
+
+void SpinnakerDriver::setGamma(float gamma) {
+	if(gamma == 1.0f) {
+		CATCH_SPINNAKER(pCam->GammaEnable.SetValue(false));
+	} else {
+		CATCH_SPINNAKER(pCam->GammaEnable.SetValue(true));
+		CATCH_SPINNAKER(pCam->Gamma.SetValue(gamma));
+	}
+}
+
+WhiteBalanceType SpinnakerDriver::getWhiteBalanceType() {
+	if(pCam->BalanceWhiteAuto.GetValue() == Spinnaker::BalanceWhiteAuto_Off) {
+		return WhiteBalanceType::WhiteBalanceType_Manual;
+	} else {
+		return (pCam->BalanceWhiteAutoProfile.GetValue() == Spinnaker::BalanceWhiteAutoProfile_Outdoor)
+			? WhiteBalanceType::WhiteBalanceType_AutoOutdoor
+			: WhiteBalanceType::WhiteBalanceType_AutoIndoor;
+	}
+}
+
+float SpinnakerDriver::getWhiteBalanceBlue() {
+	CATCH_SPINNAKER(pCam->BalanceRatioSelector.SetValue(Spinnaker::BalanceRatioSelector_Blue))
+	return pCam->BalanceRatio.GetValue();
+}
+
+float SpinnakerDriver::getWhiteBalanceRed() {
+    CATCH_SPINNAKER(pCam->BalanceRatioSelector.SetValue(Spinnaker::BalanceRatioSelector_Red))
+	return pCam->BalanceRatio.GetValue();
+}
+
+void SpinnakerDriver::setWhiteBalance(WhiteBalanceType type, float blue, float red) {
+	if(type != WhiteBalanceType_Manual) {
+		CATCH_SPINNAKER(pCam->BalanceWhiteAuto.SetValue(Spinnaker::BalanceWhiteAuto_Continuous));
+		CATCH_SPINNAKER(pCam->BalanceWhiteAutoProfile.SetValue(
+				type == WhiteBalanceType_AutoOutdoor
+				? Spinnaker::BalanceWhiteAutoProfile_Outdoor
+				: Spinnaker::BalanceWhiteAutoProfile_Indoor
+		));
+	} else {
+		CATCH_SPINNAKER(pCam->BalanceWhiteAuto.SetValue(Spinnaker::BalanceWhiteAuto_Off));
+		CATCH_SPINNAKER(pCam->BalanceRatioSelector.SetValue(Spinnaker::BalanceRatioSelector_Blue));
+		CATCH_SPINNAKER(pCam->BalanceRatio.SetValue(blue));
+		CATCH_SPINNAKER(pCam->BalanceRatioSelector.SetValue(Spinnaker::BalanceRatioSelector_Red));
+		CATCH_SPINNAKER(pCam->BalanceRatio.SetValue(red));
+	}
+}
+
 #endif
