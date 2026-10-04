@@ -42,9 +42,11 @@ internal/
   config/      vision.yml store: working/disk copies, save/load, locked
                calibrations, disk watcher, generated config.yml files
   geometry/    live field template + published calibrations + 1Hz publish loop
-  multicast/   bridge to the SSL vision multicast group
+  multicast/   vision + game controller sockets, interface selection,
+               reopened on address/interface changes
   hub/         topic pub/sub + the /ws handler
   snapshot/    debug image listing/serving
+  video/       live video: RTP H.264 -> fMP4 over /ws/video/{id} for MSE
   logging/     slog setup: tint console + lumberjack file
   vision/      generated Go protobuf, not committed -- run `make proto` (DO NOT EDIT)
   gamecontroller/  generated Go protobuf, not committed
@@ -234,8 +236,11 @@ Not automated -- there is no CI hardware to run it on.
 - **Announce contents/cadence** -- whether the announce echoes the VP's full
   current `SSL_VPConfig` (needed for diff-based reprovision to work at all) or
   just identity, and how often.
-- **The imagery/video path for remote instances.** `internal/snapshot`'s
-  local-filesystem assumption is a known, explicitly accepted limitation, not
-  a solution. `src/rtpstreamer.cpp` already emits H.264 RTP with
-  per-instance `stream_ip`/`stream_port`; bridging that to WebRTC/WHEP in Go is
-  the likely direction but is undecided and unbuilt.
+- **Snapshots for remote instances.** `internal/snapshot`'s local-filesystem
+  assumption is a known, explicitly accepted limitation. Live video is
+  solved (`internal/video` relays the RTP stream as fMP4 over a WebSocket to
+  MSE, chosen over WebRTC because latency doesn't matter for setup and it
+  avoids Firefox's Constrained-Baseline-only WebRTC H.264), but the corner
+  picker needs full-resolution stills, which the stream isn't.
+- **A video grid.** The backend's `keyframes` mode is built for it; the
+  Svelte side has only the single camera Stream panel.

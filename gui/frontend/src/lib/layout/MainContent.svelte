@@ -5,6 +5,7 @@
   import GeometryPanel from "../config/GeometryPanel.svelte";
   import ColorPanel from "../config/ColorPanel.svelte";
   import NetworkPanel from "../config/NetworkPanel.svelte";
+  import StreamPanel from "../config/StreamPanel.svelte";
   import ConfigCategoryPlaceholder from "../config/ConfigCategoryPlaceholder.svelte";
 
   let category = $derived(selectedCategory());
@@ -22,6 +23,8 @@
     <ColorPanel {instance} />
   {:else if nav.selectedCategoryId === "network"}
     <NetworkPanel />
+  {:else if nav.selectedCategoryId === "stream"}
+    <StreamPanel {instance} />
   {:else}
     <ConfigCategoryPlaceholder {category} {instance} />
   {/if}

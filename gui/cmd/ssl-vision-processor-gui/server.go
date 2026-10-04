@@ -10,6 +10,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -17,11 +18,12 @@ type VisionServer struct {
 	geometry *geometry.Geometry
 	store    *config.Store
 	hub      *hub.Hub
+	video    *video.Manager
 	imgDir   string
 }
 
-func NewVisionServer(geom *geometry.Geometry, store *config.Store, wsHub *hub.Hub, imgDir string) http.Handler {
-	s := &VisionServer{geometry: geom, store: store, hub: wsHub, imgDir: imgDir}
+func NewVisionServer(geom *geometry.Geometry, store *config.Store, wsHub *hub.Hub, videos *video.Manager, imgDir string) http.Handler {
+	s := &VisionServer{geometry: geom, store: store, hub: wsHub, video: videos, imgDir: imgDir}
 
 	mux := http.NewServeMux()
 	s.addRoutes(mux)

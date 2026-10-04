@@ -12,6 +12,7 @@ import (
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 )
 
 // testServer serves a *copy* of testdata/vision.yml -- saves write back to
@@ -34,7 +35,7 @@ func testServer(t *testing.T) (http.Handler, string) {
 		t.Fatalf("openConfig: %v", err)
 	}
 
-	return NewVisionServer(geom, store, hub.New(), t.TempDir()), path
+	return NewVisionServer(geom, store, hub.New(), video.NewManager(false), t.TempDir()), path
 }
 
 func do(t *testing.T, h http.Handler, method, target string, body any) *httptest.ResponseRecorder {

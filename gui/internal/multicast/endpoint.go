@@ -26,6 +26,10 @@ type Options struct {
 	Verbose bool
 	// Send also opens a sender on the group, for Endpoint.Send.
 	Send bool
+	// ReadBuffer, when set, receives on a plain socket with this kernel
+	// receive buffer instead of sslnet's receiver (see openSocket). For
+	// high-rate streams; such an endpoint can't send.
+	ReadBuffer int
 }
 
 // Consumer handles one datagram and reports whether it counts as heard: a
@@ -74,11 +78,16 @@ type Status struct {
 // NewEndpoint prepares an endpoint on address (e.g. "224.5.23.2:10006")
 // over ifaces (see Select). Nothing is opened until Run.
 func NewEndpoint(name, address string, ifaces []Interface, opts Options, consume Consumer) *Endpoint {
+	open := openSSLNet
+	if opts.ReadBuffer > 0 {
+		open = openSocket
+	}
+
 	return &Endpoint{
 		name:    name,
 		opts:    opts,
 		consume: consume,
-		open:    openSSLNet,
+		open:    open,
 		poke:    make(chan struct{}, 1),
 		address: address,
 		ifaces:  ifaces,

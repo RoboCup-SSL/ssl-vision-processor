@@ -29,9 +29,26 @@
           # self-contained and testable without a GPU driver; a real GPU ICD on
           # the host is picked up instead when OCL_ICD_VENDORS points at it.
           openclRuntime = pkgs.pocl;
-        in
-        {
-          default = pkgs.mkShell {
+
+          # AMD GPUs through ROCm, for `nix develop .#amd`. Kept out of the
+          # default shell because ROCm is a multi-gigabyte download nobody
+          # without an AMD card needs. The host's own /etc/OpenCL/vendors can't
+          # be used instead: those drivers link against the distro's libraries,
+          # not nixpkgs'. vision_processor takes the first GPU it finds; ROCm
+          # lists integrated GPUs too (Ryzen 9000's gfx1036 shows up after a
+          # discrete gfx1201), so if the "Using device" log line names the
+          # wrong one, ROCR_VISIBLE_DEVICES=0 (or the right index, from
+          # `clinfo -l`) hides the rest. pocl stays as the fallback for a
+          # machine where ROCm finds no device.
+          amdOpenCL = pkgs.symlinkJoin {
+            name = "opencl-vendors-amd";
+            paths = [
+              pkgs.pocl
+              pkgs.rocmPackages.clr.icd
+            ];
+          };
+
+          shell = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
               cmake
               pkg-config
@@ -96,6 +113,13 @@
               echo "Camera SDKs (Spinnaker, mvIMPACT) are proprietary and not"
               echo "packaged here; the OpenCV backend is available."
             '';
+          };
+        in
+        {
+          default = shell;
+
+          amd = shell.overrideAttrs {
+            OCL_ICD_VENDORS = "${amdOpenCL}/etc/OpenCL/vendors";
           };
         }
       );

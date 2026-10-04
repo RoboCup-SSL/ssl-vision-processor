@@ -72,9 +72,10 @@ internal/
   config/      vision.yml: working document, save and load, locked calibrations, disk watcher,
                generated config.yml files
   geometry/    live field template, published calibrations, the 1Hz publish loop
-  multicast/   bridge to the SSL vision multicast group
+  multicast/   vision and game controller sockets, interface selection
   hub/         topic pub/sub and the /ws handler
   snapshot/    debug image listing and serving
+  video/       live video, relayed to the browser
   logging/     slog setup
   vision/      generated protobuf bindings, not committed
   gamecontroller/  generated protobuf bindings, not committed
@@ -90,3 +91,10 @@ copy their fixture into `t.TempDir()` first and never operate on the checked in 
 
 `go test ./...` from `gui/` will try to compile stray Go source inside `frontend/node_modules`. Use
 `go test ./cmd/... ./internal/... ./frontend`, which is what `Makefile` and CI both do.
+
+## Live video
+
+The Stream page shows the selected camera's live video. The host relays the vision_processor's H.264 stream to
+the browser without re-encoding, and only while someone watches. The browser needs H.264 support: Google Chrome
+bundles it, while Chromium and Firefox on Linux use the system's FFmpeg libraries. The stream cycles through the
+vision_processor's views unless its `stream.raw_feed` is set.

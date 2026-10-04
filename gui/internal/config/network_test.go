@@ -122,3 +122,26 @@ func TestHostRoundTripsAndDiffsAsNetwork(t *testing.T) {
 		t.Fatalf("changes = %+v, want one network change", changes)
 	}
 }
+
+func TestStreamAddressMatchesVisionProcessor(t *testing.T) {
+	doc := loadFixture(t)
+
+	s, ok, err := doc.Stream(1)
+	if err != nil || !ok {
+		t.Fatalf("Stream(1) = %v %v", ok, err)
+	}
+
+	if !s.Active || s.Address != "224.5.23.101:10100" {
+		t.Fatalf("stream = %+v, want active on 224.5.23.101:10100", s)
+	}
+
+	doc.Defaults["stream"] = map[string]any{"active": false, "ip_base_prefix": "239.1.1.", "ip_base_end": 10, "port": 20000}
+
+	if s, _, _ := doc.Stream(1); s.Active || s.Address != "239.1.1.11:20000" {
+		t.Fatalf("stream = %+v, want inactive on 239.1.1.11:20000", s)
+	}
+
+	if _, ok, _ := doc.Stream(99); ok {
+		t.Fatal("Stream(99) found a camera that doesn't exist")
+	}
+}

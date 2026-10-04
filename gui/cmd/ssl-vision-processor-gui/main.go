@@ -20,6 +20,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/logging"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -94,14 +95,16 @@ func run() int {
 
 	warnLoopbackMulticast()
 
-	addrs, auto, ifaces := currentNetwork(store)
+	_, addrs, auto, ifaces := currentNetwork(store)
 	opts := multicast.Options{Verbose: level == slog.LevelDebug}
 	sockets := &networkSockets{
 		vision: multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(opts), multicast.VisionConsumer(geom.Absorb)),
 		gc:     multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, opts, multicast.RefereeConsumer()),
+		video:  video.NewManager(level == slog.LevelDebug),
 		auto:   auto,
 		ifaces: ifaces,
 	}
+	sockets.apply(store)
 	wsHub := hub.New()
 
 	store.OnChange(func() {
@@ -135,7 +138,7 @@ func run() int {
 
 	srv := &http.Server{
 		Addr:              *address,
-		Handler:           NewVisionServer(geom, store, wsHub, *imgDir),
+		Handler:           NewVisionServer(geom, store, wsHub, sockets.video, *imgDir),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -272,6 +275,8 @@ func publishConfigState(wsHub *hub.Hub, store *config.Store) {
 type networkSockets struct {
 	vision *multicast.Endpoint
 	gc     *multicast.Endpoint
+	// video opens each camera's stream only while someone watches it.
+	video *video.Manager
 
 	mu     sync.Mutex
 	auto   bool
@@ -281,27 +286,46 @@ type networkSockets struct {
 // apply moves both endpoints to the store's current addresses and interface
 // selection. Each endpoint reopens only if something it uses changed.
 func (s *networkSockets) apply(store *config.Store) {
-	addrs, auto, ifaces := currentNetwork(store)
+	doc, addrs, auto, ifaces := currentNetwork(store)
 
 	s.vision.SetAddress(addrs.VisionAddress())
 	s.gc.SetAddress(addrs.GCAddress())
 	s.vision.SetInterfaces(ifaces)
 	s.gc.SetInterfaces(ifaces)
+	s.video.Configure(cameraStreams(doc), ifaces)
 
 	s.mu.Lock()
 	s.auto, s.ifaces = auto, ifaces
 	s.mu.Unlock()
 }
 
-// currentNetwork is the store's network block and its interface selection
-// applied to this machine's interfaces.
-func currentNetwork(store *config.Store) (config.Network, bool, []multicast.Interface) {
+// currentNetwork is the store's working document, its network block, and its
+// interface selection applied to this machine's interfaces.
+func currentNetwork(store *config.Store) (config.Document, config.Network, bool, []multicast.Interface) {
 	doc, _ := store.Working()
 
 	auto, skip := doc.InterfaceSelection()
 	ifaces, _ := multicast.Select(multicast.ListInterfaces(), auto, skip)
 
-	return hostNetwork(doc), auto, ifaces
+	return doc, hostNetwork(doc), auto, ifaces
+}
+
+// cameraStreams is every camera's live video stream settings.
+func cameraStreams(doc config.Document) map[int]video.Stream {
+	streams := make(map[int]video.Stream, len(doc.Cameras))
+
+	for _, c := range doc.Cameras {
+		s, ok, err := doc.Stream(c.CameraID)
+		if err != nil || !ok {
+			slog.Warn("reading camera stream settings", "camera", c.CameraID, "err", err)
+
+			continue
+		}
+
+		streams[c.CameraID] = video.Stream{Active: s.Active, Address: s.Address}
+	}
+
+	return streams
 }
 
 // warnLoopbackMulticast logs once at startup if the loopback interface has

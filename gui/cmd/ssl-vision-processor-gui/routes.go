@@ -6,6 +6,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/frontend"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/snapshot"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 )
 
 func (s *VisionServer) addRoutes(mux *http.ServeMux) {
@@ -25,6 +26,7 @@ func (s *VisionServer) addRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/", http.NotFoundHandler())
 
 	mux.Handle("/ws", hub.HandleWebSocket(s.hub))
+	mux.Handle("GET /ws/video/{id}", video.HandleWebSocket(s.video))
 
 	mux.Handle("/", frontend.HandleFrontend())
 }

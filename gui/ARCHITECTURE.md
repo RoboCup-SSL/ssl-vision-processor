@@ -86,6 +86,7 @@ before returning.
 | `internal/multicast`   | The vision and game controller multicast sockets, reopened when their address changes. |
 | `internal/hub`         | In-process topic pub/sub and the `/ws` WebSocket handler.                     |
 | `internal/snapshot`    | Debug image listing and serving.                                              |
+| `internal/video`       | Live video: each camera's H.264 RTP stream relayed to browsers as fragmented MP4. |
 | `internal/logging`     | slog setup: a coloured console handler and a rotating file handler.           |
 | `internal/vision`, `internal/gamecontroller` | Generated protobuf bindings. Not committed, see Build-time codegen below. |
 | `frontend`             | Svelte 5 and TypeScript, embedded into the binary via `//go:embed`.           |
@@ -191,6 +192,7 @@ All routes are registered in `cmd/ssl-vision-processor-gui/routes.go`.
 | GET    | `/api/snapshots`               | List of debug images currently on disk.                            |
 | GET    | `/api/snapshot/{camID}/{view}` | One debug image.                                                    |
 | GET    | `/ws`                          | WebSocket, see below.                                               |
+| GET    | `/ws/video/{id}?mode=full\|keyframes` | One camera's live video, see Live video below.                |
 
 An unrouted `/api/*` path returns 404 rather than falling through to the frontend, so a typo'd endpoint fails
 with a clear status instead of returning HTML to a caller expecting JSON. Every other path serves the embedded
@@ -220,6 +222,26 @@ Every channel in this path, from a topic's own subscriber channel to a connectio
 size limited and drops the oldest queued value in favor of the newest one. A slow client sees only the latest
 value once it catches up, never a growing backlog of stale ones.
 
+## Live video
+
+Each vision_processor multicasts H.264 over RTP (`src/rtpstreamer.cpp`) to `ip_base_prefix + (ip_base_end +
+cam_id):port` from its `stream` settings, 224.5.23.100+id:10100 by default. `internal/video` relays it without
+re-encoding. A camera's socket opens on its first viewer and closes 5 s after its last. It binds the group address
+with a large receive buffer, joined on every selected interface, rather than using sslnet's receiver, whose 8 KB
+buffer drops most of a keyframe's burst and whose `0.0.0.0` bind would mix cameras that share a port.
+
+Packets are reassembled into frames (RFC 6184 single units, STAP-A, FU-A; there is no SDP, so payload type and
+packetization mode 1 are assumed). After a lost packet, frames are dropped until the next keyframe, since the ones
+in between can't decode. A new SSRC means the encoder restarted, which it does whenever the streamed view changes
+size; the parameter sets that come with the next keyframe start a new init segment. Frames are muxed as fragmented
+MP4, one per segment, timed by arrival rather than the encoder's nominal 30 fps.
+
+`/ws/video/{id}` sends JSON `status` (once a second) and `format` (codec string and size) messages, and binary
+segments. `full` is every frame; `keyframes` is about one a second, for grids. A new viewer gets the frames since
+the last keyframe, so the picture appears at once. A viewer whose queue fills skips to the next keyframe. The
+browser appends in sequence mode, jumps forward when it falls behind, and disconnects while its tab is hidden.
+The host's cost is about 1% of a core per watched stream; the browser's H.264 decode is the real cost.
+
 ## Build-time codegen
 
 `internal/vision`, `internal/gamecontroller`, and `frontend/src/proto` are `buf generate` output and are not
@@ -234,5 +256,6 @@ regenerates them as an ordinary build prerequisite. See `gui/README.md` for the 
 - **Host owned config push.** Diffing an instance's announced config against a desired one and pushing the
   difference, rather than regenerating a local `config.yml` as the host does today. This also needs a way to ask
   a running instance to recalibrate.
-- **Remote video.** `internal/snapshot` assumes the gui host and the vision_processor instance share a
-  filesystem. This does not hold once instances run on other hosts.
+- **Remote snapshots.** `internal/snapshot` assumes the gui host and the vision_processor instance share a
+  filesystem. Live video (above) works remotely, but the full-resolution snapshots the corner picker needs do not.
+- **A video grid.** `keyframes` mode exists for it; only the single camera view is built.
