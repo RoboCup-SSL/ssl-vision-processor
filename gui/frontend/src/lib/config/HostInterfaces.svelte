@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SettingsCard from "../SettingsCard.svelte";
+  import { Checkbox, Toggle, Alert, P } from "flowbite-svelte";
   import {
     network,
     interfaceSelection,
@@ -92,85 +94,69 @@
   );
 </script>
 
-<fieldset>
-  <legend>Host interfaces</legend>
-
-  <label class="auto">
-    <input
-      type="checkbox"
-      checked={selection.auto}
-      onchange={(e) => {
-        setAuto(e.currentTarget.checked);
-      }}
-    />
+<SettingsCard title="Host interfaces">
+  <Toggle
+    size="small"
+    checked={selection.auto}
+    onchange={(e: Event) => {
+      setAuto((e.currentTarget as HTMLInputElement).checked);
+    }}
+  >
     Auto
-    <span class="hint"
+    <span class="hint ms-1"
       >(skips loopback, disconnected, and virtual interfaces)</span
     >
-  </label>
+  </Toggle>
 
   <ul class:muted={selection.auto}>
     {#each rows as row (row.name)}
       <li>
-        <label>
-          <input
-            type="checkbox"
-            checked={row.checked}
-            disabled={row.disabled}
-            onchange={(e) => {
-              toggle(row.name, e.currentTarget.checked);
-            }}
-          />
+        <Checkbox
+          checked={row.checked}
+          disabled={row.disabled}
+          onchange={(e: Event) => {
+            toggle(row.name, (e.currentTarget as HTMLInputElement).checked);
+          }}
+        >
           <span
             ><span class="name">{row.name}</span><span class="detail"
               >{row.detail}</span
             ></span
           >
-        </label>
+        </Checkbox>
       </li>
     {:else}
       <li class="hint">Waiting for the host…</li>
     {/each}
   </ul>
 
-  <p class="hint">
+  <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
     Only this host's sockets; vision_processors use their system's default
     route. Broadcast receiving listens on every interface.
-  </p>
+  </P>
 
   {#if loopbackOff && network.state}
-    <div class="warning">
+    <Alert color="yellow" class="mt-2 p-3 text-sm">
       Multicast is off on <code>{network.state.loopback}</code>. Programs on
       this machine that multicast over loopback won't hear each other. To enable
       it until reboot:
       <pre>sudo ip link set {network.state.loopback} multicast on</pre>
-    </div>
+    </Alert>
   {/if}
-</fieldset>
+</SettingsCard>
 
 <style>
-  fieldset {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    margin-bottom: 1rem;
-  }
-
-  label {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin: 0.3rem 0;
-    font-size: 0.85rem;
-  }
-
   ul {
-    margin: 0.25rem 0 0.5rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0.5rem 0 0.5rem 1.2rem;
     padding: 0;
     list-style: none;
   }
 
   ul.muted {
-    color: #999;
+    color: var(--color-gray-400);
   }
 
   .name {
@@ -179,27 +165,19 @@
 
   .detail,
   .hint {
-    color: #666;
+    color: var(--color-gray-600);
     font-size: 0.8rem;
   }
 
   ul.muted .detail {
-    color: #aaa;
-  }
-
-  .warning {
-    padding: 0.4rem 0.6rem;
-    border-radius: 4px;
-    background: #fff6e5;
-    color: #7a4a00;
-    font-size: 0.85rem;
+    color: var(--color-gray-400);
   }
 
   pre {
     margin: 0.4rem 0 0;
     padding: 0.3rem 0.5rem;
     border-radius: 4px;
-    background: #fff;
+    background: var(--color-white);
     font-size: 0.8rem;
     user-select: all;
   }

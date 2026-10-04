@@ -16,7 +16,7 @@
 
   import { minReferenceForceUnlock } from "../color.svelte";
   import { preferences } from "../preferences.svelte";
-  import { Button, Modal } from "flowbite-svelte";
+  import { Button, Modal, Input, Label } from "flowbite-svelte";
 
   interface Props {
     referenceForce?: number;
@@ -373,19 +373,25 @@
       </Button>
 
       <div class="min-force-block">
-        <label class="min-force">
-          Minimum reference weight
-          <input
-            type="number"
-            step="0.01"
-            value={minForceText}
-            disabled={!minForceUnlocked}
-            oninput={handleMinForceInput}
-            onkeydown={handleMinForceKeydown}
-            onfocus={handleMinForceFocus}
-            onblur={handleMinForceBlur}
-          />
-        </label>
+        <div class="min-force">
+          <Label for="min-force" class="font-normal"
+            >Minimum reference weight</Label
+          >
+          <div class="w-20 shrink-0">
+            <Input
+              id="min-force"
+              type="number"
+              size="sm"
+              step="0.01"
+              value={minForceText}
+              disabled={!minForceUnlocked}
+              oninput={handleMinForceInput}
+              onkeydown={handleMinForceKeydown}
+              onfocus={handleMinForceFocus}
+              onblur={handleMinForceBlur}
+            />
+          </div>
+        </div>
 
         {#if !minForceUnlocked}
           <Button size="xs" color="light" outline onclick={requestUnlock}>
@@ -480,7 +486,7 @@
   }
 
   .marker {
-    fill: #1565c0;
+    fill: var(--color-primary-700);
     stroke: white;
     stroke-width: 0.6;
     cursor: grab;
@@ -523,15 +529,5 @@
     gap: 0.25rem;
     font-size: 0.85rem;
     color: #444;
-  }
-
-  .min-force input {
-    width: 5rem;
-  }
-
-  .min-force input:disabled {
-    background: #eee;
-    color: #888;
-    cursor: not-allowed;
   }
 </style>

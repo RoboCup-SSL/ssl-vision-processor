@@ -3,6 +3,14 @@
 cam_id: 0
 camera:
   driver: OPENCV
+color:
+  history_force: 0.7
+  min_reference_force: 0.05
+  orange:
+    - 192
+    - 128
+    - 64
+  reference_force: 0.1
 geometry:
   camera_amount: 1
   line_corners:

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Button } from "flowbite-svelte";
   import { onMount } from "svelte";
   import { topic } from "./lib/wrapper-bus";
   import Shell from "./lib/layout/Shell.svelte";
@@ -118,9 +119,9 @@
     {/if}
 
     <section>
-      <button onclick={toggleSubscribe}>
+      <Button size="sm" color="alternative" onclick={toggleSubscribe}>
         {subscribed ? "Unsubscribe" : "Subscribe to wrapper_packet.out"}
-      </button>
+      </Button>
 
       {#if subscribed}
         {#if wrapperPacket}

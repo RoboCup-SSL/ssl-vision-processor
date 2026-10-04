@@ -77,6 +77,20 @@ buf.gen.yaml   generates both internal/{vision,gamecontroller} and
 - **Svelte 5 runes only**, no stores added beyond what predates this work
   (`wrapper-bus.ts` still uses `svelte/store`'s `readable` -- not yet migrated,
   not a blocker).
+- **flowbite-svelte for every UI element**, with the theme tokens in
+  `frontend/src/app.css` for color. New UI uses a Flowbite component where one
+  exists (Button, Input, Select, Toggle, Range, Alert, Helper, Toast, Card,
+  ...) and Tailwind utilities for layout, not hand-written CSS for controls.
+  Settings forms use `FormRow.svelte` (label, control, gated notes, messages)
+  inside `SettingsCard.svelte`. There is no base-layer style for raw
+  `<button>`/`<fieldset>` any more, so a raw one renders unstyled on purpose.
+  Colors come from tokens (`primary-*`/`secondary-*`, matched to the SSL Game
+  Controller; Tailwind's gray/red/green/yellow), never hex in components.
+  Kept custom on purpose: canvas and SVG drawing (YUV plane, weight triangle,
+  corner overlay, field sketches), the vertical YUV brightness slider, the MSE
+  `<video>`, and NoteTip's icon trigger. Two Flowbite quirks: an `Input` keeps
+  its own `w-full`, so size it with a wrapper div, not a width class; and its
+  plugin's form styling needs the semantic color tokens defined in `app.css`.
 
 ## Architectural decisions
 

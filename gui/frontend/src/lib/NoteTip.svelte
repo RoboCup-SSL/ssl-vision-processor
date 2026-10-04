@@ -36,7 +36,7 @@
     padding: 0;
     border: none;
     background: none;
-    color: #1a56db;
+    color: var(--color-primary-700);
     font-size: 0.95rem;
     line-height: 1;
     cursor: help;

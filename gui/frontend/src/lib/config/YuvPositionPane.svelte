@@ -28,7 +28,14 @@
     type RGB,
   } from "../color.svelte";
   import { preferences } from "../preferences.svelte";
-  import { Button, ButtonGroup, Modal } from "flowbite-svelte";
+  import {
+    Button,
+    ButtonGroup,
+    Modal,
+    Alert,
+    Heading,
+    P,
+  } from "flowbite-svelte";
 
   interface Props {
     color?: RGB;
@@ -554,7 +561,9 @@
 
 <div class="yuv-pane">
   <div class="pane-header">
-    <h3>Reference colors</h3>
+    <Heading tag="h3" class="mb-1 text-base font-semibold"
+      >Reference colors</Heading
+    >
     <div class="history-buttons">
       <Button
         size="xs"
@@ -662,11 +671,14 @@
           </Button>
         </ButtonGroup>
 
+        <!-- Same pattern as the mode buttons above: colors from the selection
+             keep exactly one lit, which ButtonToggleGroup doesn't. -->
         {#each COLOR_CLASSES as cls (cls)}
-          <button
-            type="button"
+          <Button
+            size="sm"
+            pill
+            color={selectedClass === cls ? "primary" : "alternative"}
             class="class-button"
-            class:selected={selectedClass === cls}
             onclick={() => (selectedClass = cls)}
           >
             <span
@@ -676,7 +688,7 @@
               )}
             ></span>
             {CLASS_LABELS[cls]}
-          </button>
+          </Button>
         {/each}
 
         <div
@@ -742,15 +754,15 @@
   </Modal>
 
   {#if preferences.tooltipsEnabled && gamutFraction < 0.3}
-    <p class="gamut-note">
+    <Alert color="primary" class="mt-2 p-2 text-sm">
       Only {Math.round(gamutFraction * 100)}% of the square is a real color at
       this brightness -- the outlined shape, not a full square, is expected
       here: brightness this close to {sliceY < 128 ? "black" : "white"} genuinely
       has few reachable colors. Not a rendering glitch.
-    </p>
+    </Alert>
   {/if}
 
-  <p class="hint">
+  <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
     Drag or click inside the square to set {label || "the reference color"}'s
     color at the brightness shown. Dragging the slider (or scrolling over either
     control) only previews a different brightness -- the marker stays exactly
@@ -760,7 +772,7 @@
     last drag, one gesture at a time. The currently-autoadapted position and
     per-frame blob samples aren't shown yet: both need the other contributor's
     protobuf work to reach this host.
-  </p>
+  </P>
 </div>
 
 <style>
@@ -782,10 +794,6 @@
     justify-content: space-between;
     gap: 1rem;
     margin-bottom: 0.5rem;
-  }
-
-  .pane-header h3 {
-    margin: 0;
   }
 
   .history-buttons {
@@ -897,7 +905,7 @@
     z-index: 2;
     padding: 0.15rem 0.45rem;
     border-radius: 999px;
-    background: #1565c0;
+    background: var(--color-primary-700);
     color: white;
     font-size: 0.8rem;
     font-variant-numeric: tabular-nums;
@@ -999,21 +1007,10 @@
     border-top: 1px solid #ddd;
   }
 
-  .class-button {
-    display: inline-flex;
-    align-items: center;
+  /* A Flowbite Button; this only lays out the swatch beside the label. */
+  :global(.class-button) {
+    justify-content: flex-start;
     gap: 0.4rem;
-    padding: 0.3rem 0.6rem;
-    border: 1px solid #ccc;
-    border-radius: 999px;
-    background: white;
-    font-size: 0.85rem;
-    cursor: pointer;
-  }
-
-  .class-button.selected {
-    border-color: #1565c0;
-    background: #e8f0fe;
   }
 
   /* Full column width, split evenly, matching the class buttons below. */
@@ -1051,21 +1048,5 @@
   .readout dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
-  }
-
-  .gamut-note {
-    color: #7a5c00;
-    background: #fff8e1;
-    border: 1px solid #ffe1a8;
-    border-radius: 4px;
-    padding: 0.4rem 0.6rem;
-    margin-top: 0.5rem;
-    font-size: 0.8rem;
-  }
-
-  .hint {
-    color: #666;
-    font-size: 0.8rem;
-    margin-top: 0.5rem;
   }
 </style>

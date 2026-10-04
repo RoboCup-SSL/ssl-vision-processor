@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Spinner } from "flowbite-svelte";
   import {
     VideoStream,
     type Mode,
@@ -62,6 +63,11 @@
     };
   });
 
+  // Still expecting video, as opposed to an error or streaming being off.
+  let waiting = $derived(
+    !error && (!status || (status.active && (!status.receiving || !format))),
+  );
+
   let overlay = $derived.by((): string | null => {
     if (error) return error;
     if (!status) return "Connecting…";
@@ -81,7 +87,10 @@
   <video bind:this={video} muted autoplay playsinline></video>
 
   {#if overlay}
-    <div class="overlay">{overlay}</div>
+    <div class="overlay">
+      {#if waiting}<Spinner size="6" color="gray" />{/if}
+      <span>{overlay}</span>
+    </div>
   {/if}
 </div>
 
@@ -119,6 +128,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 0.75rem;
     padding: 1rem;
     color: #ddd;
     font-size: 0.9rem;

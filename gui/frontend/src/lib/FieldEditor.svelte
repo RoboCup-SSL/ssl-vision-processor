@@ -1,4 +1,16 @@
 <script lang="ts">
+  import SettingsCard from "./SettingsCard.svelte";
+  import FormRow from "./FormRow.svelte";
+  import {
+    Button,
+    Checkbox,
+    Input,
+    Radio,
+    Select,
+    Spinner,
+    Heading,
+    P,
+  } from "flowbite-svelte";
   import { virtualField } from "./geometry.svelte";
   import { config } from "./config.svelte";
   import FieldSketch from "./FieldSketch.svelte";
@@ -56,113 +68,130 @@
       cameraCount = options[0] ?? 1;
     }
   }
+
+  // The form's labels ("Boundary width (goal line)") need more room than
+  // FormRow's default.
+  const LABEL_WIDTH = "12rem";
 </script>
 
 <section class="field-editor">
   <div class="title-row">
-    <h2>Virtual field</h2>
+    <Heading tag="h2" class="mb-2 text-xl font-semibold">Virtual field</Heading>
     <span class="path">{config.state?.path ?? ""}</span>
-    <button type="button" class="wizard-button" onclick={openWizard}>
+    <Button size="xs" outline class="ms-auto" onclick={openWizard}>
       Run setup wizard
-    </button>
+    </Button>
   </div>
 
   {#if config.doc}
     {@const doc = config.doc}
     <div class="layout">
       <form>
-        <fieldset>
-          <legend>Field layout</legend>
-
-          <label class="radio-row">
-            <span>
-              <input
-                type="radio"
-                name="fieldLayout"
-                checked={fieldLayout === "full"}
-                onchange={() => {
-                  setFieldLayout("full");
-                }}
-              />
-              Full field
-            </span>
-            <span>
-              <input
-                type="radio"
-                name="fieldLayout"
-                checked={fieldLayout === "half"}
-                onchange={() => {
-                  setFieldLayout("half");
-                }}
-              />
-              Half field
-            </span>
-          </label>
+        <SettingsCard title="Field layout">
+          <div class="radios">
+            <Radio
+              name="fieldLayout"
+              value="full"
+              group={fieldLayout}
+              onchange={() => {
+                setFieldLayout("full");
+              }}>Full field</Radio
+            >
+            <Radio
+              name="fieldLayout"
+              value="half"
+              group={fieldLayout}
+              onchange={() => {
+                setFieldLayout("half");
+              }}>Half field</Radio
+            >
+          </div>
 
           {#if fieldLayout === "half"}
-            <label>
-              Half length (full: {doc.field.fieldLength ?? 0}mm)
-              <input
+            <FormRow
+              label={`Half length (full: ${String(doc.field.fieldLength ?? 0)}mm)`}
+              for="field-half-length"
+              labelWidth={LABEL_WIDTH}
+            >
+              <Input
+                id="field-half-length"
                 type="number"
+                size="sm"
                 value={halfLength}
-                oninput={(e) => {
-                  setHalfLength(e.currentTarget.valueAsNumber);
+                oninput={(e: Event) => {
+                  setHalfLength(
+                    (e.currentTarget as HTMLInputElement).valueAsNumber,
+                  );
                 }}
               />
-            </label>
+            </FormRow>
           {/if}
 
-          <label>
-            Cameras (camera_amount: {cameraAmount})
-            <select
+          <FormRow
+            label={`Cameras (camera_amount: ${String(cameraAmount)})`}
+            for="field-camera-count"
+            labelWidth={LABEL_WIDTH}
+          >
+            <Select
+              id="field-camera-count"
+              size="sm"
+              placeholder=""
               value={cameraCount}
-              onchange={(e) => {
-                cameraCount = Number(e.currentTarget.value);
+              onchange={(e: Event) => {
+                cameraCount = Number(
+                  (e.currentTarget as HTMLSelectElement).value,
+                );
               }}
             >
               {#each CAMERA_COUNT_OPTIONS[fieldLayout] as count (count)}
                 <option value={count}>{count}</option>
               {/each}
-            </select>
-          </label>
+            </Select>
+          </FormRow>
 
-          <label>
-            This camera (camera_id)
-            <select
+          <FormRow
+            label="This camera (camera_id)"
+            for="field-camera-id"
+            labelWidth={LABEL_WIDTH}
+          >
+            <Select
+              id="field-camera-id"
+              size="sm"
+              placeholder=""
               value={clampedCameraId}
-              onchange={(e) => {
-                cameraId = Number(e.currentTarget.value);
+              onchange={(e: Event) => {
+                cameraId = Number((e.currentTarget as HTMLSelectElement).value);
               }}
             >
               {#each Array.from(Array(cameraAmount).keys()) as id (id)}
                 <option value={id}>{id}</option>
               {/each}
-            </select>
-          </label>
-        </fieldset>
+            </Select>
+          </FormRow>
+        </SettingsCard>
 
-        <fieldset>
-          <legend>Dimensions</legend>
+        <SettingsCard title="Dimensions">
           {#each DIMENSION_FIELDS as { key, label } (key)}
-            <label>
-              {label}
-              <input type="number" bind:value={doc.field[key]} />
-            </label>
-          {/each}
-        </fieldset>
-
-        <fieldset>
-          <legend>Markings present on this field</legend>
-          {#each OPTIONAL_LINE_FIELDS as { key, label } (key)}
-            <label class="checkbox">
-              <input
-                type="checkbox"
-                bind:checked={doc.optionalFieldLines[key]}
+            <FormRow {label} for={`field-${key}`} labelWidth={LABEL_WIDTH}>
+              <Input
+                id={`field-${key}`}
+                type="number"
+                size="sm"
+                bind:value={doc.field[key]}
               />
-              {label}
-            </label>
+            </FormRow>
           {/each}
-        </fieldset>
+        </SettingsCard>
+
+        <SettingsCard title="Markings present on this field">
+          <div class="checks">
+            {#each OPTIONAL_LINE_FIELDS as { key, label } (key)}
+              <Checkbox bind:checked={doc.optionalFieldLines[key]}>
+                {label}
+              </Checkbox>
+            {/each}
+          </div>
+        </SettingsCard>
       </form>
 
       <div class="sketch">
@@ -176,7 +205,11 @@
       </div>
     </div>
   {:else}
-    <p class="hint">Loading...</p>
+    <P
+      size="sm"
+      class="mb-2 text-gray-600 dark:text-gray-400 flex items-center gap-2"
+      ><Spinner size="4" /> Loading…</P
+    >
   {/if}
 </section>
 
@@ -192,29 +225,10 @@
     margin-bottom: 0.5rem;
   }
 
-  .wizard-button {
-    margin-left: auto;
-    padding: 0.3rem 0.7rem;
-    border: 1px solid #1a56db;
-    border-radius: 4px;
-    background: none;
-    color: #1a56db;
-    font-size: 0.8rem;
-    cursor: pointer;
-  }
-
-  .wizard-button:hover {
-    background: #eff6ff;
-  }
-
-  .title-row h2 {
-    margin: 0;
-  }
-
   .path {
     font-family: monospace;
     font-size: 0.8rem;
-    color: #666;
+    color: var(--color-gray-600);
   }
 
   .layout {
@@ -224,44 +238,11 @@
     align-items: start;
   }
 
-  fieldset {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    margin-bottom: 1rem;
-  }
-
-  label {
+  .radios,
+  .checks {
     display: flex;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin: 0.4rem 0;
-    font-size: 0.85rem;
-  }
-
-  label.checkbox {
-    justify-content: flex-start;
-  }
-
-  label.radio-row {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 0.2rem;
-  }
-
-  label.radio-row span {
-    display: flex;
-    align-items: center;
     gap: 0.4rem;
-    font-weight: normal;
-  }
-
-  input[type="number"] {
-    width: 6rem;
-  }
-
-  .hint {
-    color: #888;
-    font-size: 0.8rem;
-    font-style: italic;
+    margin: 0.4rem 0;
   }
 </style>

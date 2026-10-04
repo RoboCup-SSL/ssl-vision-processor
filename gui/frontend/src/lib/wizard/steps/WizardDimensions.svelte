@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Input, Label } from "flowbite-svelte";
   import {
     DIMENSION_FIELDS,
     type FieldConfigField,
@@ -47,37 +48,48 @@
   <p class="text-sm text-gray-600">All dimensions are in millimeters.</p>
 
   {#if wizard.fieldLayout === "half"}
-    <label class="flex items-center justify-between gap-2 text-sm">
-      Half length (full: {wizard.draft.field.fieldLength ?? 0}mm)
-      <input
-        type="number"
-        class="w-28 rounded border border-gray-300 p-1.5"
-        value={halfLength}
-        oninput={(e) => {
-          setHalfLength(e.currentTarget.valueAsNumber);
-        }}
-      />
-    </label>
+    <div class="flex items-center justify-between gap-2">
+      <Label for="wizard-half-length" class="font-normal"
+        >Half length (full: {wizard.draft.field.fieldLength ?? 0}mm)</Label
+      >
+      <div class="w-28 shrink-0">
+        <Input
+          id="wizard-half-length"
+          type="number"
+          size="sm"
+          value={halfLength}
+          oninput={(e: Event) => {
+            setHalfLength((e.currentTarget as HTMLInputElement).valueAsNumber);
+          }}
+        />
+      </div>
+    </div>
   {:else}
-    <label class="flex items-center justify-between gap-2 text-sm">
-      Field length
-      <input
-        type="number"
-        class="w-28 rounded border border-gray-300 p-1.5"
-        bind:value={wizard.draft.field.fieldLength}
-      />
-    </label>
+    <div class="flex items-center justify-between gap-2">
+      <Label for="wizard-field-length" class="font-normal">Field length</Label>
+      <div class="w-28 shrink-0">
+        <Input
+          id="wizard-field-length"
+          type="number"
+          size="sm"
+          bind:value={wizard.draft.field.fieldLength}
+        />
+      </div>
+    </div>
   {/if}
 
   {#each fields as { key, label } (key)}
-    <label class="flex items-center justify-between gap-2 text-sm">
-      {label}
-      <input
-        type="number"
-        class="w-28 rounded border border-gray-300 p-1.5"
-        bind:value={wizard.draft.field[key]}
-      />
-    </label>
+    <div class="flex items-center justify-between gap-2">
+      <Label for={`wizard-${key}`} class="font-normal">{label}</Label>
+      <div class="w-28 shrink-0">
+        <Input
+          id={`wizard-${key}`}
+          type="number"
+          size="sm"
+          bind:value={wizard.draft.field[key]}
+        />
+      </div>
+    </div>
   {/each}
 
   <div class="mt-2 px-2">

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Listgroup, ListgroupItem, Heading } from "flowbite-svelte";
   import {
     formatValue,
     SECTION_LABELS,
@@ -43,19 +44,23 @@
 
 <div class="change-list">
   {#each groups as group (group.key)}
-    <h4>{group.title}</h4>
-    <ul>
+    <Heading tag="h4" class="mt-3 mb-1 text-sm font-semibold first:mt-0"
+      >{group.title}</Heading
+    >
+    <Listgroup class="w-full">
       {#each group.changes as change (change.path)}
-        <li>
+        <ListgroupItem
+          class="flex flex-wrap justify-between gap-2 px-3 py-1.5 text-sm font-normal"
+        >
           <code class="path">{change.path}</code>
           <span class="values">
             <span class="before">{formatValue(change.before)}</span>
             →
             <span class="after">{formatValue(change.after)}</span>
           </span>
-        </li>
+        </ListgroupItem>
       {/each}
-    </ul>
+    </Listgroup>
   {/each}
 </div>
 
@@ -66,32 +71,8 @@
     font-size: 0.85rem;
   }
 
-  h4 {
-    margin: 0.75rem 0 0.25rem;
-    font-weight: 600;
-  }
-
-  h4:first-child {
-    margin-top: 0;
-  }
-
-  ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  li {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.2rem 0;
-    border-bottom: 1px solid #eee;
-  }
-
   .path {
-    color: #444;
+    color: var(--color-gray-700);
   }
 
   .values {
@@ -100,10 +81,10 @@
   }
 
   .before {
-    color: #b00020;
+    color: var(--color-red-700);
   }
 
   .after {
-    color: #1b5e20;
+    color: var(--color-green-800);
   }
 </style>

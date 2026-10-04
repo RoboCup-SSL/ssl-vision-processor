@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SettingsCard from "./SettingsCard.svelte";
+  import { Button, Alert, P } from "flowbite-svelte";
   import { untrack } from "svelte";
   import { config, cameraDoc } from "./config.svelte";
 
@@ -214,40 +216,44 @@
   let labelStrokeWidth = $derived(handleRadius * 0.3);
 </script>
 
-<section class="corner-picker">
-  <h2>Corner picker</h2>
-  <p class="hint">
+<SettingsCard title="Corner picker" class="max-w-[900px]">
+  <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
     Drag the four markers onto the real field corners in the image below, then
     click the number on whichever one sits where the goal line meets the
     touchline nearest this field's (0,0) corner -- that one turns green and
     becomes first in the output. The other three can be in any order; the
     calibration algorithm works that out itself. Changes apply when you let go
     of a marker; Save keeps them.
-  </p>
+  </P>
 
   {#if resolutionStatus === "rescalable" && seed}
-    <div class="banner">
+    <Alert color="yellow" class="my-2 text-sm">
       Corners were picked at {seed.resolution[0]}x{seed.resolution[1]}, but this
       image is {imageWidth}x{imageHeight}. Same aspect ratio, so they can be
       scaled to fit.
-      <button type="button" onclick={rescaleSeed}>
+      <Button size="xs" class="ms-2" onclick={rescaleSeed}>
         Rescale corners to {imageWidth}x{imageHeight}
-      </button>
-    </div>
+      </Button>
+    </Alert>
   {:else if resolutionStatus === "aspect" && seed}
-    <div class="banner">
+    <Alert color="yellow" class="my-2 text-sm">
       Corners were picked at {seed.resolution[0]}x{seed.resolution[1]}, but this
       image is {imageWidth}x{imageHeight} -- a different aspect ratio, so they can't
       be scaled. Re-pick them on this image.
-    </div>
+    </Alert>
   {:else if resolutionStatus === "unknown"}
-    <div class="banner">
+    <Alert color="yellow" class="my-2 text-sm">
       These corners were saved without the resolution they were picked at, so a
       camera resolution change can't be detected. Move any marker to record it.
-    </div>
+    </Alert>
   {/if}
 
-  <button type="button" onclick={refreshFrame}>Refresh frame</button>
+  <Button
+    size="sm"
+    color="alternative"
+    class="self-start"
+    onclick={refreshFrame}>Refresh frame</Button
+  >
 
   <div
     class="overlay-container"
@@ -314,14 +320,9 @@
   </div>
 
   <pre>{yamlSnippet}</pre>
-</section>
+</SettingsCard>
 
 <style>
-  .corner-picker {
-    max-width: 900px;
-    margin-top: 2rem;
-  }
-
   .overlay-container {
     position: relative;
     max-width: 640px;
@@ -376,25 +377,5 @@
     padding: 0.75rem;
     border-radius: 4px;
     font-size: 0.85rem;
-  }
-
-  .banner {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0.5rem 0;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid #ffe1a8;
-    border-radius: 4px;
-    background: #fff6e5;
-    color: #7a4a00;
-    font-size: 0.85rem;
-  }
-
-  .hint {
-    color: #888;
-    font-size: 0.8rem;
-    font-style: italic;
   }
 </style>

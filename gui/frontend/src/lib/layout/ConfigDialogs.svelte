@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Modal, Button } from "flowbite-svelte";
+  import { Modal, Button, Input, Label, Alert, Toast } from "flowbite-svelte";
   import {
     config,
     saveConfig,
@@ -73,18 +73,21 @@
 
 <svelte:window onkeydown={onKeydown} />
 
+<!-- Keyed on the message, so each new error is a fresh toast rather than one
+     that was dismissed staying hidden. -->
 {#if config.error}
-  <div class="error-banner" role="alert">
-    <span>{config.error}</span>
-    <button
-      type="button"
-      class="dismiss"
-      aria-label="Dismiss"
-      onclick={() => {
+  {#key config.error}
+    <Toast
+      color="red"
+      class="fixed end-4 bottom-4 z-60 max-w-lg whitespace-pre-wrap"
+      closeAriaLabel="Dismiss"
+      onclose={() => {
         config.error = null;
-      }}>×</button
+      }}
     >
-  </div>
+      {config.error}
+    </Toast>
+  {/key}
 {/if}
 
 <Modal
@@ -125,15 +128,16 @@
   size="md"
   class={MODAL_CLASS}
 >
-  <label class="flex flex-col gap-1 text-sm">
-    Path on the host
-    <input
+  <div class="flex flex-col gap-1">
+    <Label for="save-as-path">Path on the host</Label>
+    <Input
+      id="save-as-path"
       type="text"
-      class="rounded border border-gray-300 p-1.5"
+      class="font-mono"
       bind:value={pathInput}
       placeholder="vision.yml"
     />
-  </label>
+  </div>
   <p class="text-sm text-gray-600">
     The GUI edits and watches the new file from then on.
   </p>
@@ -157,22 +161,23 @@
   size="md"
   class={MODAL_CLASS}
 >
-  <label class="flex flex-col gap-1 text-sm">
-    Path on the host
-    <input
+  <div class="flex flex-col gap-1">
+    <Label for="load-path">Path on the host</Label>
+    <Input
+      id="load-path"
       type="text"
-      class="rounded border border-gray-300 p-1.5"
+      class="font-mono"
       bind:value={pathInput}
       placeholder="vision.yml"
     />
-  </label>
+  </div>
 
   {#if changes.length > 0}
-    <p class="text-sm text-red-700">
+    <Alert color="yellow" class="p-2 text-sm">
       Loading discards {changes.length} unsaved change{changes.length === 1
         ? ""
         : "s"}, and applies the loaded file live.
-    </p>
+    </Alert>
   {:else}
     <p class="text-sm text-gray-600">The loaded file applies live.</p>
   {/if}
@@ -202,8 +207,10 @@
   </p>
 
   {#if external?.error}
-    <p class="text-sm text-red-700">It can't be loaded as it is:</p>
-    <pre class="error-detail">{external.error}</pre>
+    <Alert color="red" class="p-2 text-sm">
+      It can't be loaded as it is:
+      <pre class="error-detail">{external.error}</pre>
+    </Alert>
   {:else if external && external.changes.length > 0}
     <p class="text-sm text-gray-600">Loading it would change:</p>
     <ChangeList changes={external.changes} />
@@ -214,10 +221,10 @@
   {/if}
 
   {#if changes.length > 0}
-    <p class="text-sm text-red-700">
+    <Alert color="yellow" class="p-2 text-sm">
       You have {changes.length} unsaved change{changes.length === 1 ? "" : "s"}.
       Loading discards them; overwriting replaces the edited file with them.
-    </p>
+    </Alert>
   {/if}
 
   <div class="flex justify-end gap-2 border-t border-gray-200 pt-4">
@@ -233,38 +240,13 @@
 </Modal>
 
 <style>
-  .error-banner {
-    position: fixed;
-    right: 1rem;
-    bottom: 1rem;
-    z-index: 60;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    max-width: 32rem;
-    padding: 0.75rem 1rem;
-    border: 1px solid #f5c2c7;
-    border-radius: 6px;
-    background: #fdecee;
-    color: #842029;
-    font-size: 0.85rem;
-    white-space: pre-wrap;
-  }
-
-  .dismiss {
-    padding: 0 0.3rem;
-    border: none;
-    background: none;
-    font-size: 1rem;
-    line-height: 1;
-  }
-
   .error-detail {
     max-height: 30vh;
     overflow: auto;
+    margin-top: 0.4rem;
     padding: 0.5rem;
     border-radius: 4px;
-    background: #f5f5f5;
+    background: rgb(255 255 255 / 0.6);
     font-size: 0.8rem;
     white-space: pre-wrap;
   }

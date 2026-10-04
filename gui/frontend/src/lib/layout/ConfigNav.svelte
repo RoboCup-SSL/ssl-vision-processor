@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { nav, selectedInstance, isCategoryDirty } from "./nav.svelte";
+  import { Heading, SidebarGroup, SidebarItem } from "flowbite-svelte";
+  import {
+    nav,
+    selectedInstance,
+    isCategoryDirty,
+    categoryHref,
+  } from "./nav.svelte";
   import { CONFIG_CATEGORIES } from "./configCategories";
 
   let sharedCategories = $derived(
@@ -13,98 +19,43 @@
   // function, rather than calling selectedInstance() again at each of the
   // template sites below.
   let instance = $derived(selectedInstance());
+
+  const HEADING =
+    "mt-5 mb-1 px-2 text-xs font-semibold tracking-wider text-gray-500 uppercase";
 </script>
 
-<nav class="config-nav">
-  <h2>Shared</h2>
-  <ul>
+<nav aria-label="Settings">
+  <Heading tag="h2" class={HEADING}>Shared</Heading>
+  <SidebarGroup class="space-y-0.5">
     {#each sharedCategories as category (category.id)}
-      <li>
-        <button
-          type="button"
-          class:selected={category.id === nav.selectedCategoryId}
-          onclick={() => {
-            nav.selectedCategoryId = category.id;
-          }}
-        >
-          {category.label}{isCategoryDirty(category.id) ? "*" : ""}
-        </button>
-      </li>
+      <SidebarItem
+        href={categoryHref(category.id)}
+        label={`${category.label}${isCategoryDirty(category.id) ? "*" : ""}`}
+        spanClass=""
+        active={category.id === nav.selectedCategoryId}
+      />
     {/each}
-  </ul>
+  </SidebarGroup>
 
-  <h2>
+  <Heading tag="h2" class={HEADING}>
     {#if instance}
       {instance.host} / cam {instance.cameraId}
     {:else}
-      Per-instance (select one above)
+      Per-instance (no cameras yet)
     {/if}
-  </h2>
-  <ul>
+  </Heading>
+  <SidebarGroup class="space-y-0.5">
     {#each instanceCategories as category (category.id)}
-      <li>
-        <button
-          type="button"
-          class:selected={category.id === nav.selectedCategoryId}
-          disabled={!instance}
-          onclick={() => {
-            nav.selectedCategoryId = category.id;
-          }}
-        >
-          {category.label}{isCategoryDirty(category.id) ? "*" : ""}
-        </button>
-      </li>
+      <!-- Without a camera there's nothing to link to; an <a> without href
+           isn't focusable, which is what disabled should be. -->
+      <SidebarItem
+        href={instance ? categoryHref(category.id) : undefined}
+        label={`${category.label}${isCategoryDirty(category.id) ? "*" : ""}`}
+        spanClass=""
+        aria-disabled={!instance}
+        class={instance ? "" : "pointer-events-none opacity-40"}
+        active={category.id === nav.selectedCategoryId}
+      />
     {/each}
-  </ul>
+  </SidebarGroup>
 </nav>
-
-<style>
-  .config-nav {
-    padding: 0.75rem;
-    overflow-y: auto;
-  }
-
-  h2 {
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin: 0.75rem 0 0.4rem;
-    color: #555;
-  }
-
-  h2:first-child {
-    margin-top: 0;
-  }
-
-  ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  button {
-    display: block;
-    width: 100%;
-    padding: 0.35rem 0.5rem;
-    border: none;
-    background: none;
-    text-align: left;
-    font-size: 0.85rem;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-
-  button:hover:not(:disabled) {
-    background: #f0f0f0;
-  }
-
-  button.selected {
-    background: #dbe9ff;
-    font-weight: 600;
-  }
-
-  button:disabled {
-    color: #bbb;
-    cursor: not-allowed;
-  }
-</style>

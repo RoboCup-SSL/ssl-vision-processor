@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SettingsCard from "../SettingsCard.svelte";
+  import { Button, Spinner, Alert, P } from "flowbite-svelte";
   import {
     config,
     cameraDoc,
@@ -43,13 +45,15 @@
   }
 </script>
 
-<section class="calibration">
-  <h3>Calibration</h3>
-
+<SettingsCard title="Calibration" class="my-4">
   {#if !status}
-    <p class="hint">Loading...</p>
+    <P
+      size="sm"
+      class="mb-2 text-gray-600 dark:text-gray-400 flex items-center gap-2"
+      ><Spinner size="4" /> Loading…</P
+    >
   {:else}
-    <p class="state">
+    <P size="sm" class="mb-2">
       {#if status.calibration === "locked" && locked}
         <strong>Locked</strong> at {new Date(locked.lockedAt).toLocaleString()}
         ({lockedResolution(locked.camera)}). Published in place of anything the
@@ -62,19 +66,19 @@
       {:else}
         <strong>None.</strong> No calibration received from this camera yet.
       {/if}
-    </p>
+    </P>
 
     {#each status.warnings as warning (warning.code)}
-      <p class="warning">{warning.message}</p>
+      <Alert color="yellow" class="my-1 p-2 text-sm">{warning.message}</Alert>
     {/each}
 
     {#if renderError}
-      <p class="warning">{renderError}</p>
+      <Alert color="red" class="my-1 p-2 text-sm">{renderError}</Alert>
     {/if}
 
     <div class="actions">
-      <button
-        type="button"
+      <Button
+        size="sm"
         disabled={!status.live || config.busy}
         title={status.live
           ? "Store the calibration this camera last sent"
@@ -84,58 +88,29 @@
         {status.calibration === "locked"
           ? "Re-lock latest live calibration"
           : "Lock current calibration"}
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        size="sm"
+        color="alternative"
         disabled={status.calibration === "none" || config.busy}
         onclick={unlock}
       >
         Unlock (recalibrates on processor restart)
-      </button>
+      </Button>
     </div>
-    <p class="hint">
+    <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
       Locking and unlocking apply immediately; Save writes them to the file.
       There's no way yet to make a running vision_processor recalibrate on
       request -- it needs a restart.
-    </p>
+    </P>
   {/if}
-</section>
+</SettingsCard>
 
 <style>
-  .calibration {
-    margin: 1rem 0;
-    padding: 0.75rem 1rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-  }
-
-  h3 {
-    margin: 0 0 0.5rem;
-  }
-
-  .state {
-    margin: 0 0 0.5rem;
-    font-size: 0.9rem;
-  }
-
-  .warning {
-    margin: 0.25rem 0;
-    padding: 0.4rem 0.6rem;
-    border-radius: 4px;
-    background: #fff6e5;
-    color: #7a4a00;
-    font-size: 0.85rem;
-  }
-
   .actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
     margin: 0.5rem 0;
-  }
-
-  .hint {
-    color: #666;
-    font-size: 0.8rem;
   }
 </style>

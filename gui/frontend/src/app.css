@@ -19,78 +19,74 @@ Required for flowbite-svelte, confirmed against the library's own app.css
 /*
 Also required, confirmed against flowbite-svelte's own "Colors" doc page
 (flowbite-svelte.com/docs/pages/colors): a default-colored Button (no `color`
-prop, e.g. the wizard's Next/Save buttons) renders `bg-primary-700` etc. with
-no fallback. Without these tokens defined, `--color-primary-700` is an
-undefined custom property, so the background resolves to fully transparent --
-a real, invisible button, confirmed live (white text on a transparent
-background, sitting on the modal's own white body). These are their
-documented default values, not a deliberate brand choice on this project's
-part.
+prop) renders `bg-primary-700` etc. with no fallback, so an undefined
+`--color-primary-*` makes it fully transparent.
+
+The palette matches the SSL Game Controller's (ssl-game-controller,
+frontend/src/assets/main.scss), so the league's tools look like one family:
+primary #0794B9 and its light-mode secondary #545454. Quasar uses single
+colors where Flowbite wants 50-950 scales, so each scale is generated in
+OKLCH around its anchor (same hue, lightness stepping evenly to near-white and
+near-black), with the anchor at 700: the shade Flowbite's default Button
+uses, so buttons are exactly the game controller's color. White on #0794B9 is
+3.5:1, as in the game controller: fine behind button-sized text, not behind
+small body text.
+
+The game controller's positive/negative/warning (#21BA45 / #C10015 /
+#F2C037) are close to Tailwind's stock green/red/yellow, which Flowbite's
+Alert, Badge, and Helper use, so those palettes are left as they are; info
+uses primary. The team colors are its .bg-team-* backgrounds.
 */
 @theme {
-  --color-primary-50: #fff5f2;
-  --color-primary-100: #fff1ee;
-  --color-primary-200: #ffe4de;
-  --color-primary-300: #ffd5cc;
-  --color-primary-400: #ffbcad;
-  --color-primary-500: #fe795d;
-  --color-primary-600: #ef562f;
-  --color-primary-700: #eb4f27;
-  --color-primary-800: #cc4522;
-  --color-primary-900: #a5371b;
+  --color-primary-50: #d8f1fb;
+  --color-primary-100: #c2e6f4;
+  --color-primary-200: #abd9eb;
+  --color-primary-300: #93cce2;
+  --color-primary-400: #7abfd9;
+  --color-primary-500: #5fb1cf;
+  --color-primary-600: #3fa3c4;
+  --color-primary-700: #0794b9;
+  --color-primary-800: #016d89;
+  --color-primary-900: #02485b;
+  --color-primary-950: #002632;
+  --color-secondary-50: #e7e7e7;
+  --color-secondary-100: #d3d3d3;
+  --color-secondary-200: #bfbfbf;
+  --color-secondary-300: #aaaaaa;
+  --color-secondary-400: #949494;
+  --color-secondary-500: #7f7f7f;
+  --color-secondary-600: #696969;
+  --color-secondary-700: #545454;
+  --color-secondary-800: #424242;
+  --color-secondary-900: #323232;
+  --color-secondary-950: #222222;
+  --color-team-yellow: #ced509;
+  --color-team-blue: #134cc4;
 
-  --color-secondary-50: #f0f9ff;
-  --color-secondary-100: #e0f2fe;
-  --color-secondary-200: #bae6fd;
-  --color-secondary-300: #7dd3fc;
-  --color-secondary-400: #38bdf8;
-  --color-secondary-500: #0ea5e9;
-  --color-secondary-600: #0284c7;
-  --color-secondary-700: #0369a1;
-  --color-secondary-800: #075985;
-  --color-secondary-900: #0c4a6e;
+  /*
+  The flowbite plugin's own form styling (range slider thumbs, among others)
+  uses flowbite v4's semantic tokens, which normally come from
+  flowbite/src/themes/default.css. That file also swaps the font to Inter and
+  rescales Tailwind's border radii, rounding every component differently, so
+  only the color tokens the plugin reads are defined here, from its light
+  theme, with brand mapped to our primary. Without them the slider thumb's
+  background is undefined, so it renders invisible.
+  */
+  --color-brand: var(--color-primary-700);
+  --color-fg-brand: var(--color-primary-700);
+  --color-body: var(--color-gray-600);
+  --color-heading: var(--color-gray-900);
+  --color-default: var(--color-gray-200);
+  --color-light: var(--color-gray-100);
+  --color-dark: var(--color-gray-800);
+  --color-neutral-primary: var(--color-white);
+  --color-neutral-primary-medium: var(--color-white);
+  --color-neutral-secondary: var(--color-gray-50);
+  --color-neutral-secondary-soft: var(--color-gray-50);
+  --color-neutral-secondary-medium: var(--color-gray-50);
+  --color-neutral-tertiary: var(--color-gray-100);
+  --color-neutral-tertiary-medium: var(--color-gray-100);
+  --color-neutral-quaternary: var(--color-gray-200);
 }
 
 @source "../node_modules/flowbite-svelte/dist";
-
-/*
-Tailwind's preflight (pulled in by @import "tailwindcss" above) zeroes every
-element's margin/padding/border and strips native button/select chrome
-(background, border) globally -- normal for a project that styles everything
-with utility classes, but this one predates Tailwind: FieldEditor.svelte and
-friends are still plain hand-written <style> blocks that assumed the browser's
-own defaults (a fieldset's padding, a <button>'s background/border) were still
-there. Confirmed live: a plain <button> like FieldEditor's Save/Save As/Load
-rendered with padding:0, border:0, and a transparent background -- effectively
-invisible, not just unstyled.
-
-@layer base, not a bare rule: keeps these behind Tailwind's own utility layer
-in the cascade, so any flowbite-svelte or utility-class-based button/fieldset
-(the wizard's, mainly) still wins regardless of selector specificity.
-*/
-@layer base {
-  button {
-    padding: 0.3rem 0.7rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background: #f3f4f6;
-    cursor: pointer;
-  }
-
-  button:hover:not(:disabled) {
-    background: #e5e7eb;
-  }
-
-  button:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-
-  fieldset {
-    padding: 0.75rem 1rem;
-  }
-
-  legend {
-    padding: 0 0.4rem;
-  }
-}

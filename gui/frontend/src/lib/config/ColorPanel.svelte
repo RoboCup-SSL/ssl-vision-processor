@@ -22,6 +22,11 @@
     TableBody,
     TableBodyRow,
     TableBodyCell,
+    Input,
+    Label,
+    Spinner,
+    Heading,
+    P,
   } from "flowbite-svelte";
 
   // No `category` prop, unlike GeometryPanel/ConfigCategoryPlaceholder:
@@ -85,19 +90,25 @@
 </script>
 
 <section class="color-panel">
-  <h2>Color</h2>
+  <Heading tag="h2" class="mb-2 text-xl font-semibold">Color</Heading>
 
   {#if instance}
-    <p class="hint">
+    <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
       Editing {instance.host} / cam {instance.cameraId}'s
       <code>color:</code> block.
-    </p>
+    </P>
   {:else}
-    <p class="hint">Select a vision processor on the left first.</p>
+    <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400"
+      >Select a vision processor on the left first.</P
+    >
   {/if}
 
   {#if !config.doc}
-    <p class="hint">Loading...</p>
+    <P
+      size="sm"
+      class="mb-2 text-gray-600 dark:text-gray-400 flex items-center gap-2"
+      ><Spinner size="4" /> Loading…</P
+    >
   {/if}
 
   <YuvPositionPane
@@ -107,33 +118,45 @@
   />
 
   <div class="rgb-editor">
-    <label>
-      R
-      <input
-        type="number"
-        min="0"
-        max="255"
-        bind:value={colorConfig.config[selectedClass].r}
-      />
-    </label>
-    <label>
-      G
-      <input
-        type="number"
-        min="0"
-        max="255"
-        bind:value={colorConfig.config[selectedClass].g}
-      />
-    </label>
-    <label>
-      B
-      <input
-        type="number"
-        min="0"
-        max="255"
-        bind:value={colorConfig.config[selectedClass].b}
-      />
-    </label>
+    <div class="channel">
+      <Label for="rgb-r" class="font-normal">R</Label>
+      <div class="w-20 shrink-0">
+        <Input
+          id="rgb-r"
+          type="number"
+          size="sm"
+          min="0"
+          max="255"
+          bind:value={colorConfig.config[selectedClass].r}
+        />
+      </div>
+    </div>
+    <div class="channel">
+      <Label for="rgb-g" class="font-normal">G</Label>
+      <div class="w-20 shrink-0">
+        <Input
+          id="rgb-g"
+          type="number"
+          size="sm"
+          min="0"
+          max="255"
+          bind:value={colorConfig.config[selectedClass].g}
+        />
+      </div>
+    </div>
+    <div class="channel">
+      <Label for="rgb-b" class="font-normal">B</Label>
+      <div class="w-20 shrink-0">
+        <Input
+          id="rgb-b"
+          type="number"
+          size="sm"
+          min="0"
+          max="255"
+          bind:value={colorConfig.config[selectedClass].b}
+        />
+      </div>
+    </div>
     <span
       class="swatch large"
       style:background={rgbToCss(colorConfig.config[selectedClass])}
@@ -174,13 +197,14 @@
     </TableBody>
   </Table>
 
-  <h3>Update weights</h3>
-  <p class="hint">
+  <Heading tag="h3" class="mb-1 text-base font-semibold">Update weights</Heading
+  >
+  <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
     How much each new color leans on its configured reference vs. last frame's
     color vs. what was actually sampled this frame. Drag the marker, or edit the
     minimum reference weight directly -- see src/blobs/colorupdate.cpp's
     updateColor for the exact blend this mirrors.
-  </p>
+  </P>
   <WeightTriangle
     bind:referenceForce={colorConfig.config.referenceForce}
     bind:historyForce={colorConfig.config.historyForce}
@@ -240,21 +264,8 @@
     max-width: 1100px;
   }
 
-  h2 {
-    margin: 0 0 0.5rem;
-  }
-
-  h3 {
-    margin: 1.5rem 0 0.25rem;
-  }
-
-  .hint {
-    color: #666;
-    font-size: 0.85rem;
-  }
-
   code {
-    background: #eee;
+    background: var(--color-gray-100);
     padding: 0.1rem 0.3rem;
     border-radius: 3px;
   }
@@ -286,15 +297,9 @@
     margin-top: 0.5rem;
   }
 
-  .rgb-editor label {
+  .channel {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    font-size: 0.8rem;
-    color: #444;
-  }
-
-  .rgb-editor input {
-    width: 4.5rem;
   }
 </style>

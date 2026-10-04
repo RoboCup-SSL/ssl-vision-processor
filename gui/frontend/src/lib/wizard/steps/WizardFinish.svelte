@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Li, List } from "flowbite-svelte";
   import { config } from "../../config.svelte";
   import { wizard } from "../wizard.svelte";
   import { OPTIONAL_LINE_FIELDS } from "../../fieldConfigFields";
@@ -13,16 +14,16 @@
     Review, then apply to put these values live on the field.
   </p>
 
-  <ul class="flex flex-col gap-1 text-sm text-gray-700">
-    <li>
+  <List class="flex flex-col gap-1 text-sm text-gray-700">
+    <Li>
       Field: {wizard.draft.field.fieldLength ?? 0}mm x {wizard.draft.field
         .fieldWidth ?? 0}mm
-    </li>
-    <li>
+    </Li>
+    <Li>
       Markings:
       {markings.length > 0 ? markings.map((f) => f.label).join(", ") : "none"}
-    </li>
-  </ul>
+    </Li>
+  </List>
 
   <p class="text-sm text-gray-600">
     Applying takes effect immediately but doesn't save -- use Save in the

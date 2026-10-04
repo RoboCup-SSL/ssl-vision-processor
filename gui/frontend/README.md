@@ -40,11 +40,17 @@ badge and snapshot grid to show anything.
 
 ## Layout
 
-- `src/lib/layout/` holds the shell: `Shell.svelte` (the two column grid and
-  connection badge), `InstanceList.svelte`, `ConfigNav.svelte`, `TabBar.svelte`,
-  and `MainContent.svelte`, which switches panels on `nav.selectedCategoryId`.
-  `nav.svelte.ts` and `configCategories.ts` hold the shared navigation state
-  and the category list itself.
+- `src/lib/layout/` holds the shell: `Shell.svelte` (a Flowbite Navbar with
+  the status badges and gear menu, over a Sidebar and the main column),
+  `InstanceList.svelte` and `ConfigNav.svelte` (the sidebar's groups),
+  `TabBar.svelte`, and `MainContent.svelte`, which switches panels on
+  `nav.selectedCategoryId`. `nav.svelte.ts` and `configCategories.ts` hold the
+  shared navigation state and the category list itself.
+- Navigation follows the URL hash, `#<camera>/<page>` (e.g. `#0/geometry`):
+  sidebar items, tabs, and the header badges are links, so back/forward and
+  bookmarks work. The tab bar is links styled with Flowbite's tab theme rather
+  than its Tabs component, which can't leave every tab unselected on a page
+  that isn't a tab.
 - `src/lib/FieldEditor.svelte` is the Virtual Field editor, backed by
   `src/lib/geometry.svelte.ts`, a module level `$state` object shared with
   anything else that needs the field config.

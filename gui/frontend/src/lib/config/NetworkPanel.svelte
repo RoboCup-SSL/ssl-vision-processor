@@ -1,7 +1,9 @@
 <script lang="ts">
+  import SettingsCard from "../SettingsCard.svelte";
+  import { Input, Select, Indicator, Alert, Heading, P } from "flowbite-svelte";
   import { untrack } from "svelte";
   import { config } from "../config.svelte";
-  import NoteTip from "../NoteTip.svelte";
+  import FormRow from "../FormRow.svelte";
   import HostInterfaces from "./HostInterfaces.svelte";
   import {
     network,
@@ -144,99 +146,115 @@
 </script>
 
 <div class="network-panel">
-  <h2>Network</h2>
-  <p class="hint">
+  <Heading tag="h2" class="mb-2 text-xl font-semibold">Network</Heading>
+  <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
     Shared by the host and every vision_processor (vision.yml's
     <code>defaults.network</code>). The host reopens its sockets as soon as a
     change applies. vision_processors read these only at startup, so restart
     them after a change.
-  </p>
+  </P>
 
   {#if overriding.length > 0}
-    <p class="warning">
+    <Alert color="yellow" class="mb-3 p-2 text-sm">
       Camera{overriding.length === 1 ? "" : "s"}
       {overriding.join(", ")} override{overriding.length === 1 ? "s" : ""} these in
       their own config, so their vision_processor uses different groups than the host.
-    </p>
+    </Alert>
   {/if}
 
   {#if sharedError}
-    <p class="error">{sharedError}</p>
+    <Alert color="red" class="mb-3 p-2 text-sm">{sharedError}</Alert>
   {/if}
 
   {#each groups as g (g.id)}
-    <fieldset>
-      <legend>
-        <span
-          class="dot"
-          class:receiving={g.status?.receiving}
+    <SettingsCard title={g.title}>
+      {#snippet status()}
+        <Indicator
+          size="sm"
+          color={g.status?.receiving ? "green" : "gray"}
           title={g.status?.receiving ? "Receiving" : "Not receiving"}
-        ></span>
-        {g.title}
-      </legend>
-
-      <div class="row">
-        <label for={`${g.id}-ip`}>Address</label>
-        <select
-          aria-label={`${g.title} address preset`}
-          value={g.addressIndex}
-          onchange={(e) => {
-            pickAddress(g, Number(e.currentTarget.value));
-          }}
-        >
-          {#each g.addresses as preset, i (preset.value)}
-            <option value={i}>{preset.label}</option>
-          {/each}
-          <option value={-1} disabled>Custom</option>
-        </select>
-        <input
-          id={`${g.id}-ip`}
-          type="text"
-          spellcheck="false"
-          class:invalid={errors[g.ipKey]}
-          bind:value={draft[g.ipKey]}
-          onchange={() => {
-            commit(g.ipKey);
-          }}
         />
-        <NoteTip id={`${g.id}-ip-notes`} notes={g.addressAdvice.notes} />
-      </div>
-      {#if errors[g.ipKey]}<p class="error">{errors[g.ipKey]}</p>{/if}
-      {#each g.addressAdvice.warnings as warning (warning)}
-        <p class="field-warning">{warning}</p>
-      {/each}
+      {/snippet}
 
-      <div class="row">
-        <label for={`${g.id}-port`}>Port</label>
-        <select
-          aria-label={`${g.title} port preset`}
-          value={g.portIndex}
-          onchange={(e) => {
-            pickPort(g, Number(e.currentTarget.value));
-          }}
-        >
-          {#each g.ports as preset, i (preset.value)}
-            <option value={i}>{preset.label} ({preset.value})</option>
-          {/each}
-          <option value={-1} disabled>Custom</option>
-        </select>
-        <input
-          id={`${g.id}-port`}
-          type="number"
-          min="1"
-          max="65535"
-          class:invalid={errors[g.portKey]}
-          bind:value={draft[g.portKey]}
-          onchange={() => {
-            commit(g.portKey);
-          }}
-        />
-        <NoteTip id={`${g.id}-port-notes`} notes={g.portAdvice.notes} />
-      </div>
-      {#if errors[g.portKey]}<p class="error">{errors[g.portKey]}</p>{/if}
-      {#each g.portAdvice.warnings as warning (warning)}
-        <p class="field-warning">{warning}</p>
-      {/each}
+      <FormRow
+        label="Address"
+        for={`${g.id}-ip`}
+        labelWidth="4rem"
+        notes={g.addressAdvice.notes}
+        warnings={g.addressAdvice.warnings}
+        errors={errors[g.ipKey] ? [errors[g.ipKey] ?? ""] : []}
+      >
+        <div class="pair">
+          <Select
+            aria-label={`${g.title} address preset`}
+            size="sm"
+            placeholder=""
+            value={g.addressIndex}
+            onchange={(e: Event) => {
+              pickAddress(
+                g,
+                Number((e.currentTarget as HTMLSelectElement).value),
+              );
+            }}
+          >
+            {#each g.addresses as preset, i (preset.value)}
+              <option value={i}>{preset.label}</option>
+            {/each}
+            <option value={-1} disabled>Custom</option>
+          </Select>
+          <Input
+            id={`${g.id}-ip`}
+            type="text"
+            size="sm"
+            class="font-mono"
+            spellcheck="false"
+            color={errors[g.ipKey] ? "red" : "default"}
+            bind:value={draft[g.ipKey]}
+            onchange={() => {
+              commit(g.ipKey);
+            }}
+          />
+        </div>
+      </FormRow>
+
+      <FormRow
+        label="Port"
+        for={`${g.id}-port`}
+        labelWidth="4rem"
+        notes={g.portAdvice.notes}
+        warnings={g.portAdvice.warnings}
+        errors={errors[g.portKey] ? [errors[g.portKey] ?? ""] : []}
+      >
+        <div class="pair">
+          <Select
+            aria-label={`${g.title} port preset`}
+            size="sm"
+            placeholder=""
+            value={g.portIndex}
+            onchange={(e: Event) => {
+              pickPort(g, Number((e.currentTarget as HTMLSelectElement).value));
+            }}
+          >
+            {#each g.ports as preset, i (preset.value)}
+              <option value={i}>{preset.label} ({preset.value})</option>
+            {/each}
+            <option value={-1} disabled>Custom</option>
+          </Select>
+          <Input
+            id={`${g.id}-port`}
+            type="number"
+            size="sm"
+            class="font-mono"
+            min="1"
+            max="65535"
+            color={errors[g.portKey] ? "red" : "default"}
+            bind:value={draft[g.portKey]}
+            onchange={() => {
+              commit(g.portKey);
+            }}
+          />
+        </div>
+      </FormRow>
 
       <p class="status">
         {#if g.status && g.status.address !== `${current[g.ipKey]}:${String(current[g.portKey])}`}
@@ -245,7 +263,7 @@
           {describe(g.status, g.what)}
         {/if}
       </p>
-    </fieldset>
+    </SettingsCard>
   {/each}
 
   <HostInterfaces />
@@ -256,84 +274,18 @@
     max-width: 560px;
   }
 
-  h2 {
-    margin: 0 0 0.5rem;
-  }
-
-  fieldset {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    margin-bottom: 1rem;
-  }
-
-  legend {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .row {
+  .pair {
     display: grid;
-    grid-template-columns: 4rem 1fr 9.5rem 1.25rem;
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr) 9.5rem;
     gap: 0.5rem;
-    margin: 0.4rem 0;
-    font-size: 0.85rem;
   }
 
-  select,
-  input {
-    font-size: 0.85rem;
-  }
-
-  input {
-    font-family: monospace;
-  }
-
-  input.invalid {
-    border-color: #c81e1e;
-  }
-
-  .dot {
-    width: 0.55rem;
-    height: 0.55rem;
-    border-radius: 50%;
-    background: #bbb;
-  }
-
-  .dot.receiving {
-    background: #2e7d32;
-  }
-
-  .hint,
   .status {
-    color: #666;
+    color: var(--color-gray-600);
     font-size: 0.8rem;
   }
 
   .status {
     margin: 0.5rem 0 0;
-  }
-
-  .error,
-  .field-warning {
-    margin: 0 0 0.4rem;
-    font-size: 0.8rem;
-  }
-
-  .error {
-    color: #c81e1e;
-  }
-
-  .field-warning {
-    color: #7a4a00;
-  }
-
-  .warning {
-    padding: 0.4rem 0.6rem;
-    border-radius: 4px;
-    background: #fff6e5;
-    color: #7a4a00;
-    font-size: 0.85rem;
   }
 </style>

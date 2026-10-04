@@ -26,7 +26,7 @@
     display: flex;
     gap: 1rem;
     padding: 0.35rem 0;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--color-gray-100);
     font-size: 0.85rem;
   }
 
@@ -38,6 +38,6 @@
 
   dd {
     margin: 0;
-    color: #555;
+    color: var(--color-gray-600);
   }
 </style>

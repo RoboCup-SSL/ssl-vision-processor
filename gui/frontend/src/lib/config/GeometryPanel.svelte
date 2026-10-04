@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Heading, P } from "flowbite-svelte";
   import type { ConfigCategory } from "../layout/configCategories";
   import type { VisionInstance } from "../layout/nav.svelte";
   import CornerPicker from "../CornerPicker.svelte";
@@ -14,16 +15,18 @@
 </script>
 
 <section class="geometry">
-  <h2>Geometry</h2>
+  <Heading tag="h2" class="mb-2 text-xl font-semibold">Geometry</Heading>
 
   {#if instance}
-    <p class="hint">
+    <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
       {instance.host} / cam {instance.cameraId}. The numeric settings below
       (config.yml's <code>geometry:</code> block) aren't editable here yet; the calibration
       and corner picker are, and apply live.
-    </p>
+    </P>
   {:else}
-    <p class="hint">Select a vision processor on the left first.</p>
+    <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400"
+      >Select a vision processor on the left first.</P
+    >
   {/if}
 
   {#if instance}
@@ -46,17 +49,8 @@
     max-width: 900px;
   }
 
-  h2 {
-    margin: 0 0 0.5rem;
-  }
-
-  .hint {
-    color: #666;
-    font-size: 0.85rem;
-  }
-
   code {
-    background: #eee;
+    background: var(--color-gray-100);
     padding: 0.1rem 0.3rem;
     border-radius: 3px;
   }

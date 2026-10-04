@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SettingsCard from "../SettingsCard.svelte";
+  import { Input, Select, Alert, Heading, P } from "flowbite-svelte";
   import { onMount } from "svelte";
   import type { VisionInstance } from "../layout/nav.svelte";
   import { cameraDoc } from "../config.svelte";
@@ -13,7 +15,7 @@
   } from "../cameraSettings.svelte";
   import { CAMERA_RANGES, toDisplay, toFile } from "../cameraRanges";
   import VideoPlayer from "../video/VideoPlayer.svelte";
-  import NoteTip from "../NoteTip.svelte";
+  import FormRow from "../FormRow.svelte";
   import SliderField from "./SliderField.svelte";
 
   interface Props {
@@ -247,10 +249,10 @@
 </script>
 
 <section class="camera-panel">
-  <h2>Camera settings</h2>
+  <Heading tag="h2" class="mb-2 text-xl font-semibold">Camera settings</Heading>
 
   {#if instance}
-    <p class="banner">
+    <Alert color="primary" class="mb-3 p-2 text-sm">
       These apply when cam {instance.cameraId}'s vision_processor restarts: it
       reads <code>camera:</code> only at startup.
       {#if configPath}
@@ -259,7 +261,7 @@
         This camera has no <code>config_path</code>, so the host doesn't write
         its config file; copy these to it by hand.
       {/if}
-    </p>
+    </Alert>
 
     <div class="layout">
       <!-- Left: the picture, with the settings that only change what is
@@ -274,153 +276,162 @@
         </div>
 
         <div class="capture">
-          <fieldset>
-            <legend>Device</legend>
-
-            <div class="row">
-              <label for="cam-driver">Driver</label>
-              <select
+          <SettingsCard title="Device" class="mb-0">
+            <FormRow
+              label="Driver"
+              for="cam-driver"
+              notes={[
+                "SPINNAKER and MVIMPACT need vision_processor built with their SDKs.",
+                "Unset means SPINNAKER.",
+              ]}
+            >
+              <Select
                 id="cam-driver"
+                size="sm"
+                placeholder=""
                 value={settings.driver}
-                onchange={(e) => {
-                  set("driver", e.currentTarget.value as Driver);
+                onchange={(e: Event) => {
+                  set(
+                    "driver",
+                    (e.currentTarget as HTMLSelectElement).value as Driver,
+                  );
                 }}
               >
                 {#each Object.entries(DRIVERS) as [key, info] (key)}
                   <option value={key}>{info.label}</option>
                 {/each}
-              </select>
-              <NoteTip
-                id="cam-driver-notes"
-                notes={[
-                  "SPINNAKER and MVIMPACT need vision_processor built with their SDKs.",
-                  "Unset means SPINNAKER.",
-                ]}
-              />
-            </div>
+              </Select>
+            </FormRow>
 
             {#if driver.selectsBy === "id"}
-              <div class="row">
-                <label for="cam-id">Camera index</label>
-                <input
+              <FormRow
+                label="Camera index"
+                for="cam-id"
+                notes={[
+                  "Position in the SDK's camera list, in detection order.",
+                ]}
+              >
+                <Input
                   id="cam-id"
                   type="number"
+                  size="sm"
                   min="0"
                   step="1"
                   value={settings.id}
-                  onchange={(e) => {
-                    const v = e.currentTarget.valueAsNumber;
+                  onchange={(e: Event) => {
+                    const v = (e.currentTarget as HTMLInputElement)
+                      .valueAsNumber;
                     if (Number.isInteger(v) && v >= 0) set("id", v);
                   }}
                 />
-                <NoteTip
-                  id="cam-id-notes"
-                  notes={[
-                    "Position in the SDK's camera list, in detection order.",
-                  ]}
-                />
-              </div>
+              </FormRow>
             {:else}
-              <div class="row">
-                <label for="cam-path">Path</label>
-                <div class="stack">
-                  <select
-                    aria-label="Cameras on this host"
-                    value={devices.findIndex((d) => d.path === effectivePath)}
-                    onchange={(e) => {
-                      const device = devices[Number(e.currentTarget.value)];
-                      if (device) set("path", device.path);
-                    }}
-                  >
-                    {#each devices as device, i (device.path)}
-                      <option value={i}>
-                        {device.name} ({KIND_LABEL[device.kind]}) {device.path}
-                      </option>
-                    {/each}
-                    <option value={-1} disabled>
-                      {devices.length === 0
-                        ? "No cameras on this host"
-                        : "Other"}
-                    </option>
-                  </select>
-                  <input
-                    id="cam-path"
-                    type="text"
-                    spellcheck="false"
-                    value={settings.path ?? ""}
-                    placeholder={`/dev/video${String(settings.id)}`}
-                    onchange={(e) => {
-                      const v = e.currentTarget.value.trim();
-                      set("path", v === "" ? undefined : v);
-                    }}
-                  />
-                </div>
-                <NoteTip id="cam-path-notes" notes={pathNotes} />
-              </div>
-              {#each pathWarnings as warning (warning)}
-                <p class="warning">{warning}</p>
-              {/each}
-            {/if}
-          </fieldset>
-
-          <fieldset>
-            <legend>Resolution</legend>
-
-            <div class="row">
-              <label for="cam-resolution">Size</label>
-              <div class="stack">
-                <select
-                  id="cam-resolution"
-                  value={resolutionIndex}
-                  onchange={(e) => {
-                    const choice = RESOLUTIONS[Number(e.currentTarget.value)];
-                    if (choice) setSize(choice[0], choice[1]);
+              <FormRow
+                label="Path"
+                for="cam-path"
+                notes={pathNotes}
+                warnings={pathWarnings}
+              >
+                <Select
+                  aria-label="Cameras on this host"
+                  size="sm"
+                  placeholder=""
+                  value={devices.findIndex((d) => d.path === effectivePath)}
+                  onchange={(e: Event) => {
+                    const device =
+                      devices[
+                        Number((e.currentTarget as HTMLSelectElement).value)
+                      ];
+                    if (device) set("path", device.path);
                   }}
                 >
-                  {#each RESOLUTIONS as [w, h], i (i)}
+                  {#each devices as device, i (device.path)}
                     <option value={i}>
-                      {w === 0
-                        ? "Camera maximum"
-                        : `${String(w)} × ${String(h)}`}
+                      {device.name} ({KIND_LABEL[device.kind]}) {device.path}
                     </option>
                   {/each}
-                  <option value={-1} disabled>Custom</option>
-                </select>
-                <div class="size">
-                  <input
-                    type="number"
-                    aria-label="Width"
-                    min="0"
-                    step="1"
-                    bind:value={draftSize[0]}
-                    onchange={() => {
-                      setSize(draftSize[0], draftSize[1]);
-                    }}
-                  />
-                  ×
-                  <input
-                    type="number"
-                    aria-label="Height"
-                    min="0"
-                    step="1"
-                    bind:value={draftSize[1]}
-                    onchange={() => {
-                      setSize(draftSize[0], draftSize[1]);
-                    }}
-                  />
-                </div>
+                  <option value={-1} disabled>
+                    {devices.length === 0 ? "No cameras on this host" : "Other"}
+                  </option>
+                </Select>
+                <Input
+                  id="cam-path"
+                  type="text"
+                  size="sm"
+                  class="font-mono"
+                  spellcheck="false"
+                  value={settings.path ?? ""}
+                  placeholder={`/dev/video${String(settings.id)}`}
+                  onchange={(e: Event) => {
+                    const v = (
+                      e.currentTarget as HTMLInputElement
+                    ).value.trim();
+                    set("path", v === "" ? undefined : v);
+                  }}
+                />
+              </FormRow>
+            {/if}
+          </SettingsCard>
+
+          <SettingsCard title="Resolution" class="mb-0">
+            <FormRow
+              label="Size"
+              for="cam-resolution"
+              notes={resolutionNotes}
+              errors={sizeError ? [sizeError] : []}
+            >
+              <Select
+                id="cam-resolution"
+                size="sm"
+                placeholder=""
+                value={resolutionIndex}
+                onchange={(e: Event) => {
+                  const choice =
+                    RESOLUTIONS[
+                      Number((e.currentTarget as HTMLSelectElement).value)
+                    ];
+                  if (choice) setSize(choice[0], choice[1]);
+                }}
+              >
+                {#each RESOLUTIONS as [w, h], i (i)}
+                  <option value={i}>
+                    {w === 0 ? "Camera maximum" : `${String(w)} × ${String(h)}`}
+                  </option>
+                {/each}
+                <option value={-1} disabled>Custom</option>
+              </Select>
+              <div class="size">
+                <Input
+                  type="number"
+                  size="sm"
+                  aria-label="Width"
+                  min="0"
+                  step="1"
+                  bind:value={draftSize[0]}
+                  onchange={() => {
+                    setSize(draftSize[0], draftSize[1]);
+                  }}
+                />
+                ×
+                <Input
+                  type="number"
+                  size="sm"
+                  aria-label="Height"
+                  min="0"
+                  step="1"
+                  bind:value={draftSize[1]}
+                  onchange={() => {
+                    setSize(draftSize[0], draftSize[1]);
+                  }}
+                />
               </div>
-              <NoteTip id="cam-resolution-notes" notes={resolutionNotes} />
-            </div>
-            {#if sizeError}<p class="error">{sizeError}</p>{/if}
-          </fieldset>
+            </FormRow>
+          </SettingsCard>
         </div>
       </div>
 
       <div class="tuning">
-        <fieldset>
-          <legend>Brightness</legend>
-
+        <SettingsCard title="Brightness">
           <SliderField
             id="cam-exposure"
             label="Exposure"
@@ -469,18 +480,19 @@
               }}
             />
           {/if}
-        </fieldset>
+        </SettingsCard>
 
-        <fieldset>
-          <legend>White balance</legend>
-
-          <div class="row">
-            <label for="cam-wb">Mode</label>
-            <select
+        <SettingsCard title="White balance">
+          <FormRow label="Mode" for="cam-wb" notes={wbNotes}>
+            <Select
               id="cam-wb"
+              size="sm"
+              placeholder=""
               value={wbMode}
-              onchange={(e) => {
-                setWBMode(e.currentTarget.value as WBMode);
+              onchange={(e: Event) => {
+                setWBMode(
+                  (e.currentTarget as HTMLSelectElement).value as WBMode,
+                );
               }}
             >
               {#if driver.wbProfiles}
@@ -492,9 +504,8 @@
                 <option value="auto">Automatic</option>
               {/if}
               <option value="manual">Manual red / blue</option>
-            </select>
-            <NoteTip id="cam-wb-notes" notes={wbNotes} />
-          </div>
+            </Select>
+          </FormRow>
 
           {#if wbMode === "manual"}
             <SliderField
@@ -530,29 +541,19 @@
               }}
             />
           {/if}
-        </fieldset>
+        </SettingsCard>
       </div>
     </div>
   {:else}
-    <p class="hint">Select a vision processor on the left first.</p>
+    <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400"
+      >Select a vision processor on the left first.</P
+    >
   {/if}
 </section>
 
 <style>
   .camera-panel {
     max-width: 1600px;
-  }
-
-  h2 {
-    margin: 0 0 0.5rem;
-  }
-
-  .banner {
-    padding: 0.4rem 0.6rem;
-    border-radius: 4px;
-    background: #eef4ff;
-    color: #1e3a8a;
-    font-size: 0.85rem;
   }
 
   .layout {
@@ -576,73 +577,15 @@
     align-items: start;
   }
 
-  .capture fieldset {
-    margin-bottom: 0;
-  }
-
   @media (max-width: 1100px) {
     .layout {
       grid-template-columns: minmax(0, 1fr);
     }
   }
 
-  fieldset {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    margin-bottom: 1rem;
-  }
-
-  .row {
-    display: grid;
-    grid-template-columns: 7rem 1fr 1.25rem;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0.45rem 0;
-    font-size: 0.85rem;
-  }
-
-  .stack {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    min-width: 0;
-  }
-
   .size {
     display: flex;
     align-items: center;
     gap: 0.35rem;
-  }
-
-  .size input {
-    width: 6rem;
-  }
-
-  select,
-  input {
-    font-size: 0.85rem;
-  }
-
-  input[type="text"] {
-    font-family: monospace;
-  }
-
-  .warning,
-  .error {
-    margin: 0 0 0.4rem 7.5rem;
-    font-size: 0.8rem;
-  }
-
-  .warning {
-    color: #7a4a00;
-  }
-
-  .error {
-    color: #c81e1e;
-  }
-
-  .hint {
-    color: #666;
-    font-size: 0.85rem;
   }
 </style>
