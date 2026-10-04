@@ -11,7 +11,13 @@ import {
   type OptionalFieldLines,
 } from "./geometry.svelte";
 
-export type Section = "field" | "geometry" | "color" | "network" | "other";
+export type Section =
+  | "field"
+  | "camera"
+  | "geometry"
+  | "color"
+  | "network"
+  | "other";
 
 // Mirrors gui/internal/config's Change: one leaf difference between two
 // documents, keyed by its vision.yml path.
@@ -360,6 +366,7 @@ export function formatValue(value: unknown): string {
 
 export const SECTION_LABELS: Record<Section, string> = {
   field: "Virtual Field",
+  camera: "Camera Settings",
   geometry: "Geometry",
   color: "Color",
   network: "Network",

@@ -90,9 +90,11 @@
         type="button"
         class="badge socket"
         data-state={socket.status?.receiving ? "open" : "silent"}
-        title={socket.status?.receiving
-          ? `Receiving on ${socket.status.address}. Click to configure.`
-          : "Nothing heard on this address. Click to configure."}
+        title={socket.status?.problem
+          ? `Not open: ${socket.status.problem}. Retrying. Click to configure.`
+          : socket.status?.receiving
+            ? `Receiving on ${socket.status.address}. Click to configure.`
+            : "Nothing heard on this address. Click to configure."}
         onclick={() => {
           nav.selectedCategoryId = "network";
         }}

@@ -312,6 +312,7 @@ func (f *fakeEndpoint) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 func (f *fakeEndpoint) SetAddress(address string)                  { f.address = address }
+func (f *fakeEndpoint) Reopen()                                    {}
 func (f *fakeEndpoint) SetInterfaces(ifaces []multicast.Interface) {}
 func (f *fakeEndpoint) Status(now time.Time) multicast.Status {
 	return multicast.Status{Address: f.address, Receiving: true, Heard: 7}

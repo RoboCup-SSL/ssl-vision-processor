@@ -48,6 +48,20 @@ func (m *Manager) Configure(streams map[int]Stream, ifaces []multicast.Interface
 	}
 }
 
+// Reopen reopens every open stream's socket, after a suspend.
+func (m *Manager) Reopen() {
+	m.mu.Lock()
+	sources := make([]*source, 0, len(m.sources))
+	for _, src := range m.sources {
+		sources = append(sources, src)
+	}
+	m.mu.Unlock()
+
+	for _, src := range sources {
+		src.reopen()
+	}
+}
+
 // Subscribe starts a viewer of camera id's stream. Call the returned
 // function exactly once when done; the channel closes then.
 func (m *Manager) Subscribe(id int, mode Mode) (<-chan Message, func(), error) {

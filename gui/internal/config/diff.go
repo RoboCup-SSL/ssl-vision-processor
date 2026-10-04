@@ -13,6 +13,7 @@ const (
 	SectionGeometry = "geometry"
 	SectionColor    = "color"
 	SectionNetwork  = "network"
+	SectionCamera   = "camera"
 	SectionOther    = "other"
 )
 
@@ -128,6 +129,8 @@ func classify(path []string) (string, *int) {
 			return SectionColor, nil
 		case "network":
 			return SectionNetwork, nil
+		case "camera":
+			return SectionCamera, nil
 		}
 
 		return SectionOther, nil
@@ -144,7 +147,9 @@ func classify(path []string) (string, *int) {
 				return SectionColor, &id
 			case "network":
 				return SectionNetwork, &id
-			case "camera", "geometry", "":
+			case "camera":
+				return SectionCamera, &id
+			case "geometry", "":
 				return SectionGeometry, &id
 			default:
 				return SectionOther, &id

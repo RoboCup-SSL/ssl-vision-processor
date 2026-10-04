@@ -1,5 +1,3 @@
-github.com/RoboCup-SSL/ssl-go-tools v1.12.0 h1:sXN+VSlMSOtNdLD0MPCaig3vSlj3ZTz/KIi9uJR/dy0=
-github.com/RoboCup-SSL/ssl-go-tools v1.12.0/go.mod h1:Gqrqs0LAcXmCQD3Z+IPXxrqxS9xc9sWJolYQyi3AHbw=
 github.com/abema/go-mp4 v1.7.3 h1:Aap+2vZl5KQrSGD9quYhLu4pWGXelFVUeFCa8IJaRXY=
 github.com/abema/go-mp4 v1.7.3/go.mod h1:vPl9t5ZK7K0x68jh12/+ECWBCXoWuIDtNgPtU2f04ws=
 github.com/bluenviron/mediacommon/v2 v2.9.5 h1:6r1vq9qFH5AUUjPOPxRd00BhBNAg1EcmYNvwmpzAibo=

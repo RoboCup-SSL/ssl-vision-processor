@@ -125,6 +125,8 @@
   function describe(status: SocketStatus | undefined, what: string): string {
     if (!status) return "Waiting for the host…";
 
+    if (status.problem) return `Not open: ${status.problem}. Retrying…`;
+
     const via = status.mode === "port" ? " (listening on the port)" : "";
 
     if (!status.lastHeard) return `No ${what} heard on this address yet${via}.`;

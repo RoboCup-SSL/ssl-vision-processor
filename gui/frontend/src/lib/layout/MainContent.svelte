@@ -6,6 +6,7 @@
   import ColorPanel from "../config/ColorPanel.svelte";
   import NetworkPanel from "../config/NetworkPanel.svelte";
   import StreamPanel from "../config/StreamPanel.svelte";
+  import CameraPanel from "../config/CameraPanel.svelte";
   import ConfigCategoryPlaceholder from "../config/ConfigCategoryPlaceholder.svelte";
 
   let category = $derived(selectedCategory());
@@ -17,6 +18,8 @@
 
   {#if nav.selectedCategoryId === "field"}
     <FieldEditor />
+  {:else if nav.selectedCategoryId === "camera"}
+    <CameraPanel {instance} />
   {:else if nav.selectedCategoryId === "geometry"}
     <GeometryPanel {category} {instance} />
   {:else if nav.selectedCategoryId === "color"}

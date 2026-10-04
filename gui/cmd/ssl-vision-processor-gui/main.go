@@ -120,6 +120,8 @@ func run() int {
 
 	runBackground(&wg, "vision multicast", func() error { return sockets.vision.Run(ctx) })
 	runBackground(&wg, "game controller multicast", func() error { return sockets.gc.Run(ctx) })
+	suspend := multicast.NewSuspendDetector()
+
 	runBackground(&wg, "geometry publish loop", func() error {
 		return geom.Run(ctx, func(encoded []byte) {
 			sockets.vision.Send(encoded)
@@ -128,6 +130,12 @@ func run() int {
 			// store, so they're refreshed on this tick rather than only on
 			// store changes.
 			publishConfigState(wsHub, store)
+			// After a suspend every socket is reopened: the network may have
+			// gone away and come back while nothing ran to notice.
+			if slept := suspend.Check(); slept > 0 {
+				slog.Info("resumed after suspend", "duration", slept.Round(time.Second))
+				sockets.reopen()
+			}
 			// Re-evaluated every tick so automatic interface selection
 			// follows cables, Wi-Fi, and containers coming and going.
 			sockets.apply(store)
@@ -281,6 +289,16 @@ type networkSockets struct {
 	mu     sync.Mutex
 	auto   bool
 	ifaces []multicast.Interface
+	// used is the previous apply's used interfaces, nil before the first,
+	// so a network going away or coming back is logged once.
+	used []string
+}
+
+// reopen forces every socket to reopen, after a suspend.
+func (s *networkSockets) reopen() {
+	s.vision.Reopen()
+	s.gc.Reopen()
+	s.video.Reopen()
 }
 
 // apply moves both endpoints to the store's current addresses and interface
@@ -294,9 +312,24 @@ func (s *networkSockets) apply(store *config.Store) {
 	s.gc.SetInterfaces(ifaces)
 	s.video.Configure(cameraStreams(doc), ifaces)
 
+	used := []string{}
+	for _, i := range ifaces {
+		if i.Used {
+			used = append(used, i.Name)
+		}
+	}
+
 	s.mu.Lock()
-	s.auto, s.ifaces = auto, ifaces
+	previous := s.used
+	s.auto, s.ifaces, s.used = auto, ifaces, used
 	s.mu.Unlock()
+
+	switch {
+	case len(used) == 0 && (previous == nil || len(previous) > 0):
+		slog.Warn("no usable network interface; waiting for network", "auto", auto)
+	case len(used) > 0 && previous != nil && len(previous) == 0:
+		slog.Info("network back", "interfaces", used)
+	}
 }
 
 // currentNetwork is the store's working document, its network block, and its

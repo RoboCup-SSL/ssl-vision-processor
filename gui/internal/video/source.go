@@ -52,6 +52,7 @@ type endpoint interface {
 	Run(ctx context.Context) error
 	SetAddress(address string)
 	SetInterfaces(ifaces []multicast.Interface)
+	Reopen()
 	Status(now time.Time) multicast.Status
 }
 
@@ -110,6 +111,16 @@ func (s *source) configure(active bool, address string, ifaces []multicast.Inter
 	if s.endpoint != nil {
 		s.endpoint.SetAddress(address)
 		s.endpoint.SetInterfaces(ifaces)
+	}
+}
+
+// reopen reopens a running socket, after a suspend.
+func (s *source) reopen() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.endpoint != nil {
+		s.endpoint.Reopen()
 	}
 }
 
@@ -349,6 +360,8 @@ type Status struct {
 	Receiving bool   `json:"receiving"`
 	Packets   uint64 `json:"packets"`
 	Source    string `json:"source,omitempty"`
+	// Problem is why the socket isn't fully open, if it isn't.
+	Problem string `json:"problem,omitempty"`
 }
 
 // sendStatus is best effort: a full queue just misses one. Called with mu
@@ -358,7 +371,7 @@ func (s *source) sendStatus(v *viewer) {
 
 	if s.endpoint != nil {
 		ep := s.endpoint.Status(time.Now())
-		status.Receiving, status.Packets, status.Source = ep.Receiving, ep.Heard, ep.Source
+		status.Receiving, status.Packets, status.Source, status.Problem = ep.Receiving, ep.Heard, ep.Source, ep.Problem
 	}
 
 	data, _ := json.Marshal(status)

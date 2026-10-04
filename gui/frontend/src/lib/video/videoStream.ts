@@ -18,6 +18,8 @@ export interface StreamStatus {
   receiving: boolean;
   packets: number;
   source?: string;
+  // Why the host's socket isn't fully open; it retries until it is.
+  problem?: string;
 }
 
 // Mirrors gui/internal/video's Format.

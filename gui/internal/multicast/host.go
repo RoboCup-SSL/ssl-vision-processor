@@ -27,8 +27,7 @@ type Interface struct {
 }
 
 // virtualPrefixes are interface names automatic selection leaves out:
-// container and VM bridges and VPN tunnels, which never carry field traffic
-// but would each take a turn in sslnet's one-interface-at-a-time receiver.
+// container and VM bridges and VPN tunnels, which never carry field traffic.
 var virtualPrefixes = []string{
 	"docker", "br-", "veth", "virbr", "vmnet", "vboxnet", "lxc", "lxd", "cni",
 	"flannel", "cali", "tun", "tap", "wg", "tailscale", "zt", "utun",

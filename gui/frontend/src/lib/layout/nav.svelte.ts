@@ -54,6 +54,7 @@ export function selectedCategory(): ConfigCategory {
 // any camera; per-camera ones only the selected camera's.
 const CATEGORY_SECTIONS: Record<string, Section> = {
   field: "field",
+  camera: "camera",
   geometry: "geometry",
   color: "color",
   network: "network",

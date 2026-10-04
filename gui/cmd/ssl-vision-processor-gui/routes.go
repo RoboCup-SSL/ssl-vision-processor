@@ -21,6 +21,7 @@ func (s *VisionServer) addRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/config/reload", s.handleReload())
 	mux.Handle("POST /api/config/cameras/{id}/calibration", s.handleLockCalibration())
 	mux.Handle("DELETE /api/config/cameras/{id}/calibration", s.handleUnlockCalibration())
+	mux.Handle("GET /api/camera/devices", s.handleCameraDevices())
 	mux.Handle("GET /api/snapshots", snapshot.HandleList(s.imgDir))
 	mux.Handle("GET /api/snapshot/{camID}/{view}", snapshot.HandleGet(s.imgDir))
 	mux.Handle("/api/", http.NotFoundHandler())

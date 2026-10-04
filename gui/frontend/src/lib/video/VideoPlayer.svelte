@@ -67,6 +67,8 @@
     if (!status) return "Connecting…";
     if (!status.active)
       return `Streaming is off for this camera (stream.active). Nothing to show.`;
+    if (status.problem)
+      return `Can't listen for video on ${status.address}: ${status.problem}. Retrying…`;
     if (!status.receiving)
       return `Waiting for video on ${status.address}. Is the vision_processor running?`;
     if (!format) return "Waiting for a keyframe…";

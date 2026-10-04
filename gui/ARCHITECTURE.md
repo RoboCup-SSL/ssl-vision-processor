@@ -83,10 +83,11 @@ before returning.
 | `cmd/ssl-vision-processor-gui` | Flags, wiring, HTTP handlers and routes.                                |
 | `internal/config`      | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files. |
 | `internal/geometry`    | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state. |
-| `internal/multicast`   | The vision and game controller multicast sockets, reopened when their address changes. |
+| `internal/multicast`   | The vision, game controller, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
 | `internal/hub`         | In-process topic pub/sub and the `/ws` WebSocket handler.                     |
 | `internal/snapshot`    | Debug image listing and serving.                                              |
 | `internal/video`       | Live video: each camera's H.264 RTP stream relayed to browsers as fragmented MP4. |
+| `internal/v4l`         | Lists this host's Video4Linux capture devices for the camera path picker.     |
 | `internal/logging`     | slog setup: a coloured console handler and a rotating file handler.           |
 | `internal/vision`, `internal/gamecontroller` | Generated protobuf bindings. Not committed, see Build-time codegen below. |
 | `frontend`             | Svelte 5 and TypeScript, embedded into the binary via `//go:embed`.           |
@@ -163,10 +164,23 @@ at startup.
 Which interfaces the host's own sockets use is `host.interfaces`, a section no vision_processor reads, since
 interface names only mean something on one machine. `auto` (the default) uses interfaces that are up, have
 carrier, support multicast, and have an IPv4 address, and skips loopback and virtual ones (Docker and VM bridges,
-VPN tunnels); it is re-evaluated every second. Otherwise `skip` is a blacklist. The selection matters because
-sslnet's multicast receiver listens on one interface at a time, so an idle bridge costs real packets. The host
-sends through its own sender rather than sslnet's `UdpClient`, which ignores the skip list. At startup the host
-warns if the loopback interface has multicast off, as Ubuntu ships it, and suggests the command that enables it.
+VPN tunnels); it is re-evaluated every second. Otherwise `skip` is a blacklist. At startup the host warns if the
+loopback interface has multicast off, as Ubuntu ships it, and suggests the command that enables it.
+
+Every endpoint receives on one plain socket bound to its group address (as vision_processor binds), joined on
+all used interfaces at once, and sends from each used interface. Endpoints heal themselves: if a socket can't be
+fully set up (no usable interface, a failed join, a send socket lost when an interface went away), the endpoint
+reports the problem in its status, shown on the Network page and the badges, and retries every 5 s, logging only
+when the problem changes. The host also notices a suspend: each second it compares `CLOCK_BOOTTIME`, which keeps
+counting while suspended, with `CLOCK_MONOTONIC`, which doesn't. Neither jumps for NTP or clock changes, so a gap
+means the machine slept, and every socket is reopened.
+
+The Camera Settings tab edits each camera's `camera:` block, shown with vision_processor's own fallbacks applied
+(`src/driver/cameradriver.cpp`; an unset driver means SPINNAKER). Controls follow the driver: an index for
+SPINNAKER and MVIMPACT, a path for OPENCV, gamma hidden for MVIMPACT, and the OUTDOOR and INDOOR auto white
+balance profiles only for SPINNAKER. vision_processor reads `camera:` only at startup. Validation rejects what it
+would misread instead of refusing: an unknown driver (fatal at startup) and any white balance string other than
+OUTDOOR or INDOOR (it treats every other string as INDOOR).
 
 Every number in the free form blocks is normalized to an int or a float64. The browser sends every number as a
 JSON float and YAML decodes integers as ints, so without this every edit would show spurious changes such as
@@ -189,6 +203,7 @@ All routes are registered in `cmd/ssl-vision-processor-gui/routes.go`.
 | POST   | `/api/config/reload`           | Accept the file as it is on disk, discarding unsaved changes.       |
 | POST   | `/api/config/cameras/{id}/calibration` | Lock the camera's latest live calibration.                  |
 | DELETE | `/api/config/cameras/{id}/calibration` | Unlock it and stop publishing any calibration for the camera. |
+| GET    | `/api/camera/devices`          | This host's capture devices: stable by-id and by-path links, then raw nodes. |
 | GET    | `/api/snapshots`               | List of debug images currently on disk.                            |
 | GET    | `/api/snapshot/{camID}/{view}` | One debug image.                                                    |
 | GET    | `/ws`                          | WebSocket, see below.                                               |
@@ -226,9 +241,9 @@ value once it catches up, never a growing backlog of stale ones.
 
 Each vision_processor multicasts H.264 over RTP (`src/rtpstreamer.cpp`) to `ip_base_prefix + (ip_base_end +
 cam_id):port` from its `stream` settings, 224.5.23.100+id:10100 by default. `internal/video` relays it without
-re-encoding. A camera's socket opens on its first viewer and closes 5 s after its last. It binds the group address
-with a large receive buffer, joined on every selected interface, rather than using sslnet's receiver, whose 8 KB
-buffer drops most of a keyframe's burst and whose `0.0.0.0` bind would mix cameras that share a port.
+re-encoding. A camera's socket opens on its first viewer and closes 5 s after its last. Like every endpoint it
+binds its group address, so cameras sharing port 10100 don't mix, with a 4 MB receive buffer for a keyframe's
+burst of packets.
 
 Packets are reassembled into frames (RFC 6184 single units, STAP-A, FU-A; there is no SDP, so payload type and
 packetization mode 1 are assumed). After a lost packet, frames are dropped until the next keyframe, since the ones

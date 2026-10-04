@@ -35,7 +35,7 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
   },
   {
     id: "camera",
-    label: "Camera",
+    label: "Camera Settings",
     scope: "per-instance",
     yamlKey: "camera",
     fields: [
@@ -157,4 +157,4 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
 // used constantly while working on one camera, separate from the sidebar's
 // full list of all nine. Start small and add to this as more categories earn
 // a spot -- it's deliberately a subset, not a duplicate of CONFIG_CATEGORIES.
-export const TAB_CATEGORY_IDS = ["field", "geometry", "color"];
+export const TAB_CATEGORY_IDS = ["field", "camera", "geometry", "color"];

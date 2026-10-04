@@ -230,6 +230,10 @@ func (d Document) Validate() error {
 			}
 		}
 
+		if err := validateCamera(d.Effective(c)["camera"]); err != nil {
+			add(fmt.Errorf("%s: %w", prefix, err))
+		}
+
 		color, err := colorFromBlock(d.Effective(c)["color"])
 		if err != nil {
 			add(fmt.Errorf("%s: %w", prefix, err))

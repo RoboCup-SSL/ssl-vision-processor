@@ -13,6 +13,9 @@ export interface SocketStatus {
   lastHeard?: string;
   source?: string;
   receiving: boolean;
+  // Why the socket isn't fully open (e.g. "no usable network interface");
+  // the host retries until it is.
+  problem?: string;
   // "port": no group to join, listening on the port (broadcast or unicast).
   mode: "multicast" | "port";
 }

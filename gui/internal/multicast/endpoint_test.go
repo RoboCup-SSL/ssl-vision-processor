@@ -24,16 +24,24 @@ type fakeNet struct {
 	receive func([]byte, *net.UDPAddr)
 	sent    [][]byte
 	open    chan string
+	// problems is what each successive open reports as unhealthy; opens
+	// past the end are healthy.
+	problems []string
 }
 
 func newFakeNet() *fakeNet {
 	return &fakeNet{open: make(chan string, 8)}
 }
 
-func (f *fakeNet) opener(address string, _ []Interface, opts Options, receive func([]byte, *net.UDPAddr)) (func([]byte), func()) {
+func (f *fakeNet) opener(address string, _ []Interface, opts Options, receive func([]byte, *net.UDPAddr)) sockets {
 	f.mu.Lock()
 	f.opened = append(f.opened, address)
 	f.receive = receive
+
+	problem := ""
+	if len(f.problems) > 0 {
+		problem, f.problems = f.problems[0], f.problems[1:]
+	}
 	f.mu.Unlock()
 
 	f.open <- address
@@ -48,11 +56,15 @@ func (f *fakeNet) opener(address string, _ []Interface, opts Options, receive fu
 		}
 	}
 
-	return send, func() {
-		f.mu.Lock()
-		defer f.mu.Unlock()
+	return sockets{
+		send: send,
+		stop: func() {
+			f.mu.Lock()
+			defer f.mu.Unlock()
 
-		f.stopped = append(f.stopped, address)
+			f.stopped = append(f.stopped, address)
+		},
+		health: func() string { return problem },
 	}
 }
 
@@ -77,12 +89,14 @@ func (f *fakeNet) waitOpen(t *testing.T, want string) {
 	}
 }
 
-func startEndpoint(t *testing.T, address string, opts Options, consume Consumer) (*Endpoint, *fakeNet, func()) {
+func startEndpoint(t *testing.T, address string, opts Options, consume Consumer, problems ...string) (*Endpoint, *fakeNet, func()) {
 	t.Helper()
 
 	f := newFakeNet()
+	f.problems = problems
 	e := NewEndpoint("test", address, []Interface{{Name: "eth0", Address: "10.0.0.2", Used: true}}, opts, consume)
 	e.open = f.opener
+	e.retry = 20 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -316,4 +330,82 @@ func TestEndpointReopensOnlyWhenUsedInterfacesChange(t *testing.T) {
 		{Name: "docker0", Address: "172.17.0.1", Used: true},
 	})
 	f.waitOpen(t, "224.5.23.2:10006")
+}
+
+func TestEndpointRetriesUntilHealthy(t *testing.T) {
+	e, f, stop := startEndpoint(t, "224.5.23.2:10006", Options{}, countAll,
+		"no usable network interface", "no usable network interface")
+	defer stop()
+
+	// The fake signals the open before the endpoint has checked its health.
+	waitFor(t, "the problem to be reported", func() bool {
+		return e.Status(time.Now()).Problem == "no usable network interface"
+	})
+
+	// Two failing opens, then a healthy one: the endpoint retries on its own
+	// though nothing about the address or interfaces changed.
+	f.waitOpen(t, "224.5.23.2:10006")
+	f.waitOpen(t, "224.5.23.2:10006")
+
+	waitFor(t, "the problem to clear after a healthy open", func() bool {
+		return e.Status(time.Now()).Problem == ""
+	})
+
+	select {
+	case got := <-f.open:
+		t.Fatalf("reopened %s after becoming healthy", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestEndpointReopenForcesNewSockets(t *testing.T) {
+	e, f, stop := startEndpoint(t, "224.5.23.2:10006", Options{}, countAll)
+	defer stop()
+
+	e.Reopen()
+	f.waitOpen(t, "224.5.23.2:10006")
+}
+
+// The overnight crash: sockets opened with no usable interface (a suspend
+// in progress), then reopened when the interface came back. With real
+// sockets, not the fake: it was the stop of a receiver that never joined.
+func TestEndpointSurvivesLosingEveryInterface(t *testing.T) {
+	e := NewEndpoint("test", "224.5.23.250:19950", nil, Options{Send: true}, countAll)
+	e.retry = 20 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+
+	go func() { done <- e.Run(ctx) }()
+
+	time.Sleep(60 * time.Millisecond) // a few retries with nothing usable
+
+	if p := e.Status(time.Now()).Problem; p == "" {
+		t.Error("no problem reported with no usable interface")
+	}
+
+	back, _ := Select(ListInterfaces(), true, nil)
+	e.SetInterfaces(back) // whatever this machine has; it must not panic
+	time.Sleep(60 * time.Millisecond)
+	e.SetInterfaces(nil)
+	time.Sleep(60 * time.Millisecond)
+
+	cancel()
+
+	if err := <-done; err != context.Canceled {
+		t.Fatalf("Run returned %v", err)
+	}
+}
+
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+
+		time.Sleep(5 * time.Millisecond)
+	}
 }

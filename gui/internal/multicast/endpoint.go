@@ -1,9 +1,14 @@
 // Package multicast holds the host's SSL network sockets: the vision group
-// (geometry in and out) and the game controller group (referee in). Each is an
-// Endpoint whose address can change while running; the old sockets are torn
-// down and new ones opened on the new address. A multicast address joins the
-// group; anything else (normally a broadcast address, for switches whose IGMP
-// snooping drops multicast) listens on the port instead.
+// (geometry in and out), the game controller group (referee in), and each
+// camera's video stream. Each is an Endpoint whose address can change while
+// running; the old sockets are torn down and new ones opened on the new
+// address. A multicast address joins the group; anything else (normally a
+// broadcast address, for switches whose IGMP snooping drops multicast)
+// listens on the port instead.
+//
+// Endpoints heal themselves: while a socket couldn't be set up (no usable
+// interface during a suspend, a cable pulled), they retry every
+// RetryInterval, logging only when the problem changes.
 package multicast
 
 import (
@@ -13,22 +18,27 @@ import (
 	"slices"
 	"sync"
 	"time"
-
-	"github.com/RoboCup-SSL/ssl-go-tools/pkg/sslnet"
 )
 
 // ReceivingWindow is how recently a packet must have been heard for an
 // endpoint to count as receiving.
 const ReceivingWindow = 2 * time.Second
 
+// RetryInterval is how often an endpoint whose sockets aren't fully set up
+// tries again.
+const RetryInterval = 5 * time.Second
+
+// defaultReadBuffer is the kernel receive buffer for endpoints that don't
+// ask for one: plenty for the vision and game controller groups' rates.
+const defaultReadBuffer = 1 << 20
+
 // Options configures an Endpoint's sockets.
 type Options struct {
 	Verbose bool
 	// Send also opens a sender on the group, for Endpoint.Send.
 	Send bool
-	// ReadBuffer, when set, receives on a plain socket with this kernel
-	// receive buffer instead of sslnet's receiver (see openSocket). For
-	// high-rate streams; such an endpoint can't send.
+	// ReadBuffer is the kernel receive buffer; 0 means defaultReadBuffer.
+	// Video sets more, for a keyframe's burst of packets.
 	ReadBuffer int
 }
 
@@ -36,11 +46,21 @@ type Options struct {
 // valid packet from someone else, not noise or our own looped-back sends.
 type Consumer func(data []byte) bool
 
+// sockets is what an opener hands back.
+type sockets struct {
+	// send is nil when not sending.
+	send func([]byte)
+	stop func()
+	// health is "" while everything that should be open is, else what's
+	// wrong ("no usable network interface", a join error, a send socket
+	// lost to an interface going away). Checked every RetryInterval.
+	health func() string
+}
+
 // opener opens sockets on address over the interfaces marked Used,
-// delivering datagrams to receive. It returns how to send (nil when not
-// sending) and how to close everything. Swapped out in tests, which can't
-// rely on joining a real multicast group.
-type opener func(address string, ifaces []Interface, opts Options, receive func([]byte, *net.UDPAddr)) (send func([]byte), stop func())
+// delivering datagrams to receive. Swapped out in tests, which can't rely on
+// joining a real multicast group.
+type opener func(address string, ifaces []Interface, opts Options, receive func([]byte, *net.UDPAddr)) sockets
 
 // Endpoint is one multicast group the host listens on, and optionally sends to.
 type Endpoint struct {
@@ -48,15 +68,18 @@ type Endpoint struct {
 	opts    Options
 	consume Consumer
 	open    opener
+	retry   time.Duration
 
-	// poke wakes Run after SetAddress or SetInterfaces. Size 1: several
-	// changes before Run gets to it collapse into one reopen.
+	// poke wakes Run after SetAddress, SetInterfaces, or Reopen. Size 1:
+	// several before Run gets to it collapse into one reopen.
 	poke chan struct{}
 
 	mu        sync.Mutex
 	address   string
 	ifaces    []Interface
 	send      func([]byte)
+	health    func() string
+	problem   string // last reported, so it's logged when it changes
 	heard     uint64
 	lastHeard time.Time
 	source    string
@@ -73,21 +96,23 @@ type Status struct {
 	LastHeard *time.Time `json:"lastHeard,omitempty"`
 	Source    string     `json:"source,omitempty"`
 	Receiving bool       `json:"receiving"`
+	// Problem is why the sockets aren't fully open, if they aren't.
+	Problem string `json:"problem,omitempty"`
 }
 
 // NewEndpoint prepares an endpoint on address (e.g. "224.5.23.2:10006")
 // over ifaces (see Select). Nothing is opened until Run.
 func NewEndpoint(name, address string, ifaces []Interface, opts Options, consume Consumer) *Endpoint {
-	open := openSSLNet
-	if opts.ReadBuffer > 0 {
-		open = openSocket
+	if opts.ReadBuffer == 0 {
+		opts.ReadBuffer = defaultReadBuffer
 	}
 
 	return &Endpoint{
 		name:    name,
 		opts:    opts,
 		consume: consume,
-		open:    open,
+		open:    openSockets,
+		retry:   RetryInterval,
 		poke:    make(chan struct{}, 1),
 		address: address,
 		ifaces:  ifaces,
@@ -154,6 +179,12 @@ func usedKey(ifaces []Interface) []string {
 	return key
 }
 
+// Reopen closes and reopens the sockets even though nothing changed: after a
+// suspend, the old ones may be bound to state the network no longer has.
+func (e *Endpoint) Reopen() {
+	e.reopen()
+}
+
 func (e *Endpoint) reopen() {
 	select {
 	case e.poke <- struct{}{}:
@@ -162,25 +193,74 @@ func (e *Endpoint) reopen() {
 }
 
 // Run keeps the endpoint open on its current address until ctx is cancelled,
-// reopening whenever SetAddress or SetInterfaces changes it.
+// reopening whenever SetAddress, SetInterfaces, or Reopen asks, and every
+// RetryInterval while the sockets aren't fully set up.
 func (e *Endpoint) Run(ctx context.Context) error {
+	retrying := false
+
 	for {
 		e.mu.Lock()
 		address, ifaces := e.address, e.ifaces
 		e.mu.Unlock()
 
-		stop := e.start(address, ifaces)
+		s := e.start(address, ifaces, retrying)
 
-		select {
-		case <-ctx.Done():
-			stop()
+		var err error
 
-			return ctx.Err()
-		case <-e.poke:
+		retrying, err = e.wait(ctx, s.health)
+
+		s.stop()
+
+		e.mu.Lock()
+		e.send, e.health = nil, nil
+		e.mu.Unlock()
+
+		if err != nil {
+			return err
 		}
 
-		stop()
-		slog.Info("reopening socket", "endpoint", e.name, "from", address, "to", e.Address(), "interfaces", usedKey(e.interfaces()))
+		if !retrying {
+			slog.Info("reopening socket", "endpoint", e.name, "from", address, "to", e.Address(), "interfaces", usedKey(e.interfaces()))
+		}
+	}
+}
+
+// wait returns when the sockets should be reopened: retrying is true when
+// it's because they're unhealthy rather than because something changed.
+func (e *Endpoint) wait(ctx context.Context, health func() string) (retrying bool, err error) {
+	ticker := time.NewTicker(e.retry)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-e.poke:
+			return false, nil
+		case <-ticker.C:
+			if problem := health(); problem != "" {
+				e.report(problem)
+
+				return true, nil
+			}
+		}
+	}
+}
+
+// report logs a change in what's wrong, so a socket retrying all night
+// doesn't fill the log.
+func (e *Endpoint) report(problem string) {
+	e.mu.Lock()
+	previous := e.problem
+	e.problem = problem
+	e.mu.Unlock()
+
+	switch {
+	case problem == previous:
+	case problem == "":
+		slog.Info("socket healthy again", "endpoint", e.name, "address", e.Address())
+	default:
+		slog.Warn("socket not fully open, retrying", "endpoint", e.name, "address", e.Address(), "problem", problem, "every", e.retry)
 	}
 }
 
@@ -191,24 +271,28 @@ func (e *Endpoint) interfaces() []Interface {
 	return e.ifaces
 }
 
-func (e *Endpoint) start(address string, ifaces []Interface) func() {
-	send, stop := e.open(address, ifaces, e.opts, func(data []byte, from *net.UDPAddr) {
+func (e *Endpoint) start(address string, ifaces []Interface, retrying bool) sockets {
+	s := e.open(address, ifaces, e.opts, func(data []byte, from *net.UDPAddr) {
 		e.receive(address, data, from)
 	})
 
 	e.mu.Lock()
-	e.send = send
+	e.send, e.health = s.send, s.health
 	e.mu.Unlock()
 
-	slog.Info("socket open", "endpoint", e.name, "address", address)
+	problem := s.health()
 
-	return func() {
-		e.mu.Lock()
-		e.send = nil
-		e.mu.Unlock()
-
-		stop()
+	// A retry that's still failing stays quiet; report says what's wrong
+	// when that changes.
+	if retrying && problem != "" {
+		slog.Debug("socket retry", "endpoint", e.name, "address", address, "problem", problem)
+	} else {
+		slog.Info("socket open", "endpoint", e.name, "address", address, "interfaces", usedKey(ifaces))
 	}
+
+	e.report(problem)
+
+	return s
 }
 
 // receive handles a datagram that arrived on address. A closing socket can
@@ -256,6 +340,7 @@ func (e *Endpoint) Status(now time.Time) Status {
 		Mode:    modeOf(e.address),
 		Heard:   e.heard,
 		Source:  e.source,
+		Problem: e.problem,
 	}
 
 	if !e.lastHeard.IsZero() {
@@ -283,53 +368,32 @@ func modeOf(address string) string {
 	return "multicast"
 }
 
-// receiver is what sslnet's MulticastServer and BroadcastServer have in common.
-type receiver interface {
-	Start()
-	Stop()
-}
-
-func openSSLNet(address string, ifaces []Interface, opts Options, receive func([]byte, *net.UDPAddr)) (func([]byte), func()) {
-	var server receiver
-
-	if modeOf(address) == "port" {
-		// Binds 0.0.0.0, so it hears every interface whatever the selection;
-		// only sending follows it.
-		s := sslnet.NewBroadcastServer(address)
-		s.Verbose = opts.Verbose
-		s.Consumer = receive
-		server = s
-	} else {
-		s := sslnet.NewMulticastServer(address)
-		s.SkipInterfaces = skipped(ifaces)
-		s.Verbose = opts.Verbose
-		s.Consumer = receive
-		server = s
-	}
-
-	server.Start()
+// openSockets is the real opener: a plain receiving socket (openSocket) and,
+// for Options.Send, a sender on every used interface (openSender).
+func openSockets(address string, ifaces []Interface, opts Options, receive func([]byte, *net.UDPAddr)) sockets {
+	stopReceiver, receiverProblem := openSocket(address, ifaces, opts, receive)
 
 	if !opts.Send {
-		return nil, server.Stop
+		return sockets{
+			stop:   stopReceiver,
+			health: func() string { return receiverProblem },
+		}
 	}
 
 	out := openSender(address, ifaces)
 
-	return out.send, func() {
-		server.Stop()
-		out.close()
+	return sockets{
+		send: out.send,
+		stop: func() {
+			stopReceiver()
+			out.close()
+		},
+		health: func() string {
+			if receiverProblem != "" {
+				return receiverProblem
+			}
+
+			return out.health()
+		},
 	}
-}
-
-// skipped names the interfaces a selection doesn't use.
-func skipped(ifaces []Interface) []string {
-	var names []string
-
-	for _, i := range ifaces {
-		if !i.Used {
-			names = append(names, i.Name)
-		}
-	}
-
-	return names
 }

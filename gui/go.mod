@@ -23,10 +23,9 @@ require (
 )
 
 require (
-	github.com/RoboCup-SSL/ssl-go-tools v1.12.0
 	github.com/libp2p/go-reuseport v0.4.0
 	golang.org/x/net v0.55.0
-	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/sys v0.45.0
 )
 
 tool google.golang.org/protobuf/cmd/protoc-gen-go

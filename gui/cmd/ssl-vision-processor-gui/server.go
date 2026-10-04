@@ -10,6 +10,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/v4l"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -29,6 +30,19 @@ func NewVisionServer(geom *geometry.Geometry, store *config.Store, wsHub *hub.Hu
 	s.addRoutes(mux)
 
 	return mux
+}
+
+// handleCameraDevices lists this host's capture devices for the camera path
+// picker. Empty, not an error, on a machine without Video4Linux.
+func (s *VisionServer) handleCameraDevices() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		devices := v4l.List(v4l.System)
+		if devices == nil {
+			devices = []v4l.Device{}
+		}
+
+		writeJSON(w, devices)
+	}
 }
 
 func (s *VisionServer) handleHealth() http.HandlerFunc {

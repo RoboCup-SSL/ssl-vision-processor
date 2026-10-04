@@ -208,6 +208,7 @@ func TestDiffClassifiesSections(t *testing.T) {
 	after.Defaults["thresholds"].(map[string]any)["min_confidence"] = 0.4
 	after.Cameras[0].Calibration.Camera["tz"] = 4100
 	after.Defaults["network"] = map[string]any{"vision_port": 10010}
+	after.Cameras[0].Config["camera"].(map[string]any)["gain"] = 4.0
 
 	want := map[string]struct {
 		section string
@@ -220,6 +221,7 @@ func TestDiffClassifiesSections(t *testing.T) {
 		"defaults.thresholds.min_confidence": {SectionOther, -1},
 		"cameras[0].calibration.camera.tz":   {SectionGeometry, 0},
 		"defaults.network":                   {SectionNetwork, -1},
+		"cameras[0].config.camera.gain":      {SectionCamera, 0},
 	}
 
 	changes := Diff(before, after)

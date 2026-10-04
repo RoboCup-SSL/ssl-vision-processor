@@ -47,6 +47,7 @@ internal/
   hub/         topic pub/sub + the /ws handler
   snapshot/    debug image listing/serving
   video/       live video: RTP H.264 -> fMP4 over /ws/video/{id} for MSE
+  v4l/         this host's capture devices, for the camera path picker
   logging/     slog setup: tint console + lumberjack file
   vision/      generated Go protobuf, not committed -- run `make proto` (DO NOT EDIT)
   gamecontroller/  generated Go protobuf, not committed
@@ -64,9 +65,13 @@ buf.gen.yaml   generates both internal/{vision,gamecontroller} and
   `r.PathValue(...)` reads them.
 - **`gorilla/websocket`** for `/ws`. Not stdlib; there is no other serious
   option (`golang.org/x/net/websocket` is legacy/incomplete).
-- **`ssl-go-tools/pkg/sslnet`** for multicast (`MulticastServer`, `UdpClient`)
-  rather than hand-rolled sockets, to match how the rest of the league already
-  handles multi-interface venue boxes.
+- **Plain sockets for multicast** (`internal/multicast`: `go-reuseport` plus
+  `x/net/ipv4`), not `ssl-go-tools/pkg/sslnet`, which the rest of the league
+  uses. sslnet's `MulticastServer.Stop` dereferences a nil connection if it
+  never connected, which crashed the host whenever no interface was usable
+  (a suspend, an unplugged cable); its receiver also listens on one interface
+  at a time, binds `0.0.0.0` (mixing groups that share a port), and uses an
+  8 KB receive buffer.
 - **`google.golang.org/protobuf` + `protojson`**, never `encoding/json` on a
   generated message (see Gotchas).
 - **Svelte 5 runes only**, no stores added beyond what predates this work

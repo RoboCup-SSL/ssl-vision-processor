@@ -14,6 +14,7 @@
 
   const SECTION_ORDER: Section[] = [
     "field",
+    "camera",
     "geometry",
     "color",
     "network",
