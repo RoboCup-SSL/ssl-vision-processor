@@ -339,7 +339,7 @@ func feed(t *testing.T, s *source, p *packetizer, clip [][][]byte) {
 				t.Fatal(err)
 			}
 
-			if !s.handle(data) {
+			if !s.handle(data, nil) {
 				t.Fatal("source rejected an RTP packet")
 			}
 		}

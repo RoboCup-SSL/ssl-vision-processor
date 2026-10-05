@@ -85,6 +85,7 @@ before returning.
 | `internal/geometry`    | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state. |
 | `internal/multicast`   | The vision, game controller, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
 | `internal/hub`         | In-process topic pub/sub and the `/ws` WebSocket handler.                     |
+| `internal/detections`  | Which camera_ids the vision socket hears, from which address, at what rate. Feeds the Camera Layout page. |
 | `internal/snapshot`    | Debug image listing and serving.                                              |
 | `internal/video`       | Live video: each camera's H.264 RTP stream relayed to browsers as fragmented MP4. |
 | `internal/v4l`         | Lists this host's Video4Linux capture devices for the camera path picker.     |
@@ -114,8 +115,10 @@ A calibration missing a required proto2 field is rejected with `proto.CheckIniti
 
 `vision.yml` is the one file the host owns. It holds the field template, shared `defaults` in vision_processor's
 own `config.yml` layout, and a `cameras` list keyed by `camera_id`. Each camera carries its own overrides, its
-corner picker `seed` (corners plus the image resolution they were picked at), and optionally a locked
-`calibration`.
+corner picker `seed` (corners plus the image resolution and slot they were picked at), optionally a locked
+`calibration`, and a GUI-only video `display` orientation. `layout.camera_count` (1, 2 or 4) splits the field into
+regions. A camera's `camera_id` picks its region, as in `camera_ids.png`. Any mix of hosts and cameras is valid;
+one host may run several cameras.
 
 `config.Store` keeps two copies of the document: the working copy and the copy last loaded from or saved to disk.
 Edits from the browser replace the working copy and apply live straight away. Save writes the working copy to
@@ -167,8 +170,9 @@ carrier, support multicast, and have an IPv4 address, and skips loopback and vir
 VPN tunnels); it is re-evaluated every second. Otherwise `skip` is a blacklist. At startup the host warns if the
 loopback interface has multicast off, as Ubuntu ships it, and suggests the command that enables it.
 
-Every endpoint receives on one plain socket bound to its group address (as vision_processor binds), joined on
-all used interfaces at once, and sends from each used interface. Endpoints heal themselves: if a socket can't be
+Every endpoint receives on one plain socket that hears only the group it joined (Linux `IP_MULTICAST_ALL` off; Go
+binds a multicast address as `0.0.0.0`, so binding the group alone doesn't do it), joined on all used interfaces at
+once, and sends from each used interface. Endpoints heal themselves: if a socket can't be
 fully set up (no usable interface, a failed join, a send socket lost when an interface went away), the endpoint
 reports the problem in its status, shown on the Network page and the badges, and retries every 5 s, logging only
 when the problem changes. The host also notices a suspend: each second it compares `CLOCK_BOOTTIME`, which keeps
@@ -242,7 +246,7 @@ value once it catches up, never a growing backlog of stale ones.
 Each vision_processor multicasts H.264 over RTP (`src/rtpstreamer.cpp`) to `ip_base_prefix + (ip_base_end +
 cam_id):port` from its `stream` settings, 224.5.23.100+id:10100 by default. `internal/video` relays it without
 re-encoding. A camera's socket opens on its first viewer and closes 5 s after its last. Like every endpoint it
-binds its group address, so cameras sharing port 10100 don't mix, with a 4 MB receive buffer for a keyframe's
+hears only its own group, so cameras sharing port 10100 don't mix, with a 4 MB receive buffer for a keyframe's
 burst of packets.
 
 Packets are reassembled into frames (RFC 6184 single units, STAP-A, FU-A; there is no SDP, so payload type and

@@ -164,6 +164,16 @@ func (s *Store) update(rev int64, doc Document) (int64, error) {
 		return 0, err
 	}
 
+	// A calibration removed by the edit (e.g. a camera moved to another
+	// slot) is withheld, as UnlockCalibration does, not just unlocked.
+	for _, c := range s.working.Cameras {
+		if next := doc.camera(c.CameraID); c.Calibration != nil && (next == nil || next.Calibration == nil) {
+			if err := s.live.Unlock(uint32(c.CameraID)); err != nil {
+				return 0, err
+			}
+		}
+	}
+
 	s.working = doc.clone()
 	s.revision++
 

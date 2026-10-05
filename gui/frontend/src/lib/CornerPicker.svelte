@@ -3,6 +3,7 @@
   import { Button, Alert, P } from "flowbite-svelte";
   import { untrack } from "svelte";
   import { config, cameraDoc } from "./config.svelte";
+  import { cameraCount, regionLabel, slotSlice } from "./cameraLayout";
 
   // The corner-drag picker from the calibration UI plan. Corners live in the
   // host's working document as this camera's seed, together with the image
@@ -107,6 +108,10 @@
       resolution: [imageWidth, imageHeight] as [number, number],
       lineCorners: orderedCorners.map((c) => [c.x, c.y] as [number, number]),
       goalSideMarker: originIndex + 1,
+      // The region they were picked for; moving the camera makes them stale.
+      slot: config.doc
+        ? { cameraId, cameraCount: cameraCount(config.doc) }
+        : undefined,
     };
 
     lastCommitted = JSON.stringify(next);
@@ -177,6 +182,17 @@
         .join("\n"),
   );
 
+  // The region this camera covers now. A seed picked for another region is
+  // reported by the host as seed_stale, shown with the other warnings.
+  let region = $derived(
+    config.doc
+      ? {
+          label: regionLabel(config.doc, cameraId),
+          slice: slotSlice(config.doc, cameraId),
+          count: cameraCount(config.doc),
+        }
+      : undefined,
+  );
   // How the saved seed relates to the image now being served.
   let resolutionStatus = $derived.by(() => {
     if (seed?.lineCorners.length !== 4 || imageWidth === 0) {
@@ -225,6 +241,18 @@
     calibration algorithm works that out itself. Changes apply when you let go
     of a marker; Save keeps them.
   </P>
+
+  {#if region && region.count > 1}
+    <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
+      This camera covers region {cameraId} of {region.count} ({region.label}): x {Math.round(
+        region.slice.minX,
+      )} … {Math.round(region.slice.maxX)}, y {Math.round(region.slice.minY)} … {Math.round(
+        region.slice.maxY,
+      )} mm. The first marker goes on its ({Math.round(region.slice.minX)}, {Math.round(
+        region.slice.minY,
+      )}) corner.
+    </P>
+  {/if}
 
   {#if resolutionStatus === "rescalable" && seed}
     <Alert color="yellow" class="my-2 text-sm">

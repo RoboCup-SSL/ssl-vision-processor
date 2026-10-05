@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/logging"
@@ -97,12 +98,15 @@ func run() int {
 
 	_, addrs, auto, ifaces := currentNetwork(store)
 	opts := multicast.Options{Verbose: level == slog.LevelDebug}
+	tracker := detections.NewTracker()
+	track := func(id uint32, from net.IP) { tracker.Record(id, from, time.Now()) }
 	sockets := &networkSockets{
-		vision: multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(opts), multicast.VisionConsumer(geom.Absorb)),
-		gc:     multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, opts, multicast.RefereeConsumer()),
-		video:  video.NewManager(level == slog.LevelDebug),
-		auto:   auto,
-		ifaces: ifaces,
+		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(opts), multicast.VisionConsumer(geom.Absorb, track)),
+		detections: tracker,
+		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, opts, multicast.RefereeConsumer()),
+		video:      video.NewManager(level == slog.LevelDebug),
+		auto:       auto,
+		ifaces:     ifaces,
 	}
 	sockets.apply(store)
 	wsHub := hub.New()
@@ -283,6 +287,8 @@ func publishConfigState(wsHub *hub.Hub, store *config.Store) {
 type networkSockets struct {
 	vision *multicast.Endpoint
 	gc     *multicast.Endpoint
+	// detections is which camera_ids the vision socket hears, from where.
+	detections *detections.Tracker
 	// video opens each camera's stream only while someone watches it.
 	video *video.Manager
 
@@ -386,6 +392,7 @@ func publishNetworkState(wsHub *hub.Hub, sockets *networkSockets) {
 	data, err := json.Marshal(struct {
 		Vision                multicast.Status      `json:"vision"`
 		GC                    multicast.Status      `json:"gc"`
+		Cameras               []detections.Source   `json:"cameras"`
 		AutoInterfaces        bool                  `json:"autoInterfaces"`
 		Interfaces            []multicast.Interface `json:"interfaces"`
 		Loopback              string                `json:"loopback"`
@@ -395,6 +402,7 @@ func publishNetworkState(wsHub *hub.Hub, sockets *networkSockets) {
 	}{
 		Vision:                sockets.vision.Status(now),
 		GC:                    sockets.gc.Status(now),
+		Cameras:               sockets.detections.Sources(now),
 		AutoInterfaces:        auto,
 		Interfaces:            ifaces,
 		Loopback:              loopback,

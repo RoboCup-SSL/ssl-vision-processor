@@ -17,6 +17,7 @@ export type Section =
   | "geometry"
   | "color"
   | "network"
+  | "layout"
   | "other";
 
 // Mirrors gui/internal/config's Change: one leaf difference between two
@@ -58,6 +59,20 @@ export interface Seed {
   resolution: [number, number];
   lineCorners: [number, number][];
   goalSideMarker?: number;
+  // The slot the corners were picked for; unset for older seeds.
+  slot?: Slot;
+}
+
+// A camera's place in the layout: its id out of the camera count.
+export interface Slot {
+  cameraId: number;
+  cameraCount: number;
+}
+
+// How the GUI orients a camera's video. Never sent to vision_processor.
+export interface Display {
+  rotate?: 0 | 90 | 180 | 270;
+  mirror?: boolean;
 }
 
 export interface Calibration {
@@ -73,6 +88,7 @@ export interface CameraDoc {
   config?: Record<string, unknown>;
   seed?: Seed;
   calibration?: Calibration;
+  display?: Display;
 }
 
 export interface ConfigDocument {
@@ -81,6 +97,8 @@ export interface ConfigDocument {
   optionalFieldLines: OptionalFieldLines;
   models?: Record<string, unknown>;
   defaults?: Record<string, unknown>;
+  // Unset: the camera count rounded up to a power of 2 (cameraCount()).
+  layout?: { cameraCount: number };
   cameras: CameraDoc[];
   // Settings for the GUI host alone; see gui/internal/config's Host.
   host?: {
@@ -370,5 +388,6 @@ export const SECTION_LABELS: Record<Section, string> = {
   geometry: "Geometry",
   color: "Color",
   network: "Network",
+  layout: "Camera Layout",
   other: "Other settings",
 };

@@ -13,9 +13,26 @@
   interface Props {
     cameraId: number;
     mode?: Mode;
+    // Fills its parent instead of a 16:9 box, with no caption: for tiles.
+    compact?: boolean;
+    // Degrees clockwise, a multiple of 90. 90 and 270 swap the video's
+    // width and height so it still fits the box.
+    rotate?: number;
+    mirror?: boolean;
   }
 
-  let { cameraId, mode = "full" }: Props = $props();
+  let {
+    cameraId,
+    mode = "full",
+    compact = false,
+    rotate = 0,
+    mirror = false,
+  }: Props = $props();
+
+  let quarterTurn = $derived(((rotate % 180) + 180) % 180 === 90);
+  let transform = $derived(
+    `translate(-50%, -50%) rotate(${String(rotate)}deg)${mirror ? " scaleX(-1)" : ""}`,
+  );
 
   let video: HTMLVideoElement | undefined = $state();
   let status = $state<StreamStatus | null>(null);
@@ -39,12 +56,20 @@
     };
   });
 
+  // The stream effect reads these, not the props: a prop is a getter on the
+  // parent's expression, so the effect would otherwise rerun (reconnecting
+  // and blanking the video) whenever anything that expression reads changes,
+  // e.g. the Camera Layout tiles' slot objects, rebuilt every second. A
+  // $derived only signals when the value itself changes.
+  let streamCamera = $derived(cameraId);
+  let streamMode = $derived(mode);
+
   $effect(() => {
     if (!video || !visible) return;
 
     status = null;
 
-    const stream = new VideoStream(video, cameraId, mode, {
+    const stream = new VideoStream(video, streamCamera, streamMode, {
       status: (s) => {
         status = s;
       },
@@ -83,28 +108,37 @@
   });
 </script>
 
-<div class="player">
-  <video bind:this={video} muted autoplay playsinline></video>
+<div class="player" class:compact>
+  <video
+    bind:this={video}
+    muted
+    autoplay
+    playsinline
+    class:quarter-turn={quarterTurn}
+    style:transform
+  ></video>
 
   {#if overlay}
     <div class="overlay">
-      {#if waiting}<Spinner size="6" color="gray" />{/if}
+      {#if waiting}<Spinner size={compact ? "4" : "6"} color="gray" />{/if}
       <span>{overlay}</span>
     </div>
   {/if}
 </div>
 
-<p class="meta">
-  {#if format}
-    {format.width}×{format.height}, {format.codec}
-  {/if}
-  {#if status}
-    · {status.address}{status.source ? ` from ${status.source}` : ""}
-  {/if}
-  {#if mode === "keyframes"}
-    · keyframes only
-  {/if}
-</p>
+{#if !compact}
+  <p class="meta">
+    {#if format}
+      {format.width}×{format.height}, {format.codec}
+    {/if}
+    {#if status}
+      · {status.address}{status.source ? ` from ${status.source}` : ""}
+    {/if}
+    {#if mode === "keyframes"}
+      · keyframes only
+    {/if}
+  </p>
+{/if}
 
 <style>
   .player {
@@ -114,12 +148,35 @@
     border-radius: 4px;
     background: #111;
     overflow: hidden;
+    /* Lets the video size itself in container units when rotated. */
+    container-type: size;
+  }
+
+  .player.compact {
+    position: absolute;
+    inset: 0;
+    aspect-ratio: auto;
+    border-radius: 0;
   }
 
   video {
-    width: 100%;
-    height: 100%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100cqw;
+    height: 100cqh;
     object-fit: contain;
+  }
+
+  video.quarter-turn {
+    width: 100cqh;
+    height: 100cqw;
+  }
+
+  .compact .overlay {
+    gap: 0.4rem;
+    padding: 0.5rem;
+    font-size: 0.7rem;
   }
 
   .overlay {

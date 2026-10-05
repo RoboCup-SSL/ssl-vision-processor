@@ -1,7 +1,11 @@
 <script lang="ts">
   import { Helper, Label, Radio, Select } from "flowbite-svelte";
   import { CAMERA_COUNT_OPTIONS } from "../../fieldSplit";
-  import { wizard } from "../wizard.svelte";
+  import { wizard, wizardCameraCount } from "../wizard.svelte";
+  import { config } from "../../config.svelte";
+  import { minCameraCount } from "../../cameraLayout";
+
+  let min = $derived(config.doc ? minCameraCount(config.doc) : 1);
 
   function setFieldLayout(layout: "full" | "half"): void {
     wizard.fieldLayout = layout;
@@ -49,13 +53,20 @@
       }}
     >
       {#each CAMERA_COUNT_OPTIONS[wizard.fieldLayout] as count (count)}
-        <option value={count}>{count}</option>
+        <option
+          value={count}
+          disabled={(wizard.fieldLayout === "half" ? count * 2 : count) < min}
+          >{count}</option
+        >
       {/each}
     </Select>
   </div>
 
   <Helper>
-    This isn't written anywhere yet: set <code>camera_amount</code> to
-    {wizard.cameraCount} in each camera's own config.yml by hand.
+    Sets the layout to {wizardCameraCount()} region{wizardCameraCount() === 1
+      ? ""
+      : "s"}{wizard.fieldLayout === "half"
+      ? ", since a half field is half of a full one"
+      : ""}. Assign cameras to regions on the Camera Layout page.
   </Helper>
 </div>

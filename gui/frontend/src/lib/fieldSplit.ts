@@ -4,13 +4,17 @@
 // responsible for. Reimplemented here rather than fetched from the Go host
 // because it's pure geometry with no state, and the UI needs it live as the
 // user changes camera count/id, not round-tripped through an API call.
-// Which camera counts are valid for each field layout: a full field supports
-// 1/2/4 cameras, a half field only 1/2. Shared between FieldEditor's layout
-// section and the setup wizard's equivalent step.
+// How many physical cameras the setup wizard offers for each field layout: a
+// full field 1/2/4, a half field 1/2 (which cover 2/4 regions of the full
+// field it's half of).
 export const CAMERA_COUNT_OPTIONS: Record<"full" | "half", number[]> = {
   full: [1, 2, 4],
   half: [1, 2],
 };
+
+// mm of grass FieldSketch draws around the field lines, so lines at the
+// boundary aren't clipped. Overlays positioned over a sketch need it too.
+export const SKETCH_MARGIN = 300;
 
 export interface FieldSlice {
   minX: number;

@@ -156,7 +156,8 @@ protocol), so it recalibrates on its next restart.
 **Each local camera's `config.yml` is generated, not edited.** It's the
 transport until vision_processor accepts config over the network:
 `defaults` deep-merged with the camera's `config`, plus derived `cam_id`,
-`camera_amount` (number of cameras) and `line_corners` (from the seed). This
+`camera_amount` (`layout.camera_count`, else the number of cameras rounded
+up to a power of 2) and `line_corners` (from the seed). This
 supersedes the old line-splice writers, which existed to preserve the file's
 comments -- irrelevant once the file is generated.
 

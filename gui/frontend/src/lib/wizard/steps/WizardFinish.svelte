@@ -1,8 +1,14 @@
 <script lang="ts">
   import { Li, List } from "flowbite-svelte";
   import { config } from "../../config.svelte";
-  import { wizard } from "../wizard.svelte";
+  import { wizard, wizardCameraCount } from "../wizard.svelte";
+  import { cameraCount } from "../../cameraLayout";
   import { OPTIONAL_LINE_FIELDS } from "../../fieldConfigFields";
+
+  let count = $derived(wizardCameraCount());
+  let changes = $derived(
+    config.doc ? count !== cameraCount(config.doc) : false,
+  );
 
   let markings = $derived(
     OPTIONAL_LINE_FIELDS.filter((f) => wizard.draft.optionalFieldLines[f.key]),
@@ -22,6 +28,11 @@
     <Li>
       Markings:
       {markings.length > 0 ? markings.map((f) => f.label).join(", ") : "none"}
+    </Li>
+    <Li>
+      Cameras: {count} region{count === 1 ? "" : "s"}{changes
+        ? ". This changes every camera's region: their line corners need re-picking and locked calibrations are removed."
+        : ""}
     </Li>
   </List>
 

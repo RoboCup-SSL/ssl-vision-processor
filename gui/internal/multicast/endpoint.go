@@ -42,9 +42,10 @@ type Options struct {
 	ReadBuffer int
 }
 
-// Consumer handles one datagram and reports whether it counts as heard: a
-// valid packet from someone else, not noise or our own looped-back sends.
-type Consumer func(data []byte) bool
+// Consumer handles one datagram from from (nil if unknown) and reports
+// whether it counts as heard: a valid packet from someone else, not noise or
+// our own looped-back sends.
+type Consumer func(data []byte, from *net.UDPAddr) bool
 
 // sockets is what an opener hands back.
 type sockets struct {
@@ -299,7 +300,7 @@ func (e *Endpoint) start(address string, ifaces []Interface, retrying bool) sock
 // still deliver one after a move; it's dropped rather than counted against
 // the new address.
 func (e *Endpoint) receive(address string, data []byte, from *net.UDPAddr) {
-	if !e.consume(data) {
+	if !e.consume(data, from) {
 		return
 	}
 

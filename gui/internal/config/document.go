@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
@@ -39,9 +40,37 @@ type Document struct {
 	// Defaults uses vision_processor's own config.yml layout (camera:,
 	// geometry:, color:, thresholds:, ...) and applies to every camera.
 	Defaults map[string]any `yaml:"defaults,omitempty" json:"defaults,omitempty"`
+	Layout   *Layout        `yaml:"layout,omitempty" json:"layout,omitempty"`
 	Cameras  []Camera       `yaml:"cameras" json:"cameras"`
 	// Host is settings for this GUI host alone; no vision_processor reads it.
 	Host *Host `yaml:"host,omitempty" json:"host,omitempty"`
+}
+
+// Layout is how the field is split between cameras.
+type Layout struct {
+	// CameraCount is the number of regions the field is split into
+	// (vision_processor's geometry.camera_amount). It can exceed the number of
+	// cameras, leaving some regions uncovered.
+	CameraCount int `yaml:"camera_count" json:"cameraCount"`
+}
+
+// CameraCounts are the supported Layout.CameraCount values. vision_processor
+// accepts any power of 2; the GUI supports up to 4 for now.
+var CameraCounts = []int{1, 2, 4}
+
+// CameraCount is the number of regions the field is split into: Layout's
+// value, or else the number of cameras rounded up to a power of 2.
+func (d Document) CameraCount() int {
+	if d.Layout != nil && d.Layout.CameraCount > 0 {
+		return d.Layout.CameraCount
+	}
+
+	n := 1
+	for n < len(d.Cameras) {
+		n *= 2
+	}
+
+	return n
 }
 
 // Host is settings that only mean something on the machine running the GUI
@@ -83,6 +112,22 @@ type Camera struct {
 	Config      map[string]any `yaml:"config,omitempty" json:"config,omitempty"`
 	Seed        *Seed          `yaml:"seed,omitempty" json:"seed,omitempty"`
 	Calibration *Calibration   `yaml:"calibration,omitempty" json:"calibration,omitempty"`
+	// Display is how the GUI shows this camera's video. Never rendered.
+	Display *Display `yaml:"display,omitempty" json:"display,omitempty"`
+}
+
+// Display orients a camera's video in the GUI to match the field, since a
+// camera can be mounted at any angle.
+type Display struct {
+	Rotate int  `yaml:"rotate,omitempty" json:"rotate,omitempty"` // degrees clockwise: 0, 90, 180, 270
+	Mirror bool `yaml:"mirror,omitempty" json:"mirror,omitempty"`
+}
+
+// Slot is a camera's place in the layout: its camera_id out of the camera
+// count, which together decide the region it covers.
+type Slot struct {
+	CameraID    int `yaml:"camera_id" json:"cameraId"`
+	CameraCount int `yaml:"camera_count" json:"cameraCount"`
 }
 
 // Seed is the human-picked calibration starting point: the four field line
@@ -94,6 +139,10 @@ type Seed struct {
 	// GoalSideMarker records which corner-picker marker (1-4) was chosen as
 	// the goal-side corner. vision_processor never reads it.
 	GoalSideMarker int `yaml:"goal_side_marker,omitempty" json:"goalSideMarker,omitempty"`
+	// Slot is the slot the corners were picked for. Moving the camera to
+	// another slot makes them stale. Nil for corners saved before slots were
+	// recorded.
+	Slot *Slot `yaml:"slot,omitempty" json:"slot,omitempty"`
 }
 
 // Calibration is a locked SSL_GeometryCameraCalibration, published in place
@@ -191,13 +240,35 @@ func (d Document) Validate() error {
 		add(fmt.Errorf("defaults: %w", err))
 	}
 
+	count := d.CameraCount()
+	if !slices.Contains(CameraCounts, count) {
+		add(fmt.Errorf("layout.camera_count: want one of %v, got %d", CameraCounts, count))
+	}
+
 	seen := map[int]bool{}
+	devices := map[string]int{}
 
 	for _, c := range d.Cameras {
 		prefix := fmt.Sprintf("cameras[%d]", c.CameraID)
 
 		if c.CameraID < 0 {
 			add(fmt.Errorf("%s.camera_id: must not be negative", prefix))
+		}
+
+		if c.CameraID >= count {
+			add(fmt.Errorf("%s.camera_id: must be below layout.camera_count (%d)", prefix, count))
+		}
+
+		if device := deviceKey(c.Instance, d.Effective(c)["camera"]); device != "" {
+			if other, ok := devices[device]; ok {
+				add(fmt.Errorf("%s: same host and camera device as cameras[%d]", prefix, other))
+			} else {
+				devices[device] = c.CameraID
+			}
+		}
+
+		if c.Display != nil && !slices.Contains([]int{0, 90, 180, 270}, c.Display.Rotate) {
+			add(fmt.Errorf("%s.display.rotate: want 0, 90, 180 or 270, got %d", prefix, c.Display.Rotate))
 		}
 
 		if seen[c.CameraID] {

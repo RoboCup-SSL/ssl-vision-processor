@@ -34,9 +34,21 @@ export interface HostInterface {
   used: boolean;
 }
 
+// One camera_id heard on the vision socket from one address, from
+// gui/internal/detections' Source.
+export interface DetectionSource {
+  cameraId: number;
+  address: string;
+  fps: number;
+  lastHeard: string;
+  receiving: boolean;
+}
+
 export interface NetworkState {
   vision: SocketStatus;
   gc: SocketStatus;
+  // Every camera_id heard in the last 30 s, by camera_id then address.
+  cameras: DetectionSource[] | null;
   autoInterfaces: boolean;
   interfaces: HostInterface[] | null;
   // The loopback interface, and whether multicast is enabled on it.

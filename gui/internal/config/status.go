@@ -68,6 +68,10 @@ func cameraStatus(doc Document, c Camera, live *vision.SSL_GeometryCameraCalibra
 	if c.Seed != nil && len(c.Seed.LineCorners) == 4 {
 		seedRes := c.Seed.Resolution
 
+		if slot := (Slot{CameraID: c.CameraID, CameraCount: doc.CameraCount()}); c.Seed.Slot != nil && *c.Seed.Slot != slot {
+			warn("seed_stale", "Line corners were picked as camera %d of %d, but this camera is now %d of %d and covers a different region. Re-pick them.", c.Seed.Slot.CameraID, c.Seed.Slot.CameraCount, slot.CameraID, slot.CameraCount)
+		}
+
 		switch {
 		case seedRes[0] == 0 || seedRes[1] == 0:
 			warn("seed_resolution_unknown", "Line corners were saved without the image resolution they were picked at, so a resolution change can't be detected. Re-save them from the corner picker.")

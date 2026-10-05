@@ -18,9 +18,10 @@ var errNoInterface = errors.New("no usable network interface")
 
 // openSocket receives on one plain UDP socket:
 //
-//   - it binds the group address itself, not 0.0.0.0, as vision_processor
-//     does, so groups sharing a port (every camera's video uses 10100) each
-//     get only their own traffic;
+//   - it hears only the groups it joined itself (onlyJoinedGroups), so
+//     groups sharing a port (every camera's video uses 10100) each get only
+//     their own traffic. Binding the group address doesn't do this in Go,
+//     which binds a multicast address as 0.0.0.0;
 //   - it joins the group on every used interface at once;
 //   - its kernel receive buffer is opts.ReadBuffer, room for a video
 //     keyframe's burst of packets. The kernel caps it at net.core.rmem_max.
@@ -59,6 +60,10 @@ func openSocket(address string, ifaces []Interface, opts Options, receive func([
 	}
 
 	if addr.IP.IsMulticast() {
+		if err := onlyJoinedGroups(conn); err != nil {
+			slog.Warn("can't limit socket to its own group; it may hear other groups on its port", "address", address, "err", err)
+		}
+
 		if err := join(ipv4.NewPacketConn(conn), addr, ifaces); err != nil {
 			problem = err.Error()
 		}

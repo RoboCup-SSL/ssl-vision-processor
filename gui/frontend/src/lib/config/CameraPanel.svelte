@@ -1,9 +1,11 @@
 <script lang="ts">
   import SettingsCard from "../SettingsCard.svelte";
-  import { Input, Select, Alert, Heading, P } from "flowbite-svelte";
+  import { Input, Select, Alert, Badge, Heading, P } from "flowbite-svelte";
+  import { cameraCount, regionLabel } from "../cameraLayout";
+  import { categoryHref } from "../layout/nav.svelte";
   import { onMount } from "svelte";
   import type { VisionInstance } from "../layout/nav.svelte";
-  import { cameraDoc } from "../config.svelte";
+  import { config, cameraDoc } from "../config.svelte";
   import {
     DRIVERS,
     cameraSettings,
@@ -249,7 +251,22 @@
 </script>
 
 <section class="camera-panel">
-  <Heading tag="h2" class="mb-2 text-xl font-semibold">Camera settings</Heading>
+  <div class="mb-2 flex flex-wrap items-center gap-3">
+    <Heading tag="h2" class="w-auto text-xl font-semibold"
+      >Camera settings</Heading
+    >
+    {#if instance && config.doc}
+      <Badge
+        color="gray"
+        href={categoryHref("layout")}
+        title="Which region of the field this camera covers. Change it on the Camera Layout page."
+      >
+        {instance.host || "(no host)"} · camera {instance.cameraId} of {cameraCount(
+          config.doc,
+        )} · {regionLabel(config.doc, instance.cameraId)}
+      </Badge>
+    {/if}
+  </div>
 
   {#if instance}
     <Alert color="primary" class="mb-3 p-2 text-sm">

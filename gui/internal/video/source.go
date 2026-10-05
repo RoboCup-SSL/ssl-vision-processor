@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"sync"
 	"time"
 
@@ -225,7 +226,7 @@ func (s *source) stopIfIdle() {
 // handle is the socket's consumer: one RTP packet in, any finished frames
 // out to viewers. It reports whether the datagram was RTP, which is what the
 // endpoint's status counts.
-func (s *source) handle(data []byte) bool {
+func (s *source) handle(data []byte, _ *net.UDPAddr) bool {
 	var pkt rtp.Packet
 	if err := pkt.Unmarshal(data); err != nil || pkt.Version != 2 {
 		return false
@@ -260,10 +261,14 @@ func (s *source) handle(data []byte) bool {
 // publish caches a frame's output and delivers it. Called with mu held.
 func (s *source) publish(out output) {
 	if out.init != nil {
+		// A new init can repeat the format (e.g. an encoder alternating two
+		// SPS variants); only a real change is worth a log line.
+		if s.format == nil || *s.format != out.format {
+			slog.Info("video format", "camera", s.id, "codec", out.format.Codec, "width", out.format.Width, "height", out.format.Height)
+		}
+
 		s.init, s.format = out.init, &out.format
 		s.gop = nil
-
-		slog.Info("video format", "camera", s.id, "codec", out.format.Codec, "width", out.format.Width, "height", out.format.Height)
 	}
 
 	if out.full != nil {

@@ -26,14 +26,16 @@
   class={theme.base({ class: "mb-4 border-b border-gray-200" })}
   role="tablist"
 >
-  {#each tabs as tab (tab.id)}
+  {#each tabs as tab, i (tab.id)}
     {@const selected = tab.id === nav.selectedCategoryId}
     <li
       class={item.base({
-        // The one shared tab gets a break after it, so it doesn't read as
-        // just another camera-specific setting.
+        // A break after the last shared tab, so the camera-specific ones
+        // read as their own group.
         class:
-          tab.scope === "shared" ? "me-2 border-e border-gray-200 pe-2" : "",
+          tab.scope === "shared" && tabs[i + 1]?.scope !== "shared"
+            ? "me-2 border-e border-gray-200 pe-2"
+            : "",
       })}
       role="presentation"
     >

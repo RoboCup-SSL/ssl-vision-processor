@@ -2,19 +2,21 @@ package multicast
 
 import (
 	"log/slog"
+	"net"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/gamecontroller"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/vision"
 	"google.golang.org/protobuf/proto"
 )
 
-// VisionConsumer hands the geometry from every wrapper packet to absorb. Only
-// packets carrying a detection frame count as heard: those come from vision
-// processors, while geometry-only packets include the host's own, looped back
-// (multicast loopback is on by default; absorb is idempotent, so that's
-// harmless rather than special-cased).
-func VisionConsumer(absorb func(*vision.SSL_GeometryData)) Consumer {
-	return func(data []byte) bool {
+// VisionConsumer hands the geometry from every wrapper packet to absorb, and
+// each detection frame's camera_id and sender to track. Only packets carrying
+// a detection frame count as heard: those come from vision processors, while
+// geometry-only packets include the host's own, looped back (multicast
+// loopback is on by default; absorb is idempotent, so that's harmless rather
+// than special-cased).
+func VisionConsumer(absorb func(*vision.SSL_GeometryData), track func(cameraID uint32, from net.IP)) Consumer {
+	return func(data []byte, from *net.UDPAddr) bool {
 		var packet vision.SSL_WrapperPacket
 		if err := proto.Unmarshal(data, &packet); err != nil {
 			slog.Warn("dropping malformed wrapper packet", "err", err)
@@ -26,7 +28,12 @@ func VisionConsumer(absorb func(*vision.SSL_GeometryData)) Consumer {
 			absorb(geometry)
 		}
 
-		return packet.GetDetection() != nil
+		detection := packet.GetDetection()
+		if detection != nil && from != nil && track != nil {
+			track(detection.GetCameraId(), from.IP)
+		}
+
+		return detection != nil
 	}
 }
 
@@ -34,7 +41,7 @@ func VisionConsumer(absorb func(*vision.SSL_GeometryData)) Consumer {
 // contents yet; hearing them is what shows the game controller address is
 // right.
 func RefereeConsumer() Consumer {
-	return func(data []byte) bool {
+	return func(data []byte, _ *net.UDPAddr) bool {
 		var referee gamecontroller.Referee
 
 		return proto.Unmarshal(data, &referee) == nil

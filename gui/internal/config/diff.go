@@ -14,6 +14,7 @@ const (
 	SectionColor    = "color"
 	SectionNetwork  = "network"
 	SectionCamera   = "camera"
+	SectionLayout   = "layout"
 	SectionOther    = "other"
 )
 
@@ -29,18 +30,71 @@ type Change struct {
 }
 
 // Diff lists every difference from before to after, ordered by path.
-// Cameras are matched by camera_id, so reordering the list is not a change.
+// Cameras are matched by camera_id, so reordering the list is not a change,
+// except that a physical camera (same host and device) whose camera_id
+// changed is matched to itself: moving it to another slot is one camera_id
+// change, not every one of its settings changing in two places.
 func Diff(before, after Document) []Change {
 	var changes []Change
 
-	diffValue(nil, keyCameras(before.generic()), keyCameras(after.generic()), &changes)
+	moves := cameraMoves(before, after)
+	moved := map[int]bool{}
+
+	for _, to := range moves {
+		moved[to] = true
+	}
+
+	diffValue(nil, keyCameras(before.generic(), moves, nil), keyCameras(after.generic(), nil, moved), &changes)
 
 	return changes
 }
 
+// cameraMoves maps before camera_ids to after ones for physical cameras that
+// changed slot.
+func cameraMoves(before, after Document) map[int]int {
+	afterIDs := map[string]int{}
+
+	for _, c := range after.Cameras {
+		if key := deviceKey(c.Instance, after.Effective(c)["camera"]); key != "" {
+			afterIDs[key] = c.CameraID
+		}
+	}
+
+	moves := map[int]int{}
+
+	for _, c := range before.Cameras {
+		key := deviceKey(c.Instance, before.Effective(c)["camera"])
+		if to, ok := afterIDs[key]; key != "" && ok && to != c.CameraID {
+			moves[c.CameraID] = to
+		}
+	}
+
+	// Moved cameras must not land on the id of a camera that couldn't be
+	// matched and so stays put; fall back to matching by id alone.
+	keys := map[int]bool{}
+
+	for _, c := range before.Cameras {
+		key, ok := moves[c.CameraID]
+		if !ok {
+			key = c.CameraID
+		}
+
+		if keys[key] {
+			return nil
+		}
+
+		keys[key] = true
+	}
+
+	return moves
+}
+
 // keyCameras replaces the cameras list with a map keyed "cameras[<id>]"
-// segments, so cameras diff by identity rather than list position.
-func keyCameras(doc map[string]any) map[string]any {
+// segments, so cameras diff by identity rather than list position. rekey
+// files a camera under another id (where it moved to); camera_id is kept as
+// a value only for rekeyed cameras and the ids in keep, so the move itself
+// shows up as a change.
+func keyCameras(doc map[string]any, rekey map[int]int, keep map[int]bool) map[string]any {
 	list, _ := doc["cameras"].([]any)
 	delete(doc, "cameras")
 
@@ -50,9 +104,18 @@ func keyCameras(doc map[string]any) map[string]any {
 			continue
 		}
 
-		id := cam["camera_id"]
-		delete(cam, "camera_id")
-		doc[fmt.Sprintf("cameras[%v]", id)] = cam
+		id, _ := cam["camera_id"].(int)
+		key, moved := rekey[id]
+
+		if !moved {
+			key = id
+		}
+
+		if !moved && !keep[id] {
+			delete(cam, "camera_id")
+		}
+
+		doc[fmt.Sprintf("cameras[%d]", key)] = cam
 	}
 
 	return doc
@@ -123,6 +186,8 @@ func classify(path []string) (string, *int) {
 		return SectionField, nil
 	case first == "host":
 		return SectionNetwork, nil
+	case first == "layout":
+		return SectionLayout, nil
 	case first == "defaults":
 		switch segment(1) {
 		case "color":
@@ -141,6 +206,8 @@ func classify(path []string) (string, *int) {
 		}
 
 		switch segment(1) {
+		case "camera_id", "instance", "display":
+			return SectionLayout, &id
 		case "config":
 			switch segment(2) {
 			case "color":

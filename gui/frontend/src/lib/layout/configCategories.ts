@@ -34,6 +34,13 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
     fields: [],
   },
   {
+    id: "layout",
+    label: "Camera Layout",
+    scope: "shared",
+    yamlKey: null, // vision.yml's layout: and each camera's camera_id
+    fields: [],
+  },
+  {
     id: "camera",
     label: "Camera Settings",
     scope: "per-instance",
@@ -157,4 +164,10 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
 // used constantly while working on one camera, separate from the sidebar's
 // full list of all nine. Start small and add to this as more categories earn
 // a spot -- it's deliberately a subset, not a duplicate of CONFIG_CATEGORIES.
-export const TAB_CATEGORY_IDS = ["field", "camera", "geometry", "color"];
+export const TAB_CATEGORY_IDS = [
+  "field",
+  "layout",
+  "camera",
+  "geometry",
+  "color",
+];

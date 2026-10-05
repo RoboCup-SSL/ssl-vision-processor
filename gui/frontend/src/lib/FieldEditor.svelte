@@ -6,7 +6,6 @@
     Checkbox,
     Input,
     Radio,
-    Select,
     Spinner,
     Heading,
     P,
@@ -14,7 +13,8 @@
   import { virtualField } from "./geometry.svelte";
   import { config } from "./config.svelte";
   import FieldSketch from "./FieldSketch.svelte";
-  import { computeFieldSlice, CAMERA_COUNT_OPTIONS } from "./fieldSplit";
+  import { cameraCount, regionLabel, slotSlice } from "./cameraLayout";
+  import { selectedInstance, categoryHref } from "./layout/nav.svelte";
   import { DIMENSION_FIELDS, OPTIONAL_LINE_FIELDS } from "./fieldConfigFields";
   import { openWizard } from "./wizard/wizard.svelte";
 
@@ -27,29 +27,14 @@
   // why length (not width) is what gets halved.
   let fieldLayout = $state<"full" | "half">("full");
 
-  // camAmount here is informational only -- it belongs in each vision
-  // processor's own config.yml (SSL_VPConfigGeometry.camera_amount), which
-  // this host does not yet read, write, or push to any instance.
-  let cameraCount = $state(1);
-  let cameraId = $state(0);
-
-  let cameraAmount = $derived(fieldLayout === "half" ? 2 : cameraCount);
-
-  // Which one this instance is, out of cameraAmount -- clamped so a stale
-  // selection (e.g. picked "camera 3 of 4" then switched to 2 cameras) can't
-  // point past the end.
-  let clampedCameraId = $derived(Math.min(cameraId, cameraAmount - 1));
-
-  // The FieldSketch highlight: which portion of the field cameraId is
-  // responsible for out of cameraAmount, so the rest of the markings (e.g.
-  // the other goal's penalty box) render dimmed.
+  // The selected camera's region, from the Camera Layout page, so the
+  // markings outside it render dimmed.
+  let instance = $derived(selectedInstance());
+  let count = $derived(config.doc ? cameraCount(config.doc) : 1);
   let fieldSlice = $derived(
-    computeFieldSlice(
-      clampedCameraId,
-      cameraAmount,
-      config.doc?.field.fieldLength ?? 0,
-      config.doc?.field.fieldWidth ?? 0,
-    ),
+    config.doc && instance && count > 1
+      ? slotSlice(config.doc, instance.cameraId)
+      : undefined,
   );
 
   let halfLength = $derived(
@@ -62,11 +47,6 @@
 
   function setFieldLayout(layout: "full" | "half"): void {
     fieldLayout = layout;
-
-    const options = CAMERA_COUNT_OPTIONS[layout];
-    if (!options.includes(cameraCount)) {
-      cameraCount = options[0] ?? 1;
-    }
   }
 
   // The form's labels ("Boundary width (goal line)") need more room than
@@ -127,46 +107,17 @@
             </FormRow>
           {/if}
 
-          <FormRow
-            label={`Cameras (camera_amount: ${String(cameraAmount)})`}
-            for="field-camera-count"
-            labelWidth={LABEL_WIDTH}
-          >
-            <Select
-              id="field-camera-count"
-              size="sm"
-              placeholder=""
-              value={cameraCount}
-              onchange={(e: Event) => {
-                cameraCount = Number(
-                  (e.currentTarget as HTMLSelectElement).value,
-                );
-              }}
-            >
-              {#each CAMERA_COUNT_OPTIONS[fieldLayout] as count (count)}
-                <option value={count}>{count}</option>
-              {/each}
-            </Select>
-          </FormRow>
-
-          <FormRow
-            label="This camera (camera_id)"
-            for="field-camera-id"
-            labelWidth={LABEL_WIDTH}
-          >
-            <Select
-              id="field-camera-id"
-              size="sm"
-              placeholder=""
-              value={clampedCameraId}
-              onchange={(e: Event) => {
-                cameraId = Number((e.currentTarget as HTMLSelectElement).value);
-              }}
-            >
-              {#each Array.from(Array(cameraAmount).keys()) as id (id)}
-                <option value={id}>{id}</option>
-              {/each}
-            </Select>
+          <FormRow label="Cameras" labelWidth={LABEL_WIDTH}>
+            <span class="flex flex-wrap items-center gap-2 text-sm">
+              {count} region{count === 1 ? "" : "s"}{instance && count > 1
+                ? `; camera ${String(instance.cameraId)} covers ${regionLabel(doc, instance.cameraId)}`
+                : ""}
+              <Button
+                size="xs"
+                color="alternative"
+                href={categoryHref("layout")}>Camera Layout →</Button
+              >
+            </span>
           </FormRow>
         </SettingsCard>
 

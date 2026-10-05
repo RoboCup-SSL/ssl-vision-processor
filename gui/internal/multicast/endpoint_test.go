@@ -2,6 +2,7 @@ package multicast
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -114,7 +115,7 @@ func startEndpoint(t *testing.T, address string, opts Options, consume Consumer,
 	}
 }
 
-func countAll(data []byte) bool { return true }
+func countAll([]byte, *net.UDPAddr) bool { return true }
 
 func TestEndpointReopensOnNewAddress(t *testing.T) {
 	e, f, stop := startEndpoint(t, "224.5.23.2:10006", Options{}, countAll)
@@ -147,7 +148,7 @@ func TestEndpointSameAddressIsNoop(t *testing.T) {
 }
 
 func TestEndpointStatusCountsHeardAndResetsOnMove(t *testing.T) {
-	e, f, stop := startEndpoint(t, "224.5.23.2:10006", Options{}, func(data []byte) bool {
+	e, f, stop := startEndpoint(t, "224.5.23.2:10006", Options{}, func(data []byte, _ *net.UDPAddr) bool {
 		return string(data) == "valid"
 	})
 	defer stop()
@@ -217,7 +218,14 @@ func marshal(t *testing.T, m proto.Message) []byte {
 func TestVisionConsumerAbsorbsGeometryButCountsOnlyDetections(t *testing.T) {
 	var got *vision.SSL_GeometryData
 
-	consume := VisionConsumer(func(g *vision.SSL_GeometryData) { got = g })
+	var tracked []string
+
+	visionConsume := VisionConsumer(
+		func(g *vision.SSL_GeometryData) { got = g },
+		func(id uint32, from net.IP) { tracked = append(tracked, fmt.Sprintf("%d@%s", id, from)) },
+	)
+	from := &net.UDPAddr{IP: net.IPv4(10, 0, 0, 5), Port: 10006}
+	consume := func(data []byte) bool { return visionConsume(data, from) }
 
 	// SSL_GeometryData.field is a required proto2 field, so Marshal needs a
 	// complete SSL_GeometryFieldSize.
@@ -246,12 +254,16 @@ func TestVisionConsumerAbsorbsGeometryButCountsOnlyDetections(t *testing.T) {
 			FrameNumber: proto.Uint32(1),
 			TCapture:    proto.Float64(1),
 			TSent:       proto.Float64(1),
-			CameraId:    proto.Uint32(0),
+			CameraId:    proto.Uint32(2),
 		},
 	}
 
 	if !consume(marshal(t, detection)) {
 		t.Fatal("detection packet not counted as heard")
+	}
+
+	if len(tracked) != 1 || tracked[0] != "2@10.0.0.5" {
+		t.Fatalf("tracked = %v, want camera 2 from 10.0.0.5 once", tracked)
 	}
 
 	if consume([]byte("not a protobuf message")) {
@@ -260,7 +272,8 @@ func TestVisionConsumerAbsorbsGeometryButCountsOnlyDetections(t *testing.T) {
 }
 
 func TestRefereeConsumer(t *testing.T) {
-	consume := RefereeConsumer()
+	refereeConsume := RefereeConsumer()
+	consume := func(data []byte) bool { return refereeConsume(data, nil) }
 
 	team := func() *gamecontroller.Referee_TeamInfo {
 		return &gamecontroller.Referee_TeamInfo{

@@ -41,9 +41,20 @@ func Import(geometryPath, configPath string) (Document, error) {
 	camera := Camera{CameraID: 0}
 
 	if configPath != "" {
-		camera, doc.Defaults, err = importConfig(configPath)
+		var count int
+
+		camera, doc.Defaults, count, err = importConfig(configPath)
 		if err != nil {
 			return Document{}, err
+		}
+
+		// Keep the legacy split, grown if needed so cam_id still fits.
+		for count <= camera.CameraID {
+			count = max(1, count*2)
+		}
+
+		if count > 1 {
+			doc.Layout = &Layout{CameraCount: count}
 		}
 	}
 
@@ -57,15 +68,16 @@ func Import(geometryPath, configPath string) (Document, error) {
 	return doc, doc.Validate()
 }
 
-func importConfig(path string) (Camera, map[string]any, error) {
+// importConfig also returns the file's geometry.camera_amount, 0 if unset.
+func importConfig(path string) (Camera, map[string]any, int, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return Camera{}, nil, fmt.Errorf("read %s: %w", path, err)
+		return Camera{}, nil, 0, fmt.Errorf("read %s: %w", path, err)
 	}
 
 	var raw map[string]any
 	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return Camera{}, nil, fmt.Errorf("parse %s: %w", path, err)
+		return Camera{}, nil, 0, fmt.Errorf("parse %s: %w", path, err)
 	}
 
 	raw, _ = normalize(raw).(map[string]any)
@@ -89,17 +101,20 @@ func importConfig(path string) (Camera, map[string]any, error) {
 
 	delete(raw, "cam_id")
 
+	count := 0
+
 	if geom, ok := raw["geometry"].(map[string]any); ok {
 		seed, err := importSeed(geom)
 		if err != nil {
-			return Camera{}, nil, fmt.Errorf("%s: %w", path, err)
+			return Camera{}, nil, 0, fmt.Errorf("%s: %w", path, err)
 		}
 
 		camera.Seed = seed
 
 		delete(geom, "line_corners")
 		delete(geom, "goal_side_marker")
-		delete(geom, "camera_amount") // derived from the camera count now
+		count, _ = geom["camera_amount"].(int)
+		delete(geom, "camera_amount") // layout.camera_count now
 	}
 
 	for _, key := range perCameraSections {
@@ -118,7 +133,7 @@ func importConfig(path string) (Camera, map[string]any, error) {
 		raw = nil
 	}
 
-	return camera, raw, nil
+	return camera, raw, count, nil
 }
 
 func importSeed(geom map[string]any) (*Seed, error) {

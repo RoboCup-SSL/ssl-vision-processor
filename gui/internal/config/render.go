@@ -27,7 +27,7 @@ func Render(doc Document, c Camera, sourcePath string) ([]byte, error) {
 		merged["geometry"] = geom
 	}
 
-	geom["camera_amount"] = len(doc.Cameras)
+	geom["camera_amount"] = doc.CameraCount()
 	delete(geom, "line_corners")
 
 	if c.Seed != nil && len(c.Seed.LineCorners) == 4 {

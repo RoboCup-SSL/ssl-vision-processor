@@ -8,6 +8,7 @@
   } from "flowbite-svelte";
   import { instances, selectedInstance, instanceHref } from "./nav.svelte";
   import { config } from "../config.svelte";
+  import { regionLabel, cameraCount } from "../cameraLayout";
 
   // Cameras with unsaved changes get a dot, same idea as the tab asterisks.
   let dirtyCameras = $derived(
@@ -40,7 +41,9 @@
     >
       {#snippet subtext()}
         <span class="flex items-center gap-1.5 text-xs text-gray-500">
-          cam {instance.cameraId}
+          cam {instance.cameraId}{config.doc && cameraCount(config.doc) > 1
+            ? ` · ${regionLabel(config.doc, instance.cameraId)}`
+            : ""}
           {#if dirtyCameras.has(instance.cameraId)}
             <Indicator size="xs" color="primary" title="Unsaved changes" />
           {/if}

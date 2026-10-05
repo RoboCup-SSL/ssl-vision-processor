@@ -3,7 +3,7 @@
     SSL_FieldLineSegmentJson,
     SSL_FieldCircularArcJson,
   } from "../proto/vision/ssl_vision_geometry_pb";
-  import { boxesOverlap, type FieldSlice } from "./fieldSplit";
+  import { boxesOverlap, SKETCH_MARGIN, type FieldSlice } from "./fieldSplit";
 
   interface Props {
     fieldLength: number;
@@ -15,15 +15,25 @@
     // visibly shows you get one penalty box, not both. Omit to show every
     // marking at full brightness (the whole-field view).
     slice?: FieldSlice;
+    // Square (the default) letterboxes the field; false keeps its own aspect
+    // ratio, so overlays can be positioned in percent of the field.
+    square?: boolean;
   }
 
-  let { fieldLength, fieldWidth, lines, arcs, slice }: Props = $props();
+  let {
+    fieldLength,
+    fieldWidth,
+    lines,
+    arcs,
+    slice,
+    square = true,
+  }: Props = $props();
 
   // Field coordinates: origin at center, +x toward one goal, +y toward one
   // touchline (see gui/CLAUDE.md / internal/geometry/field.go). SVG is
   // y-down, so the viewBox flips y to draw with +y pointing up, matching the
   // physical convention instead of mirroring it.
-  const margin = 300; // mm, just so lines at the boundary aren't clipped
+  const margin = SKETCH_MARGIN;
 
   let halfLength = $derived((fieldLength || 1) / 2 + margin);
   let halfWidth = $derived((fieldWidth || 1) / 2 + margin);
@@ -73,7 +83,13 @@
   }
 </script>
 
-<svg {viewBox} transform="scale(1,-1)" role="img" aria-label="Field sketch">
+<svg
+  {viewBox}
+  transform="scale(1,-1)"
+  role="img"
+  aria-label="Field sketch"
+  class:square
+>
   {#if slice}
     <rect
       x={slice.minX}
@@ -113,9 +129,12 @@
   svg {
     width: 100%;
     height: auto;
-    aspect-ratio: 1;
     background: #0a5c2e;
     border-radius: 4px;
+  }
+
+  .square {
+    aspect-ratio: 1;
   }
 
   .dimmed {

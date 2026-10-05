@@ -26,6 +26,31 @@ type cameraBlock struct {
 	WhiteBalance yaml.Node `yaml:"white_balance"`
 }
 
+// deviceKey identifies the physical camera a camera block opens on host, or
+// is empty when the block doesn't say which device. Two cameras with the same
+// key would fight over one device.
+func deviceKey(host string, block any) string {
+	data, err := yaml.Marshal(block)
+	if err != nil {
+		return ""
+	}
+
+	var c cameraBlock
+	if yaml.Unmarshal(data, &c) != nil || c.Driver == nil {
+		return ""
+	}
+
+	switch {
+	case c.Path != nil && *c.Path != "":
+		return fmt.Sprintf("%s|%s|path=%s", host, *c.Driver, *c.Path)
+	case c.ID != nil:
+		return fmt.Sprintf("%s|%s|id=%d", host, *c.Driver, *c.ID)
+	}
+
+	// Neither set: the driver's default device on that host.
+	return fmt.Sprintf("%s|%s|default", host, *c.Driver)
+}
+
 // validateCamera checks a camera block for what vision_processor would
 // misread rather than reject: an unknown driver is fatal at startup, and any
 // white_balance string other than OUTDOOR silently means INDOOR.
