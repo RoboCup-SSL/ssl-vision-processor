@@ -44,6 +44,8 @@ export const geometry = {
   nothingToLock: "No calibration received from this camera yet",
   relock: "Re-lock latest live calibration",
   lock: "Lock current calibration",
+  unlockTitle: "Unlock calibration?",
+  unlockConfirm: "Unlock",
   confirmUnlock: (camera: number): string =>
     `Unlock camera ${String(camera)}'s calibration? It stops being published now, and the camera recalibrates the next time its vision_processor restarts.`,
 };

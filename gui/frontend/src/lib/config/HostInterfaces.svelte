@@ -1,9 +1,10 @@
 <script lang="ts">
+  import StatusAlert from "../StatusAlert.svelte";
   import RichText from "../RichText.svelte";
   import { network as networkText } from "../text/network";
   const text = networkText.interfaces;
   import SettingsCard from "../SettingsCard.svelte";
-  import { Checkbox, Toggle, Alert, P } from "flowbite-svelte";
+  import { Checkbox, Toggle, P } from "flowbite-svelte";
   import {
     network,
     interfaceSelection,
@@ -136,10 +137,10 @@
   </P>
 
   {#if loopbackOff && network.state}
-    <Alert color="yellow" class="mt-2 p-3 text-sm">
+    <StatusAlert color="yellow" class="mt-2 p-3 text-sm">
       <RichText text={text.loopbackOff(network.state.loopback)} />
       <pre>{text.loopbackFix(network.state.loopback)}</pre>
-    </Alert>
+    </StatusAlert>
   {/if}
 </SettingsCard>
 

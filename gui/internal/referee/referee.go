@@ -157,3 +157,32 @@ func Describe(teams *Teams, heights *Heights, heightsFile string) State {
 
 	return state
 }
+
+// Match is the current match as the GUI sees it: the teams the referee
+// names, and the robot height table they're looked up in. Safe for
+// concurrent use.
+type Match struct {
+	Teams   Teams
+	heights Heights
+
+	mu   sync.Mutex
+	file string
+}
+
+// SetHeightsFile chooses the height table, vision_processor's
+// bot_heights_file.
+func (m *Match) SetHeightsFile(path string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.file = path
+}
+
+// State describes the match now.
+func (m *Match) State() State {
+	m.mu.Lock()
+	file := m.file
+	m.mu.Unlock()
+
+	return Describe(&m.Teams, &m.heights, file)
+}

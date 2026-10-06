@@ -2,6 +2,7 @@
 // and the address/port advice in network.svelte.ts. Advice warnings always
 // show; notes show with "Show extra tooltips".
 
+import { plural } from "./common";
 export const network = {
   heading: "Network",
   // `backticks` show as code.
@@ -69,7 +70,7 @@ export const network = {
     visionWhat: "detection packets",
     gcWhat: "referee messages",
     overriding: (cameras: number[]): string =>
-      `Camera${cameras.length === 1 ? "" : "s"} ${cameras.join(", ")} override${cameras.length === 1 ? "s" : ""} these in their own config, so their vision_processor uses different groups than the host.`,
+      `${plural(cameras.length, "Camera")} ${cameras.join(", ")} override${cameras.length === 1 ? "s" : ""} these in their own config, so their vision_processor uses different groups than the host.`,
   },
 
   address: {

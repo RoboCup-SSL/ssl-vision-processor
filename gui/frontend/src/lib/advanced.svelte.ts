@@ -1,13 +1,18 @@
 // vision_processor's thresholds: and tracking: settings, edited in vision.yml's
 // defaults so every camera shares them. Defaults and restart-only keys are
 // from src/Resources.cpp (applyTunables reloads the rest live).
+import { without } from "./util";
 import { config } from "./config.svelte";
+import type { advanced } from "./text/advanced";
+
+// Every setting has a label and notes in text/advanced.ts.
+export type AdvancedKey = keyof typeof advanced.fields;
 
 export type Block = "thresholds" | "tracking";
 
 export interface AdvancedSetting {
   block: Block;
-  key: string;
+  key: AdvancedKey;
   // vision_processor's fallback when the key is unset.
   fallback: number;
   // The slider's range; the number box takes anything valid.
@@ -142,9 +147,6 @@ export function setAdvanced(
 ): void {
   const doc = config.doc;
   if (!doc) return;
-
-  const without = (o: Record<string, unknown>, key: string) =>
-    Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
 
   const current = block(s.block) ?? {};
   const next =

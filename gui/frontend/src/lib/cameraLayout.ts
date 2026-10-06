@@ -108,19 +108,23 @@ export function hostName(camera: CameraDoc): string {
 
 // One color per host, so a split like "host-a covers both left regions"
 // reads at a glance.
+// Tailwind classes from the theme (gui/CLAUDE.md: no hex in components);
+// written out whole so Tailwind generates each. The first is the GUI's
+// primary.
 const HOST_COLORS = [
-  "#0794b9",
-  "#e08a00",
-  "#2e9e4f",
-  "#b042c2",
-  "#d6334a",
-  "#4f5bd5",
+  "bg-primary-700",
+  "bg-amber-600",
+  "bg-green-600",
+  "bg-fuchsia-600",
+  "bg-rose-600",
+  "bg-indigo-600",
 ];
 
+// A background class for host's dot.
 export function hostColor(doc: ConfigDocument, host: string): string {
   const hosts = [...new Set(doc.cameras.map((c) => c.instance ?? ""))].sort();
 
-  return HOST_COLORS[hosts.indexOf(host) % HOST_COLORS.length] ?? "#9ca3af";
+  return HOST_COLORS[hosts.indexOf(host) % HOST_COLORS.length] ?? "bg-gray-400";
 }
 
 export type Severity = "ok" | "warning" | "error" | "empty";
@@ -179,6 +183,14 @@ function consequence(camera: CameraDoc, to: number): Consequence {
     seedStale: (camera.seed?.lineCorners.length ?? 0) === 4,
     calibrationRemoved: camera.calibration !== undefined,
   };
+}
+
+// A move, swap, or camera count change waiting on confirmation.
+export interface PendingMove {
+  title: string;
+  plan: Consequence[];
+  // Set for a camera count change.
+  count?: number;
 }
 
 // Moving the camera in slot from to slot to, swapping with whatever is there.
@@ -267,7 +279,11 @@ export function applyPlan(plan: Consequence[], count?: number): void {
     camera.cameraId = step.to;
   }
 
-  if (count !== undefined) doc.layout = { ...doc.layout, cameraCount: count };
+  // Only an actual change: setting the count it already has would pin it,
+  // so it no longer follows the number of cameras.
+  if (count !== undefined && count !== oldCount) {
+    doc.layout = { ...doc.layout, cameraCount: count };
+  }
 
   doc.cameras.sort((a, b) => a.cameraId - b.cameraId);
 }

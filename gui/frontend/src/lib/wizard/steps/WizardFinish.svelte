@@ -1,6 +1,6 @@
 <script lang="ts">
   import RichText from "../../RichText.svelte";
-  import { Li, List } from "flowbite-svelte";
+  import { Li, List, P } from "flowbite-svelte";
   import { config } from "../../config.svelte";
   import { wizard, wizardCameraCount } from "../wizard.svelte";
   import { cameraCount } from "../../cameraLayout";
@@ -18,9 +18,9 @@
 </script>
 
 <div class="flex flex-col gap-3">
-  <p class="text-sm text-gray-700 dark:text-gray-300">
+  <P class="text-sm text-gray-700 dark:text-gray-300">
     {text.review}
-  </p>
+  </P>
 
   <List class="flex flex-col gap-1 text-sm text-gray-700 dark:text-gray-300">
     <Li>
@@ -36,7 +36,7 @@
     </Li>
   </List>
 
-  <p class="text-sm text-gray-600 dark:text-gray-400">
+  <P class="text-sm text-gray-600 dark:text-gray-400">
     <RichText text={text.applyNote(config.state?.path ?? "vision.yml")} />
-  </p>
+  </P>
 </div>

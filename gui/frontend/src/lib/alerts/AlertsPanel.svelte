@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Badge, Button, Heading, Modal, P } from "flowbite-svelte";
+  import { Badge, Button, Heading, Li, List, Modal, P } from "flowbite-svelte";
   import SettingsCard from "../SettingsCard.svelte";
   import { alertsOf, SEVERITIES, type Severity } from "./alerts";
   import { RESOLUTION_DOCS, type DocId } from "../text/docs";
@@ -31,9 +31,9 @@
         {#if list.length === 0}
           <P size="sm" class="text-gray-500 dark:text-gray-400">{EMPTY[id]}</P>
         {:else}
-          <ul class="flex flex-col gap-1">
+          <List class="flex list-none flex-col gap-1">
             {#each list as alert (alert.id)}
-              <li
+              <Li
                 class={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-s-4 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 ${BORDER[id]}`}
               >
                 <div class="min-w-0 flex-1">
@@ -45,9 +45,9 @@
                       >
                     {/if}
                   </div>
-                  <p class="text-xs text-gray-600 dark:text-gray-400">
+                  <P class="text-xs text-gray-600 dark:text-gray-400">
                     {alert.detail}
-                  </p>
+                  </P>
                 </div>
                 {#if alert.actions.length > 0}
                   <div class="flex flex-wrap gap-1.5">
@@ -75,9 +75,9 @@
                     {/each}
                   </div>
                 {/if}
-              </li>
+              </Li>
             {/each}
-          </ul>
+          </List>
         {/if}
       </SettingsCard>
     </div>
@@ -94,21 +94,21 @@
   }}
 >
   {#if doc}
-    <p class="text-sm text-gray-600 dark:text-gray-400">{doc.cause}</p>
-    <ol class="ms-5 list-decimal space-y-1 text-sm">
+    <P class="text-sm text-gray-600 dark:text-gray-400">{doc.cause}</P>
+    <List tag="ol" position="outside" class="ms-5 space-y-1 text-sm">
       {#each doc.steps as step, i (i)}
         {#if step.startsWith("$ ")}
-          <li class="list-none">
+          <Li class="list-none">
             <pre
               class="rounded bg-gray-100 dark:bg-gray-700 px-2 py-1 text-xs">{step.slice(
                 2,
               )}</pre>
-          </li>
+          </Li>
         {:else}
-          <li>{step}</li>
+          <Li>{step}</Li>
         {/if}
       {/each}
-    </ol>
+    </List>
   {/if}
   <div
     class="flex justify-end border-t border-gray-200 dark:border-gray-700 pt-4"

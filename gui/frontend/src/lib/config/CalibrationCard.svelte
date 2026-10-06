@@ -1,7 +1,9 @@
 <script lang="ts">
+  import ConfirmModal from "../ConfirmModal.svelte";
+  import StatusAlert from "../StatusAlert.svelte";
   import { geometry as text } from "../text/geometry";
   import SettingsCard from "../SettingsCard.svelte";
-  import { Button, Spinner, Alert, P } from "flowbite-svelte";
+  import { Button, Spinner, P } from "flowbite-svelte";
   import {
     config,
     cameraDoc,
@@ -35,12 +37,17 @@
       : "unknown size";
   }
 
-  function unlock(): void {
-    if (confirm(text.confirmUnlock(cameraId))) {
-      void unlockCalibration(cameraId);
-    }
-  }
+  let confirmingUnlock = $state(false);
 </script>
+
+<ConfirmModal
+  bind:open={confirmingUnlock}
+  title={text.unlockTitle}
+  message={text.confirmUnlock(cameraId)}
+  confirmLabel={text.unlockConfirm}
+  danger
+  onconfirm={() => void unlockCalibration(cameraId)}
+/>
 
 <SettingsCard title="Calibration" class="my-4">
   {#if !status}
@@ -68,11 +75,15 @@
     </P>
 
     {#each status.warnings as warning (warning.code)}
-      <Alert color="yellow" class="my-1 p-2 text-sm">{warning.message}</Alert>
+      <StatusAlert color="yellow" class="my-1 p-2 text-sm"
+        >{warning.message}</StatusAlert
+      >
     {/each}
 
     {#if renderError}
-      <Alert color="red" class="my-1 p-2 text-sm">{renderError}</Alert>
+      <StatusAlert color="red" class="my-1 p-2 text-sm"
+        >{renderError}</StatusAlert
+      >
     {/if}
 
     <div class="actions">
@@ -88,7 +99,9 @@
         size="sm"
         color="alternative"
         disabled={status.calibration === "none" || config.busy}
-        onclick={unlock}
+        onclick={() => {
+          confirmingUnlock = true;
+        }}
       >
         {text.calibration.unlock}
       </Button>

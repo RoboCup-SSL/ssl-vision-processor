@@ -1,7 +1,8 @@
 <script lang="ts">
+  import StatusAlert from "../StatusAlert.svelte";
   import RichText from "../RichText.svelte";
   import SettingsCard from "../SettingsCard.svelte";
-  import { Input, Select, Indicator, Alert, Heading, P } from "flowbite-svelte";
+  import { Input, Select, Indicator, Heading, P } from "flowbite-svelte";
   import { untrack } from "svelte";
   import { network as text } from "../text/network";
   import { config } from "../config.svelte";
@@ -154,13 +155,14 @@
   >
 
   {#if overriding.length > 0}
-    <Alert color="yellow" class="mb-3 p-2 text-sm">
+    <StatusAlert color="yellow" class="mb-3 p-2 text-sm">
       {text.status.overriding(overriding)}
-    </Alert>
+    </StatusAlert>
   {/if}
 
   {#if sharedError}
-    <Alert color="red" class="mb-3 p-2 text-sm">{sharedError}</Alert>
+    <StatusAlert color="red" class="mb-3 p-2 text-sm">{sharedError}</StatusAlert
+    >
   {/if}
 
   {#each groups as g (g.id)}

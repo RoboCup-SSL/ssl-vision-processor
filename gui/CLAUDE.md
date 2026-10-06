@@ -91,6 +91,9 @@ buf.gen.yaml   generates both internal/{vision,gamecontroller} and
   `<video>`, and NoteTip's icon trigger. Two Flowbite quirks: an `Input` keeps
   its own `w-full`, so size it with a wrapper div, not a width class; and its
   plugin's form styling needs the semantic color tokens defined in `app.css`.
+  Two local wrappers: `StatusAlert.svelte` instead of `Alert` (readable red and
+  yellow in dark mode, through Alert's own class merging), and
+  `ConfirmModal.svelte` instead of the browser's `confirm()`.
 
 ## Architectural decisions
 

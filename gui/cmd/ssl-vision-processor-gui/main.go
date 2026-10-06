@@ -100,14 +100,12 @@ func run() int {
 	_, addrs, auto, ifaces := currentNetwork(store)
 	opts := multicast.Options{Verbose: level == slog.LevelDebug}
 	tracker := detections.NewTracker()
-	teams := &referee.Teams{}
-	trackTeams := func(yellow, blue string) { teams.Record(yellow, blue, time.Now()) }
+	match := &referee.Match{}
+	trackTeams := func(yellow, blue string) { match.Teams.Record(yellow, blue, time.Now()) }
 	track := func(id uint32, from net.IP) { tracker.Record(id, from, time.Now()) }
 	sockets := &networkSockets{
 		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(opts), multicast.VisionConsumer(geom.Absorb, track)),
 		detections: tracker,
-		teams:      teams,
-		heights:    &referee.Heights{},
 		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, opts, multicast.RefereeConsumer(trackTeams)),
 		video:      video.NewManager(level == slog.LevelDebug),
 		auto:       auto,
@@ -120,9 +118,10 @@ func run() int {
 		// A changed address or interface selection takes effect at once: the
 		// endpoints close their sockets and reopen.
 		sockets.apply(store)
+		match.SetHeightsFile(botHeightsFile(store))
 
 		publishConfigState(wsHub, store)
-		publishNetworkState(wsHub, sockets)
+		publishNetworkState(wsHub, sockets, match)
 	})
 
 	var wg sync.WaitGroup
@@ -148,7 +147,8 @@ func run() int {
 			// Re-evaluated every tick so automatic interface selection
 			// follows cables, Wi-Fi, and containers coming and going.
 			sockets.apply(store)
-			publishNetworkState(wsHub, sockets)
+			match.SetHeightsFile(botHeightsFile(store))
+			publishNetworkState(wsHub, sockets, match)
 		})
 	})
 	runBackground(&wg, "config file watcher", func() error { return store.Watch(ctx, configWatchInterval) })
@@ -294,11 +294,6 @@ type networkSockets struct {
 	gc     *multicast.Endpoint
 	// detections is which camera_ids the vision socket hears, from where.
 	detections *detections.Tracker
-	// teams is the current match's teams, from the game controller socket;
-	// heights is the robot height table they're looked up in.
-	teams       *referee.Teams
-	heights     *referee.Heights
-	heightsFile string
 	// video opens each camera's stream only while someone watches it.
 	video *video.Manager
 
@@ -338,7 +333,6 @@ func (s *networkSockets) apply(store *config.Store) {
 	s.mu.Lock()
 	previous := s.used
 	s.auto, s.ifaces, s.used = auto, ifaces, used
-	s.heightsFile = doc.BotHeightsFile()
 	s.mu.Unlock()
 
 	switch {
@@ -391,11 +385,11 @@ func warnLoopbackMulticast() {
 // the host facts the Network page's presets and notes need.
 const networkStateTopic = "network.state"
 
-func publishNetworkState(wsHub *hub.Hub, sockets *networkSockets) {
+func publishNetworkState(wsHub *hub.Hub, sockets *networkSockets, match *referee.Match) {
 	now := time.Now()
 
 	sockets.mu.Lock()
-	auto, ifaces, heightsFile := sockets.auto, sockets.ifaces, sockets.heightsFile
+	auto, ifaces := sockets.auto, sockets.ifaces
 	sockets.mu.Unlock()
 
 	loopback, loopbackMulticast, _ := multicast.LoopbackMulticast()
@@ -415,7 +409,7 @@ func publishNetworkState(wsHub *hub.Hub, sockets *networkSockets) {
 		Vision:                sockets.vision.Status(now),
 		GC:                    sockets.gc.Status(now),
 		Cameras:               sockets.detections.Sources(now),
-		Referee:               referee.Describe(sockets.teams, sockets.heights, heightsFile),
+		Referee:               match.State(),
 		AutoInterfaces:        auto,
 		Interfaces:            ifaces,
 		Loopback:              loopback,
@@ -522,4 +516,11 @@ func outboundIP() (string, error) {
 	}
 
 	return addr.IP.String(), nil
+}
+
+// botHeightsFile is the robot height table the cameras read.
+func botHeightsFile(store *config.Store) string {
+	doc, _ := store.Working()
+
+	return doc.BotHeightsFile()
 }

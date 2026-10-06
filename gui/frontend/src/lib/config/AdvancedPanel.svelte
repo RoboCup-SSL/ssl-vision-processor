@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Alert, Heading, P } from "flowbite-svelte";
+  import StatusAlert from "../StatusAlert.svelte";
+  import { Heading, P } from "flowbite-svelte";
   import SettingsCard from "../SettingsCard.svelte";
   import SliderField from "./SliderField.svelte";
   import RichText from "../RichText.svelte";
@@ -21,7 +22,7 @@
   let overriding = $derived(advancedOverrides());
 
   function fieldText(s: AdvancedSetting): { label: string; notes: string[] } {
-    return text.fields[s.key as keyof typeof text.fields];
+    return text.fields[s.key];
   }
 </script>
 
@@ -32,8 +33,8 @@
   >
 
   {#if overriding.length > 0}
-    <Alert color="yellow" class="mb-3 p-2 text-sm"
-      >{text.overriding(overriding)}</Alert
+    <StatusAlert color="yellow" class="mb-3 p-2 text-sm"
+      >{text.overriding(overriding)}</StatusAlert
     >
   {/if}
 

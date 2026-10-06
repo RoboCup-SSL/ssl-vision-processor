@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
@@ -7,6 +8,15 @@ export default defineConfig({
   // tailwindcss() must come before svelte() so Tailwind's own PostCSS-less
   // Vite transform sees .svelte files before vite-plugin-svelte compiles them.
   plugins: [tailwindcss(), svelte()],
+  // Unit tests (npm test): the pure logic in src/lib and scripts/. jsdom
+  // stands in for the browser; Svelte's browser build keeps $state and
+  // $effect.root working in modules under test.
+  resolve: process.env["VITEST"] ? { conditions: ["browser"] } : undefined,
+  test: {
+    environment: "jsdom",
+    include: ["src/**/*.test.ts", "scripts/**/*.test.mjs"],
+    setupFiles: ["src/test-setup.ts"],
+  },
   build: {
     // One bundle on purpose: the host serves it over the local network, so
     // splitting saves nothing. The default 500 kB warning only flags that.

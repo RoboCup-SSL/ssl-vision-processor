@@ -5,6 +5,7 @@
 // included, when teams switch colors, so a choice keyed by name follows its
 // team. Off one (lab use, often with no game controller) they're kept per
 // color (teams.by_color). GUI only for now; see gui/internal/config's Teams.
+import { without } from "./util";
 import { config, type TeamOverride } from "./config.svelte";
 import { network } from "./network.svelte";
 
@@ -59,10 +60,6 @@ export function choice(slot: Slot | null): TeamOverride | undefined {
   return "team" in slot
     ? teams?.overrides?.[slot.team]
     : teams?.byColor?.[slot.color];
-}
-
-function without<T>(o: Record<string, T> | undefined, key: string) {
-  return Object.fromEntries(Object.entries(o ?? {}).filter(([k]) => k !== key));
 }
 
 // Replaces a slot's choice; undefined removes it, and emptied blocks go too,
@@ -141,19 +138,23 @@ export function heightIssue(color: Color): HeightIssue | null {
   return unsaved(slot) ? "unsaved" : null;
 }
 
-// Whether the saved file lacks this slot's choice as it is now: any unsaved
-// change at or above it.
+// Whether the saved file lacks this slot's choice as it is now: an unsaved
+// change to it, its fields, or a block above it. Paths are compared whole,
+// since team names can contain dots ("N.R.G"): a prefix match would tie a
+// team called "N" to N.R.G's changes.
 function unsaved(slot: Slot): boolean {
   const key =
     "team" in slot
       ? `teams.overrides.${slot.team}`
       : `teams.by_color.${slot.color}`;
-  const parents = ["teams", "teams.overrides", "teams.by_color"];
+  const paths = new Set([
+    "teams",
+    "teams.overrides",
+    "teams.by_color",
+    key,
+    `${key}.name`,
+    `${key}.height`,
+  ]);
 
-  return (config.state?.changes ?? []).some(
-    (c) =>
-      parents.includes(c.path) ||
-      c.path === key ||
-      c.path.startsWith(`${key}.`),
-  );
+  return (config.state?.changes ?? []).some((c) => paths.has(c.path));
 }

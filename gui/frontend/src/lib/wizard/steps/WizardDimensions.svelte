@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Input, Label } from "flowbite-svelte";
+  import { Input, Label, P } from "flowbite-svelte";
   import {
     DIMENSION_FIELDS,
     type FieldConfigField,
@@ -45,9 +45,9 @@
 </script>
 
 <div class="flex flex-col gap-2">
-  <p class="text-sm text-gray-600 dark:text-gray-400">
+  <P class="text-sm text-gray-600 dark:text-gray-400">
     All dimensions are in millimeters.
-  </p>
+  </P>
 
   {#if wizard.fieldLayout === "half"}
     <div class="flex items-center justify-between gap-2">

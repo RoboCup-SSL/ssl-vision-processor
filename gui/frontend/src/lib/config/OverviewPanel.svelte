@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Alert, Input, P, Select, Toggle } from "flowbite-svelte";
+  import StatusAlert from "../StatusAlert.svelte";
+  import { Input, P, Select, Toggle } from "flowbite-svelte";
   import SettingsCard from "../SettingsCard.svelte";
   import FormRow from "../FormRow.svelte";
   import RichText from "../RichText.svelte";
@@ -46,8 +47,8 @@
 
 <div class="max-w-5xl">
   <SettingsCard title={text.teams.title}>
-    <Alert color="primary" class="mb-2 p-2 text-sm"
-      >{text.teams.notApplied}</Alert
+    <StatusAlert color="primary" class="mb-2 p-2 text-sm"
+      >{text.teams.notApplied}</StatusAlert
     >
 
     <div class="sides">

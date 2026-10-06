@@ -1,8 +1,9 @@
 <script lang="ts">
+  import StatusAlert from "../StatusAlert.svelte";
   import RichText from "../RichText.svelte";
   import { SELECT_INSTANCE } from "../text/common";
   import { placeholder } from "../text/placeholder";
-  import { Alert, Heading, P } from "flowbite-svelte";
+  import { Heading, P } from "flowbite-svelte";
   import type { ConfigCategory } from "../layout/configCategories";
   import type { VisionInstance } from "../layout/nav.svelte";
   import ConfigFieldList from "./ConfigFieldList.svelte";
@@ -35,9 +36,9 @@
     >
   {/if}
 
-  <Alert color="gray" class="my-3 p-2 text-sm">
+  <StatusAlert color="gray" class="my-3 p-2 text-sm">
     {placeholder.contributing}
-  </Alert>
+  </StatusAlert>
 
   <ConfigFieldList fields={category.fields} />
 </section>

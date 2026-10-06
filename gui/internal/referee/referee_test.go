@@ -67,3 +67,19 @@ func TestHeightsRereadsAChangedFile(t *testing.T) {
 		t.Fatalf("table = %v, want the new values", table)
 	}
 }
+
+func TestMatchUsesTheChosenHeightsFile(t *testing.T) {
+	path := writeTable(t, "ER-Force: 148\n")
+	m := &Match{}
+	m.Teams.Record("ER-Force", "", time.Unix(1000, 0))
+
+	if s := m.State(); s.HeightsError == "" {
+		t.Fatalf("state = %+v, want an error before a heights file is set", s)
+	}
+
+	m.SetHeightsFile(path)
+
+	if s := m.State(); s.HeightsFile != path || s.Yellow.Height == nil || *s.Yellow.Height != 148 {
+		t.Fatalf("state = %+v, want ER-Force at 148 from %s", s, path)
+	}
+}

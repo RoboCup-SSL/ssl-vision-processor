@@ -1,7 +1,8 @@
 <script lang="ts">
+  import StatusAlert from "../StatusAlert.svelte";
   import RichText from "../RichText.svelte";
   import SettingsCard from "../SettingsCard.svelte";
-  import { Input, Select, Alert, Badge, Heading, P } from "flowbite-svelte";
+  import { Input, Select, Badge, Heading, P } from "flowbite-svelte";
   import { cameraCount, regionLabel } from "../cameraLayout";
   import { categoryHref } from "../layout/nav.svelte";
   import { onMount } from "svelte";
@@ -219,12 +220,12 @@
   </div>
 
   {#if instance}
-    <Alert color="primary" class="mb-3 p-2 text-sm">
+    <StatusAlert color="primary" class="mb-3 p-2 text-sm">
       <RichText text={text.restartBanner(instance.cameraId)} />
       <RichText
         text={configPath ? text.writesTo(configPath) : text.noConfigPath}
       />
-    </Alert>
+    </StatusAlert>
 
     <div class="layout">
       <!-- Left: the picture, with the settings that only change what is

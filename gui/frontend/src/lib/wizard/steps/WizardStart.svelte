@@ -1,7 +1,7 @@
 <script lang="ts">
   import { wizard as text } from "../../text/wizard";
   import { onMount } from "svelte";
-  import { Button, Spinner } from "flowbite-svelte";
+  import { Button, P, Spinner } from "flowbite-svelte";
   import { virtualField, loadFieldPresets } from "../../geometry.svelte";
   import { skipToFinish, nextStep, applyPresetToDraft } from "../wizard.svelte";
 
@@ -19,9 +19,9 @@
 </script>
 
 <div class="flex flex-col gap-4">
-  <p class="text-sm text-gray-600 dark:text-gray-400">
+  <P class="text-sm text-gray-600 dark:text-gray-400">
     {text.start}
-  </p>
+  </P>
 
   {#if virtualField.presets.length === 0}
     <div

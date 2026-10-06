@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ConfirmModal from "../ConfirmModal.svelte";
   import { connectionState } from "../wrapper-bus";
   import { preferences } from "../preferences.svelte";
   import InstanceList from "./InstanceList.svelte";
@@ -86,14 +87,24 @@
     fileDialogs[which] = true;
   }
 
+  let confirmingRevert = $state(false);
+
   function revert(): void {
     settingsOpen = false;
 
-    if (unsaved === 0 || confirm(text.discardAndReload(unsaved))) {
-      void reloadFromDisk();
-    }
+    if (unsaved === 0) void reloadFromDisk();
+    else confirmingRevert = true;
   }
 </script>
+
+<ConfirmModal
+  bind:open={confirmingRevert}
+  title={text.discardTitle}
+  message={text.discardAndReload(unsaved)}
+  confirmLabel={text.discardConfirm}
+  danger
+  onconfirm={() => void reloadFromDisk()}
+/>
 
 <ConfigDialogs />
 

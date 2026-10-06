@@ -10,6 +10,7 @@
 // exempts it, for the rare sentence that is code (an internal error, say).
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const ROOT = new URL("../src/", import.meta.url).pathname;
 const SKIP = ["lib/text/", "proto/"];
@@ -18,7 +19,7 @@ const MIN_CHARS = 40;
 
 // Yields [literal text, line number] for every string literal in source,
 // skipping comments. Template expressions (${...}) become "x".
-function* literals(source) {
+export function* literals(source) {
   let i = 0;
   let line = 1;
 
@@ -82,7 +83,7 @@ function* literals(source) {
 
 // "flex items-center gap-2": all class-shaped tokens, a good share of them
 // hyphenated or variant-prefixed.
-function isClassList(text) {
+export function isClassList(text) {
   const tokens = text.trim().split(/\s+/);
   const shaped = tokens.every((t) => /^[a-z0-9!:[\]/.\-_%#()&>=*]+$/.test(t));
   const marked = tokens.filter((t) => /[-:]/.test(t)).length;
@@ -94,7 +95,7 @@ function isClassList(text) {
 // expressions, and quoted attribute values. Markup text between tags is
 // prose by nature and isn't checked here. Line breaks are kept so line
 // numbers still match.
-function svelteCode(source) {
+export function svelteCode(source) {
   let out = "";
   let i = 0;
 
@@ -141,7 +142,7 @@ function svelteCode(source) {
 
 // Yields [text, line number] for plain text between tags in a .svelte file
 // (outside <script>, <style>, comments, and {...} expressions).
-function* markupText(source) {
+export function* markupText(source) {
   const blank = (m) => m.replace(/[^\n]/g, " ");
   const stripped = source
     .replace(/<script[\s\S]*?<\/script>/g, blank)
@@ -168,11 +169,11 @@ function* markupText(source) {
 }
 
 // Real words only: values in {...} were dropped above.
-function isMarkupProse(text) {
+export function isMarkupProse(text) {
   return (text.match(/[A-Za-z][A-Za-z']+/g) ?? []).length >= MIN_WORDS;
 }
 
-function isProse(text) {
+export function isProse(text) {
   const words = text.trim().split(/\s+/);
 
   return (
@@ -183,45 +184,62 @@ function isProse(text) {
   );
 }
 
-const problems = [];
+// Every problem in src/, as "path:line: text..." lines.
+export function check(root = ROOT) {
+  const problems = [];
 
-for (const entry of readdirSync(ROOT, { recursive: true })) {
-  const path = String(entry);
-  if (!/\.(ts|svelte)$/.test(path) || SKIP.some((s) => path.startsWith(s))) {
-    continue;
-  }
+  for (const entry of readdirSync(root, { recursive: true })) {
+    const path = String(entry);
+    // Tests name what they check; that's not user-facing text.
+    const isTest = /\.test\.ts$/.test(path) || path === "test-setup.ts";
 
-  const raw = readFileSync(join(ROOT, path), "utf8");
-  const lines = raw.split("\n");
-  const source = path.endsWith(".svelte") ? svelteCode(raw) : raw;
+    if (
+      !/\.(ts|svelte)$/.test(path) ||
+      isTest ||
+      SKIP.some((s) => path.startsWith(s))
+    ) {
+      continue;
+    }
 
-  const exempt = (line) =>
-    [lines[line - 1], lines[line - 2], lines[line - 3]].some((l) =>
-      l?.includes("text-ok"),
-    );
-  const report = (text, line) => {
-    problems.push(
-      `src/${path}:${String(line)}: ${text.trim().replace(/\s+/g, " ").slice(0, 70)}...`,
-    );
-  };
+    const raw = readFileSync(join(root, path), "utf8");
+    const lines = raw.split("\n");
+    const source = path.endsWith(".svelte") ? svelteCode(raw) : raw;
 
-  for (const [text, line] of literals(source)) {
-    if (isProse(text) && !exempt(line)) report(text, line);
-  }
+    const exempt = (line) =>
+      [lines[line - 1], lines[line - 2], lines[line - 3]].some((l) =>
+        l?.includes("text-ok"),
+      );
+    const report = (text, line) => {
+      problems.push(
+        `src/${path}:${String(line)}: ${text.trim().replace(/\s+/g, " ").slice(0, 70)}...`,
+      );
+    };
 
-  if (path.endsWith(".svelte")) {
-    for (const [text, line] of markupText(raw)) {
-      if (isMarkupProse(text) && !exempt(line)) report(text, line);
+    for (const [text, line] of literals(source)) {
+      if (isProse(text) && !exempt(line)) report(text, line);
+    }
+
+    if (path.endsWith(".svelte")) {
+      for (const [text, line] of markupText(raw)) {
+        if (isMarkupProse(text) && !exempt(line)) report(text, line);
+      }
     }
   }
+
+  return problems;
 }
 
-if (problems.length > 0) {
-  console.error(
-    "User-facing text belongs in src/lib/text/ (see its README.md):\n",
-  );
-  for (const p of problems) console.error(`  ${p}`);
-  process.exit(1);
-}
+// Run directly (npm run check:text), not when a test imports this file.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const problems = check();
 
-console.log(`check-text: OK (${relative(process.cwd(), ROOT)})`);
+  if (problems.length > 0) {
+    console.error(
+      "User-facing text belongs in src/lib/text/ (see its README.md):\n",
+    );
+    for (const p of problems) console.error(`  ${p}`);
+    process.exit(1);
+  }
+
+  console.log(`check-text: OK (${relative(process.cwd(), ROOT)})`);
+}

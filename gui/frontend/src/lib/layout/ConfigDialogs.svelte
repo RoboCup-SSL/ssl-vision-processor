@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { plural } from "../text/common";
+  import StatusAlert from "../StatusAlert.svelte";
   import RichText from "../RichText.svelte";
   import { app } from "../text/app";
   const text = app.dialogs;
-  import { Modal, Button, Input, Label, Alert, Toast } from "flowbite-svelte";
+  import { Button, Input, Label, Modal, P, Toast } from "flowbite-svelte";
   import {
     config,
     saveConfig,
@@ -99,12 +101,12 @@
   size="lg"
   class={MODAL_CLASS}
 >
-  <p class="text-sm text-gray-600 dark:text-gray-400">
+  <P class="text-sm text-gray-600 dark:text-gray-400">
     <RichText text={text.writesTo(config.state?.path ?? "")} />
-  </p>
+  </P>
 
   {#if changes.length === 0}
-    <p class="text-sm">{text.noChanges}</p>
+    <P class="text-sm">{text.noChanges}</P>
   {:else}
     <ChangeList {changes} />
   {/if}
@@ -122,7 +124,8 @@
       disabled={changes.length === 0 || config.busy}
       onclick={confirmSave}
     >
-      Save {changes.length} change{changes.length === 1 ? "" : "s"}
+      Save {changes.length}
+      {plural(changes.length, "change")}
     </Button>
   </div>
 </Modal>
@@ -143,9 +146,9 @@
       placeholder="vision.yml"
     />
   </div>
-  <p class="text-sm text-gray-600 dark:text-gray-400">
+  <P class="text-sm text-gray-600 dark:text-gray-400">
     {text.saveAsNote}
-  </p>
+  </P>
 
   <div
     class="flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700 pt-4"
@@ -180,13 +183,13 @@
   </div>
 
   {#if changes.length > 0}
-    <Alert color="yellow" class="p-2 text-sm">
+    <StatusAlert color="yellow" class="p-2 text-sm">
       {text.loadDiscards(changes.length)}
-    </Alert>
+    </StatusAlert>
   {:else}
-    <p class="text-sm text-gray-600 dark:text-gray-400">
+    <P class="text-sm text-gray-600 dark:text-gray-400">
       {text.loadApplies}
-    </p>
+    </P>
   {/if}
 
   <div
@@ -211,30 +214,30 @@
   class={MODAL_CLASS}
   dismissable={false}
 >
-  <p class="text-sm">
+  <P class="text-sm">
     <RichText text={text.editedOutside(config.state?.path ?? "")} />
-  </p>
+  </P>
 
   {#if external?.error}
-    <Alert color="red" class="p-2 text-sm">
+    <StatusAlert color="red" class="p-2 text-sm">
       {text.cantLoad}
       <pre class="error-detail">{external.error}</pre>
-    </Alert>
+    </StatusAlert>
   {:else if external && external.changes.length > 0}
-    <p class="text-sm text-gray-600 dark:text-gray-400">
+    <P class="text-sm text-gray-600 dark:text-gray-400">
       {text.wouldChange}
-    </p>
+    </P>
     <ChangeList changes={external.changes} />
   {:else}
-    <p class="text-sm text-gray-600 dark:text-gray-400">
+    <P class="text-sm text-gray-600 dark:text-gray-400">
       {text.formattingOnly}
-    </p>
+    </P>
   {/if}
 
   {#if changes.length > 0}
-    <Alert color="yellow" class="p-2 text-sm">
+    <StatusAlert color="yellow" class="p-2 text-sm">
       {text.unsavedConflict(changes.length)}
-    </Alert>
+    </StatusAlert>
   {/if}
 
   <div

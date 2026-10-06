@@ -127,18 +127,3 @@ uses primary. The team colors are its .bg-team-* backgrounds.
 }
 
 @source "../node_modules/flowbite-svelte/dist";
-
-/*
-flowbite-svelte's red and yellow Alerts turn bright (bg-*-200) in dark mode,
-unlike Flowbite's own design and its primary Alert. These match the latter:
-a dark panel with colored text.
-*/
-.dark [role="alert"].bg-yellow-100 {
-  background-color: var(--color-gray-800);
-  color: var(--color-yellow-300);
-}
-
-.dark [role="alert"].bg-red-100 {
-  background-color: var(--color-gray-800);
-  color: var(--color-red-400);
-}

@@ -35,11 +35,39 @@
 
   let flip = $derived(flips());
 
-  // The latest received frame rate per camera, from each tile's video status.
-  let fps = $state<Record<number, number | undefined>>({});
+  // The latest received frame rate per camera, from each tile's video status
+  // (about once a second), with when it arrived.
+  let fps = $state<Record<number, { value: number; at: number } | undefined>>(
+    {},
+  );
+  let now = $state(Date.now());
 
   function onstatus(status: StreamStatus): void {
-    fps[status.camera] = status.receiving ? status.fps : undefined;
+    fps[status.camera] = status.receiving
+      ? { value: status.fps, at: Date.now() }
+      : undefined;
+  }
+
+  // A rate goes stale when its player stops reporting: video turned off, the
+  // camera moved, the stream gone. Shown only while recent.
+  const FPS_FRESH_MS = 2500;
+
+  $effect(() => {
+    const timer = setInterval(() => {
+      now = Date.now();
+    }, 1000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  });
+
+  function freshFps(camera: number): number | undefined {
+    const reading = fps[camera];
+
+    return reading && now - reading.at < FPS_FRESH_MS
+      ? reading.value
+      : undefined;
   }
 
   // Field mm to percent of the sketch: +x right and +y up, unless the view
@@ -159,11 +187,11 @@
               class:bg-gray-400={!slot.sources.some((x) => x.receiving)}
               title={liveLabel(slot.sources)}
             ></span>
-            {#if fps[slot.cameraId] !== undefined}
+            {#if freshFps(slot.cameraId) !== undefined}
               <span
                 class="text-gray-600 tabular-nums dark:text-gray-300"
                 title={videoText.fpsTitle}
-                >{videoText.fps(fps[slot.cameraId] ?? 0)}</span
+                >{videoText.fps(freshFps(slot.cameraId) ?? 0)}</span
               >
             {/if}
           {/if}
@@ -182,8 +210,7 @@
         {:else if camera}
           <span class="flex items-center gap-1 font-medium">
             <span
-              class="inline-block h-2 w-2 rounded-full"
-              style:background={hostColor(doc, camera.instance ?? "")}
+              class={`inline-block h-2 w-2 rounded-full ${hostColor(doc, camera.instance ?? "")}`}
             ></span>
             {hostName(camera)}
           </span>

@@ -1,9 +1,7 @@
 // Camera Layout page (config/LayoutPanel.svelte, config/LayoutMap.svelte).
 // Functions fill in values; edit the words around them freely.
 
-const plural = (n: number, word: string): string =>
-  `${word}${n === 1 ? "" : "s"}`;
-
+import { plural } from "./common";
 export const layout = {
   heading: "Camera Layout",
   intro:

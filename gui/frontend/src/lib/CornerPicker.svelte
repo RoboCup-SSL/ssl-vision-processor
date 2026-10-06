@@ -1,8 +1,9 @@
 <script lang="ts">
+  import StatusAlert from "./StatusAlert.svelte";
   import { geometry } from "./text/geometry";
   const text = geometry.cornerPicker;
   import SettingsCard from "./SettingsCard.svelte";
-  import { Button, Alert, P } from "flowbite-svelte";
+  import { Button, P } from "flowbite-svelte";
   import { untrack } from "svelte";
   import { config, cameraDoc } from "./config.svelte";
   import { cameraCount, regionLabel, slotSlice } from "./cameraLayout";
@@ -254,20 +255,20 @@
   {/if}
 
   {#if resolutionStatus === "rescalable" && seed}
-    <Alert color="yellow" class="my-2 text-sm">
+    <StatusAlert color="yellow" class="my-2 text-sm">
       {text.rescalable(pickedSize, imageSize)}
       <Button size="xs" class="ms-2" onclick={rescaleSeed}>
         {text.rescale(imageSize)}
       </Button>
-    </Alert>
+    </StatusAlert>
   {:else if resolutionStatus === "aspect" && seed}
-    <Alert color="yellow" class="my-2 text-sm">
+    <StatusAlert color="yellow" class="my-2 text-sm">
       {text.otherAspect(pickedSize, imageSize)}
-    </Alert>
+    </StatusAlert>
   {:else if resolutionStatus === "unknown"}
-    <Alert color="yellow" class="my-2 text-sm">
+    <StatusAlert color="yellow" class="my-2 text-sm">
       {text.unknownResolution}
-    </Alert>
+    </StatusAlert>
   {/if}
 
   <Button

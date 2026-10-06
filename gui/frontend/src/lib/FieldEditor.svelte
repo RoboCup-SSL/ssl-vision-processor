@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { plural } from "./text/common";
   import SettingsCard from "./SettingsCard.svelte";
   import FormRow from "./FormRow.svelte";
   import {
@@ -93,7 +94,8 @@
 
           <FormRow label="Cameras" labelWidth={LABEL_WIDTH}>
             <span class="flex flex-wrap items-center gap-2 text-sm">
-              {count} region{count === 1 ? "" : "s"}{instance && count > 1
+              {count}
+              {plural(count, "region")}{instance && count > 1
                 ? `; camera ${String(instance.cameraId)} covers ${regionLabel(doc, instance.cameraId)}`
                 : ""}
               <Button

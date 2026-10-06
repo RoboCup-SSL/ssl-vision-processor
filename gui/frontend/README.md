@@ -100,6 +100,8 @@ npm run build         # production build to dist/
 npm run preview       # serve the production build locally
 npm run check         # svelte-check + tsc (type-check everything)
 npm run lint          # eslint over src/
+npm run check:text    # user-facing text only in src/lib/text/
+npm test              # vitest unit tests (src/**/*.test.ts, scripts/)
 npm run format        # prettier --write .
 npm run format:check  # prettier --check . (CI-style)
 ```

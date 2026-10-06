@@ -1,6 +1,7 @@
 // The page frame (layout/Shell.svelte) and config syncing (config.svelte.ts):
 // header badge tooltips, the settings menu's prompts, and edit conflicts.
 
+import { plural } from "./common";
 export const app = {
   competitionField: {
     label: "Competition Field",
@@ -22,6 +23,8 @@ export const app = {
       `Receiving on ${address}. Click to configure.`,
     silent: "Nothing heard on this address. Click to configure.",
   },
+  discardTitle: "Discard unsaved changes?",
+  discardConfirm: "Discard and reload",
   discardAndReload: (unsaved: number): string =>
     `Discard ${String(unsaved)} unsaved change(s) and reload from disk?`,
   editedElsewhere: "Edited elsewhere at the same time; reloaded the latest.",
@@ -39,7 +42,7 @@ export const app = {
     noChanges: "No unsaved changes.",
     saveAsNote: "The GUI edits and watches the new file from then on.",
     loadDiscards: (changes: number): string =>
-      `Loading discards ${String(changes)} unsaved change${changes === 1 ? "" : "s"}, and applies the loaded file live.`,
+      `Loading discards ${String(changes)} unsaved ${plural(changes, "change")}, and applies the loaded file live.`,
     loadApplies: "The loaded file applies live.",
     editedOutside: (path: string): string =>
       `\`${path}\` was edited outside the GUI.`,
@@ -48,6 +51,6 @@ export const app = {
     formattingOnly:
       "The values match what's running; only formatting or comments differ.",
     unsavedConflict: (changes: number): string =>
-      `You have ${String(changes)} unsaved change${changes === 1 ? "" : "s"}. Loading discards them; overwriting replaces the edited file with them.`,
+      `You have ${String(changes)} unsaved ${plural(changes, "change")}. Loading discards them; overwriting replaces the edited file with them.`,
   },
 };

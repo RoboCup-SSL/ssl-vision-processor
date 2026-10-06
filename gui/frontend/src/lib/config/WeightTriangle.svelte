@@ -18,7 +18,7 @@
 
   import { minReferenceForceUnlock } from "../color.svelte";
   import { preferences } from "../preferences.svelte";
-  import { Button, Modal, Input, Label } from "flowbite-svelte";
+  import { Button, Input, Label, Modal, P } from "flowbite-svelte";
 
   interface Props {
     referenceForce?: number;
@@ -405,7 +405,7 @@
             bind:open={showUnlockConfirm}
             size="xs"
           >
-            <p>{text.unlockBody}</p>
+            <P>{text.unlockBody}</P>
             {#snippet footer()}
               <Button color="alternative" onclick={cancelUnlock}>Cancel</Button>
               <Button color="red" onclick={confirmUnlock}>

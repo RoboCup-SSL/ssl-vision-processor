@@ -1,6 +1,6 @@
 <script lang="ts">
   import { wizard as text } from "../../text/wizard";
-  import { Checkbox } from "flowbite-svelte";
+  import { Checkbox, P } from "flowbite-svelte";
   import { wizard } from "../wizard.svelte";
   import { OPTIONAL_LINE_FIELDS } from "../../fieldConfigFields";
   import WizardFieldPreview from "./WizardFieldPreview.svelte";
@@ -8,9 +8,9 @@
 
 <div class="flex flex-col gap-4 sm:flex-row">
   <div class="flex flex-1 flex-col gap-2">
-    <p class="text-sm text-gray-600 dark:text-gray-400">
+    <P class="text-sm text-gray-600 dark:text-gray-400">
       {text.markings}
-    </p>
+    </P>
 
     {#each OPTIONAL_LINE_FIELDS as { key, label } (key)}
       <Checkbox bind:checked={wizard.draft.optionalFieldLines[key]}>

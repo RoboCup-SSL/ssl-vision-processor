@@ -57,7 +57,7 @@ go-test: frontend
 	go test $(GO_PACKAGES) -race
 
 frontend-test: frontend
-	cd frontend && npm run check && npm run lint && npm run check:text && npm run format:check
+	cd frontend && npm run check && npm run lint && npm run check:text && npm test && npm run format:check
 
 # CI runs go-test and frontend-test as separate parallel jobs (see
 # .github/workflows/ci.yml) -- this is the single "everything before you

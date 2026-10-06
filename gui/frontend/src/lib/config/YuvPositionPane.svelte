@@ -1,4 +1,5 @@
 <script lang="ts">
+  import StatusAlert from "../StatusAlert.svelte";
   import { color as colorText } from "../text/color";
   const text = colorText.picker;
   // Issue 18's proposed YUV pane: "reference color positions (editable),
@@ -30,14 +31,7 @@
     type RGB,
   } from "../color.svelte";
   import { preferences } from "../preferences.svelte";
-  import {
-    Button,
-    ButtonGroup,
-    Modal,
-    Alert,
-    Heading,
-    P,
-  } from "flowbite-svelte";
+  import { Button, ButtonGroup, Modal, Heading, P } from "flowbite-svelte";
 
   interface Props {
     color?: RGB;
@@ -740,7 +734,7 @@
     bind:open={showRestoreAllConfirm}
     size="xs"
   >
-    <p>{text.restoreAllBody}</p>
+    <P>{text.restoreAllBody}</P>
     {#snippet footer()}
       <Button
         color="alternative"
@@ -753,9 +747,9 @@
   </Modal>
 
   {#if preferences.tooltipsEnabled && gamutFraction < 0.3}
-    <Alert color="primary" class="mt-2 p-2 text-sm">
+    <StatusAlert color="primary" class="mt-2 p-2 text-sm">
       {text.smallGamut(Math.round(gamutFraction * 100), sliceY < 128)}
-    </Alert>
+    </StatusAlert>
   {/if}
 
   <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
