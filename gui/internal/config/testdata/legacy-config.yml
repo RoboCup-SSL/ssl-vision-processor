@@ -1,0 +1,30 @@
+# Legacy vision_processor config.yml fixture for config import tests.
+cam_id: 1
+
+#bot_heights_file: robot-heights.yml
+
+camera:
+  driver: OPENCV
+  path: /dev/video0
+
+geometry:
+  camera_amount: 2
+  camera_height: 0.0
+  line_corners:
+  - [1131, 949]
+  - [1512, 733]
+  - [1266, 76]
+  - [792, 303]
+  goal_side_marker: 2
+
+thresholds:
+  min_confidence: 0.3
+
+color:
+  reference_force: 0.2
+  orange: [200, 120, 60]
+
+tracking:
+
+debug:
+  debug_stream_interval_ms: 3000

@@ -1,0 +1,66 @@
+# vision.yml fixture: two cameras, one with a locked calibration.
+version: 1
+field:
+  field_length: 9000
+  field_width: 6000
+  goal_width: 1000
+  goal_depth: 180
+  goal_height: 160
+  penalty_area_depth: 1000
+  penalty_area_width: 2000
+  goal_center_to_penalty_mark: 6000
+  boundary_width: 300
+  boundary_width_goal_line: 300
+  center_circle_radius: 500
+  line_thickness: 10
+  ball_radius: 21.5
+  max_robot_radius: 90
+  goal_substitution_area_width: 0
+optional_field_lines:
+  goal2goal: true
+  halfway: true
+  centercircle: true
+  penalty: true
+defaults:
+  bot_heights_file: robot-heights.yml
+  thresholds:
+    min_confidence: 0.2
+  color:
+    reference_force: 0.1
+    orange: [192, 128, 64]
+  camera:
+    driver: OPENCV
+cameras:
+  - camera_id: 0
+    instance: host-a
+    config:
+      camera:
+        path: /dev/video0
+        width: 1920
+        height: 1080
+      color:
+        orange: [200, 120, 60]
+    seed:
+      resolution: [1920, 1080]
+      line_corners: [[1131, 949], [1512, 733], [1266, 76], [792, 303]]
+      goal_side_marker: 1
+    calibration:
+      locked_at: 2026-10-03T13:54:50Z
+      field_hash: sha256:0000000000000000
+      camera:
+        camera_id: 0
+        focal_length: 1184.5924
+        principal_point_x: 960
+        principal_point_y: 540
+        distortion: -0.1
+        q0: 0
+        q1: 0
+        q2: 0
+        q3: 1
+        tx: 0
+        ty: 0
+        tz: 4000
+        pixel_image_width: 1920
+        pixel_image_height: 1080
+  - camera_id: 1
+    instance: host-b

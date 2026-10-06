@@ -1,0 +1,270 @@
+# CLAUDE.md — gui/
+
+Single Go binary plus an embedded Svelte frontend: the browser-facing host for
+vision-processor. Owns field geometry, absorbs calibrations from vision
+processor instances over multicast, and serves the frontend, a JSON API, a
+WebSocket, and debug snapshot images all on one port.
+
+Replaces `python/geom_publisher.py` for anyone running it. Does not replace it
+in `setup.sh` or for `python/dataset.py` / `overlap_benchmark.py` / `replay.py`,
+which still import it directly — do not delete `geom_publisher.py`.
+
+## Commands
+
+All run from `gui/`.
+
+```
+make run       # regenerate proto, build frontend, run the Go host on :8085 (-config vision.yml)
+make test      # frontend check/lint/format + go test -race, all packages
+make install   # go install after a frontend build
+make proto     # regenerate internal/{vision,gamecontroller} and frontend/src/proto
+make clean     # wipe dist/, internal/{vision,gamecontroller}, frontend/src/proto
+```
+
+`proto` (and by extension `run`/`test`/`install`, which all depend on it)
+needs `git submodule update --init` to have been run at least once, but no
+network beyond that: `buf generate`'s two plugins are both local, not
+buf.build remotes. Not using `nix develop`? You need `buf` itself, plus:
+`go get -tool google.golang.org/protobuf/cmd/protoc-gen-go` (records the
+version in `go.mod`; already a direct dependency so this needs no extra
+network fetch) and `npm ci` in `frontend/` (installs `@bufbuild/protoc-gen-es`
+from `package.json`).
+
+```
+cd frontend && npm run dev   # Vite HMR on :5173, proxies /api and /ws to :8085
+```
+
+## Repository layout
+
+```
+cmd/ssl-vision-processor-gui/   entry point: flags, wiring, HTTP server
+internal/
+  config/      vision.yml store: working/disk copies, save/load, locked
+               calibrations, disk watcher, generated config.yml files
+  geometry/    live field template + published calibrations + 1Hz publish loop
+  multicast/   vision + game controller sockets, interface selection,
+               reopened on address/interface changes
+  hub/         topic pub/sub + the /ws handler
+  snapshot/    debug image listing/serving
+  video/       live video: RTP H.264 -> fMP4 over /ws/video/{id} for MSE
+  v4l/         this host's capture devices, for the camera path picker
+  logging/     slog setup: tint console + lumberjack file
+  vision/      generated Go protobuf, not committed -- run `make proto` (DO NOT EDIT)
+  gamecontroller/  generated Go protobuf, not committed
+frontend/      Svelte 5 + TypeScript + Vite, embedded via //go:embed
+               (src/proto/ is generated, not committed)
+buf.gen.yaml   generates both internal/{vision,gamecontroller} and
+               frontend/src/proto from ../proto/proto (the submodule, read
+               directly -- no vendored copy)
+```
+
+## Stack
+
+- **Go 1.22+ `net/http`**, no router library. Method-prefixed patterns
+  (`"GET /api/health"`) and `{wildcard}` path values do the routing;
+  `r.PathValue(...)` reads them.
+- **`gorilla/websocket`** for `/ws`. Not stdlib; there is no other serious
+  option (`golang.org/x/net/websocket` is legacy/incomplete).
+- **Plain sockets for multicast** (`internal/multicast`: `go-reuseport` plus
+  `x/net/ipv4`), not `ssl-go-tools/pkg/sslnet`, which the rest of the league
+  uses. sslnet's `MulticastServer.Stop` dereferences a nil connection if it
+  never connected, which crashed the host whenever no interface was usable
+  (a suspend, an unplugged cable); its receiver also listens on one interface
+  at a time, binds `0.0.0.0` (mixing groups that share a port), and uses an
+  8 KB receive buffer.
+- **`google.golang.org/protobuf` + `protojson`**, never `encoding/json` on a
+  generated message (see Gotchas).
+- **Svelte 5 runes only**, no stores added beyond what predates this work
+  (`wrapper-bus.ts` still uses `svelte/store`'s `readable` -- not yet migrated,
+  not a blocker).
+- **flowbite-svelte for every UI element**, with the theme tokens in
+  `frontend/src/app.css` for color. New UI uses a Flowbite component where one
+  exists (Button, Input, Select, Toggle, Range, Alert, Helper, Toast, Card,
+  ...) and Tailwind utilities for layout, not hand-written CSS for controls.
+  Settings forms use `FormRow.svelte` (label, control, gated notes, messages)
+  inside `SettingsCard.svelte`. There is no base-layer style for raw
+  `<button>`/`<fieldset>` any more, so a raw one renders unstyled on purpose.
+  Colors come from tokens (`primary-*`/`secondary-*`, matched to the SSL Game
+  Controller; Tailwind's gray/red/green/yellow), never hex in components.
+  Kept custom on purpose: canvas and SVG drawing (YUV plane, weight triangle,
+  corner overlay, field sketches), the vertical YUV brightness slider, the MSE
+  `<video>`, and NoteTip's icon trigger. Two Flowbite quirks: an `Input` keeps
+  its own `w-full`, so size it with a wrapper div, not a width class; and its
+  plugin's form styling needs the semantic color tokens defined in `app.css`.
+  Two local wrappers: `StatusAlert.svelte` instead of `Alert` (readable red and
+  yellow in dark mode, through Alert's own class merging), and
+  `ConfirmModal.svelte` instead of the browser's `confirm()`.
+
+## Architectural decisions
+
+**Single Go binary, not Go+Python.** The original plan was "Go host, keep the
+Python wrapper for geometry." That changed once it was clear the Python
+service (`wrapper_backend/geometry.py`, since deleted) did bookkeeping --
+merge calibrations, lay out field markings from YAML, republish at 1Hz -- and
+no calibration math. All calibration math stays in C++ (`src/calib/`). The
+bookkeeping is now `internal/geometry`, ported directly; `wrapper_backend/`
+is gone.
+
+**JSON to the browser, protojson specifically -- never raw protobuf bytes,
+never `encoding/json` on a proto message.** `encoding/json` on a generated
+struct compiles and looks like it works, then renders enums as integers,
+mishandles `oneof`, and ignores the well-known types. `protojson.Marshal` is
+what every other league tool's JSON output already agrees on. The one
+exception is the multicast wire itself (`Geometry.Encoded()`), which stays raw
+protobuf bytes because that's the SSL protocol.
+
+**`Geometry` is mutex-guarded, with a cached encoding, not a "reads don't need
+the lock" type.** `proto.Marshal` writes to the message's internal size cache,
+so even a read-only marshal is a mutation. `Absorb` re-marshals and caches the
+result; `Encoded()` and the WS hub publish just read the cached bytes.
+`Snapshot()` returns `proto.Clone` for anyone who needs the actual message.
+
+**Incoming calibrations are validated with `proto.CheckInitialized` before
+they touch stored state.** A calibration missing a required field (proto2, a
+dozen required floats) is logged and dropped, not merged -- merge-then-fail-to-
+encode would leave `Geometry`'s live message out of sync with its last-good
+`Encoded()` bytes.
+
+**The hub's `Subscribe`/`Publish` uses size-1, drop-stale channels** --
+deliberately mirroring the semantics of the retired Python `bus.py` (`Queue`
+of size 1, drain-then-put). A slow WebSocket client sees only the latest
+value, never a growing backlog.
+
+**`unsubscribe` closes the per-topic channel.** That's what lets a
+per-connection forwarding goroutine's `for data := range ch` exit cleanly when
+one topic is unsubscribed without tearing down the whole connection.
+
+**Snapshot serving assumes the Go host and the vision processor share a
+filesystem.** This is unchanged from the Python `snapshot.py` it replaces and
+is a known limitation, not an oversight -- it does not work once vision
+processors run on other hosts. See "Not yet built."
+
+**`vision.yml` is the one host-owned config file; `internal/config.Store`
+holds a working copy and a disk copy.** Browser edits replace the working copy
+and apply live immediately (field to `Geometry`, locked calibrations to
+`Geometry.SetLocked`, regenerated `config.yml` for local cameras); Save writes
+the working copy to disk. The diff between the two is the "unsaved changes"
+list, and its section classification drives the tab asterisks. A 1Hz watcher
+records edits made outside the GUI so the browser can offer load-or-overwrite.
+Comments in `vision.yml` are not preserved on save; it's machine-written.
+
+**Calibrations are locked explicitly, never auto-persisted.** A camera's
+published calibration is its locked one, else the latest absorbed. A
+vision_processor only skips startup calibration if the packet holds a
+calibration for its camera_id, so publishing locked ones is what stops host or
+VP restarts from triggering recalibration. Unlock withholds the camera's
+calibration; a running VP keeps its model (no live recalibrate in the
+protocol), so it recalibrates on its next restart.
+
+**Each local camera's `config.yml` is generated, not edited.** It's the
+transport until vision_processor accepts config over the network:
+`defaults` deep-merged with the camera's `config`, plus derived `cam_id`,
+`camera_amount` (`layout.camera_count`, else the number of cameras rounded
+up to a power of 2) and `line_corners` (from the seed). This
+supersedes the old line-splice writers, which existed to preserve the file's
+comments -- irrelevant once the file is generated.
+
+**Numbers in free-form blocks are normalized** (integral floats to int). JSON
+from the browser makes every number a float64 and YAML makes integers ints;
+without this every edit diffs as `1920 -> 1920`.
+
+**buf reads the proto submodule directly**: `inputs: [{directory:
+../proto/proto}]` in `buf.gen.yaml`. No vendored copy to drift. Generated
+output (`internal/vision`, `internal/gamecontroller`, `frontend/src/proto`) is
+*not* committed -- `buf.gen.yaml`'s plugins are both `local:` (`go tool
+protoc-gen-go`; `frontend/node_modules/.bin/protoc-gen-es`), not buf.build
+remotes, so `make proto` needs no network beyond the already-checked-out
+`proto/` submodule and runs as an ordinary Makefile prerequisite (a `.proto`
+sentinel, same technique as `.frontend` below) rather than a separate manual
+step. This used to be committed when the plugins were remote (buf.build
+codegen calls, real network dependency); switching to local plugins removed
+the reason to.
+
+`gui/frontend/dist/.gitkeep` exists for a similar but distinct reason on the
+frontend side -- `//go:embed` fails to compile if `dist/` doesn't exist, so a
+fresh clone with no `npm run build` yet must still be able to `go test`. That
+one stays committed: `dist/` is the frontend's actual build *output*, not
+codegen from a source of truth already in the tree, so there's nothing to
+regenerate it from without first running the build it's the output of.
+
+**Discovery is multicast-announce-based** -- still unimplemented; see below.
+
+## Gotchas
+
+- **proto2, not proto3.** Every field on the SSL messages is a pointer
+  (`*string`, `*float32`, ...) and most are `required`. Read through the
+  generated `Get*()` methods (nil-safe); write through `proto.String(...)`,
+  `proto.Float32(...)`, or a literal struct with pointer fields. A `required`
+  field left unset makes `proto.Marshal` return an error -- this is relied on
+  deliberately (see `CheckInitialized` above), not worked around.
+- **`go test ./...` from `gui/` will try to compile stray Go source inside
+  `frontend/node_modules`** (at least one npm package ships a `.go` file).
+  Use `go test ./cmd/... ./internal/... ./frontend`, which is what
+  `Makefile`'s `GO_PACKAGES` and CI already do. Don't `go test ./...` by hand.
+- **`GOTOOLCHAIN=local` is set in the root `flake.nix`.** Without it, Go
+  silently fetches whatever toolchain a dependency's `go.mod` names over the
+  network the moment it's newer than what's pinned, defeating the pin inside a
+  sandboxed build.
+- **`ReadHeaderTimeout` is set on the `http.Server`; `WriteTimeout` is not,**
+  and must not be. `WriteTimeout` is an absolute deadline on the whole
+  response and would kill every `/ws` connection (and any future video
+  stream) after N seconds.
+- **`ServeMux` route precedence is by specificity, not registration order.**
+  `/api/` is registered as a catch-all `NotFoundHandler` specifically so an
+  unrouted `/api/*` path 404s instead of falling through to the SPA handler
+  and returning HTML with status 200 -- which would otherwise break every
+  `fetch(...).json()` call against a typo'd endpoint.
+- **The WS hub pings every ~54s and sets read/write deadlines** so a client
+  that vanishes without a clean close (dead wifi, a closed laptop lid) is
+  detected and its goroutines cleaned up, rather than leaking for the life of
+  the process.
+- **`internal/snapshot` validates `camID`/`view` path segments against a
+  strict character set before they reach `filepath.Glob`.** An unvalidated
+  `view` of `*` would glob the entire snapshot directory; this is enforced and
+  tested (`TestHandleGetRejectsUnsafeSegments`), not just documented.
+- **`unsubscribe` in `internal/hub` must be called exactly once.** It closes
+  the channel; a second call panics on double-close, same as any Go channel.
+
+## Testing
+
+`go test -race` on every package, always -- this code is concurrent by
+construction (a mutex-guarded `Geometry`, a multi-goroutine WS hub) and the
+race detector has caught real bugs here before it shipped. Integration-style
+tests are preferred over mocks where the real thing is cheap to stand up:
+`internal/hub`'s WebSocket tests dial a real `httptest.Server` with a real
+`gorilla/websocket` client rather than faking the protocol; `internal/geometry`
+and `cmd/.../server_test.go` load real `testdata/*.yml` fixtures rather than
+constructing Go structs by hand.
+
+The full loop (this package's `Geometry`/vision `multicast.Endpoint` against a real
+`vision_processor` binary and a real camera) has been manually verified once,
+end to end: the Go host published a field template, `vision_processor`
+calibrated against a real skewed webcam view, and the calibration came back
+and was absorbed with no wire-format surprises between C++ and Go protobuf.
+Not automated -- there is no CI hardware to run it on.
+
+## Not yet built
+
+- **`internal/discovery`** -- parsing `SSL_VPConfig` announces off multicast
+  into an instance table. The C++ side does not emit these yet.
+- **Config push / reprovision loop** -- `internal/config` exists as the
+  host-owned store, but delivery is still a regenerated local `config.yml`.
+  The diff-based reprovision loop (push desired config to an instance when its
+  announced config doesn't match) is blocked on discovery above and on a
+  C++-side config-apply endpoint (another contributor's work). That endpoint
+  should also carry a way to ask a running instance to recalibrate.
+- **Bootstrap identity.** `SSL_VPConfig.instance` is `required`, but the plan
+  drops VP-local config files entirely. Nothing yet decides what a freshly
+  started, unconfigured VP calls itself before it has ever been provisioned.
+- **Announce contents/cadence** -- whether the announce echoes the VP's full
+  current `SSL_VPConfig` (needed for diff-based reprovision to work at all) or
+  just identity, and how often.
+- **Snapshots for remote instances.** `internal/snapshot`'s local-filesystem
+  assumption is a known, explicitly accepted limitation. Live video is
+  solved (`internal/video` relays the RTP stream as fMP4 over a WebSocket to
+  MSE, chosen over WebRTC because latency doesn't matter for setup and it
+  avoids Firefox's Constrained-Baseline-only WebRTC H.264), but the corner
+  picker needs full-resolution stills, which the stream isn't.
+- **i18n (planned for v2.1).** Not yet: the GUI is English only. When it
+  comes, every user-facing string moves to a per-language catalog looked up by
+  key (Paraglide is the Svelte-native candidate: compile-time and typed).

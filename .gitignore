@@ -3,7 +3,9 @@
 /src/cl_kernels.S
 /src/proto
 /python/proto
-/wrapper_backend/proto
+/gui/internal/vision
+/gui/internal/gamecontroller
+/gui/frontend/src/proto
 __pycache__
 
 # Cam viewer
@@ -12,11 +14,31 @@ __pycache__
 # Debug and test image directories
 /img
 /test-data
+*.log
+
+# Config files are local: only the read-only references in config/ are
+# tracked (see config/README.md). Copy one to the repo root and edit the copy;
+# git ignores it wherever it lives, so `git add -A` can't sweep in a venue's
+# config or calibration.
+*.yml
+!/config/**/*.yml
+# Not configs: test fixtures, CI, and vision_processor's default robot height
+# table, which it reads from the working directory.
+!**/testdata/**/*.yml
+!/.gitlab-ci.yml
+!/.github/**/*.yml
+!/robot-heights.yml
 
 #Output binaries
 vision_processor
 blob_benchmark
 geometry_benchmark
+/gui/bin
+/gui/ssl-vision-processor-gui
+
+# Makefile sentinels for the frontend build and protobuf codegen
+/gui/.frontend
+/gui/.proto
 
 #CMake files
 /build
@@ -33,3 +55,6 @@ CMakeCache.txt
 /.cache
 /build*
 /.zed
+
+# AI Files
+.mcp.json

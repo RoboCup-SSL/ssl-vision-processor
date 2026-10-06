@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SSL Vision Processor</title>
+    <script>
+      // Dark mode before first paint, so a dark page doesn't flash white.
+      // Same key and fallback as flowbite-svelte's DarkMode toggle.
+      try {
+        const saved = localStorage.getItem("THEME_PREFERENCE_KEY");
+        if (
+          saved === "dark" ||
+          (saved === null &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches)
+        ) {
+          document.documentElement.classList.add("dark");
+        }
+      } catch {
+        // Storage disabled: light, until toggled.
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

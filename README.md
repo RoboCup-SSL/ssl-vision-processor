@@ -12,12 +12,12 @@ The geometry publisher `geom_publisher.py` publishes the field geometry
 for all vision_processors, teams and the game controller.
 `cam_viewer.py` opens the `mpv` video player with the camera streams from the vision_processor instances.
 
-## Wrapper
+## GUI
 
-A modular replacement for `geom_publisher.py` plus a browser UI:
+A Go host plus a browser UI, replacing `geom_publisher.py` for anyone running it:
 
-- `wrapper_backend/` — async Python (uv-managed). Owns the field geometry, absorbs incoming calibrations, exposes the bus over WebSocket. Run with `./start_wrapper.sh` (defaults to `geometry-divB.yml`). See [`wrapper_backend/README.md`](wrapper_backend/README.md).
-- `wrapper-frontend/` — Svelte 5 + TypeScript + Vite. Connects to the backend's WebSocket and renders the operator UI. Run with `cd wrapper-frontend && npm install && npm run dev`. See [`wrapper-frontend/README.md`](wrapper-frontend/README.md).
+- `gui/` — Go host (`cmd/ssl-vision-processor-gui`). Owns the field geometry, absorbs calibrations from vision processors over multicast, and serves the embedded frontend, JSON API, a WebSocket for live updates, and debug snapshot images all on one port. Run with `cd gui && make run` (defaults to `geometry-divB.yml`). See [`gui/README.md`](gui/README.md) for development and [`gui/ARCHITECTURE.md`](gui/ARCHITECTURE.md) for its design.
+- `gui/frontend/` — Svelte 5 + TypeScript + Vite, embedded into the Go binary. Run standalone with `cd gui && make proto && cd frontend && npm install && npm run dev` (proxies `/api` and `/ws` to the Go host), or serve it from the Go host directly with `make run`. `make proto` regenerates the protobuf bindings the frontend imports (not committed to git; needs `buf`, or use `nix develop`, see [`gui/CLAUDE.md`](gui/CLAUDE.md)) and only needs to be rerun after the `proto/` submodule changes. See [`gui/frontend/README.md`](gui/frontend/README.md).
 
 ## Dependency installation and compilation
 
@@ -65,7 +65,8 @@ Installation with PIP: `pip install protobuf pyyaml`
 ## Setup
 
 1. Complete the dependency installation and compilation section.
-2. Configure one `config-minimal.yml` or `config.yml` for each camera, skip the `geometry` section for now.
+2. Copy `config/legacy/config-minimal.yml` or `config/legacy/config.yml` to the repo root as a
+   `config[X].yml` for each camera, and fill it in. Skip the `geometry` section for now.
    The camera ids are assigned like in ssl-vision:
    ![Camera id pattern](camera_ids.png)
 3. Start `build/vision_processor config[X].yml` for each camera.
@@ -78,12 +79,18 @@ Installation with PIP: `pip install protobuf pyyaml`
    Subsequent edits to thresholds, tracking limits and color references in `config[X].yml`
    are picked up live (within ~0.5 s) without a restart; camera, geometry, network and stream
    sections still require a restart.
-7. Modify `geometry[X].yml` to match your field geometry.
+7. Copy `config/legacy/geometry-divA.yml` or `config/legacy/geometry-divB.yml` to `geometry[X].yml`
+   and modify it to match your field geometry.
    (for simple use cases configuring the field size, penalty area and goal will suffice)
 8. Start `python/geom_publisher.py geometry[X].yml`.
    The calibration is successful when the reprojected livestream views are parallel to the image frame.
    If the calibration is unsuccessful, restart the geom_publisher for a new geometry calibration.
    For setups with multiple cameras it is recommended to tune the calibration by hand.
+
+The reference configs live in [config/](config/README.md) and are read-only: copy one and edit the
+copy. Every other `.yml` config, wherever it is (your `config[X].yml`/`geometry[X].yml`, the GUI's
+`vision.yml`), is gitignored and won't be committed. If you need to track a variant anyway, `git add -f`
+it.
 
 
 ## Troubleshooting
