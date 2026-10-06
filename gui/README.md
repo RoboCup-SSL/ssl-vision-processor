@@ -36,9 +36,10 @@ The host reads and writes one file, `-config` (default `vision.yml`). Edits made
 are written to the file only on Save, after a confirmation that lists every change. The host watches the file,
 so a hand edit prompts the browser to load it or overwrite it.
 
-If `-config` does not exist yet, the host creates it on startup. It imports `-importGeometry` (default
+`config/vision.yml` at the repo root is a commented reference; copying it is the quickest start. If
+`-config` does not exist yet, the host creates it on startup. It imports `-importGeometry` (default
 `geometry.yml`) and `-importConfig` (default `config.yml`) when they exist, and otherwise starts from
-`-geometryPreset`. An imported `config.yml` becomes a camera with that file as its `config_path`, so the host
+`-geometryPreset` (default `config/legacy/geometry-divB.yml`). An imported `config.yml` becomes a camera with that file as its `config_path`, so the host
 regenerates it from `vision.yml` from then on. Keep a copy if you want its comments.
 
 The vision and game controller multicast addresses are in the same file, under `defaults.network`. They are

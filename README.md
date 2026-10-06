@@ -65,7 +65,8 @@ Installation with PIP: `pip install protobuf pyyaml`
 ## Setup
 
 1. Complete the dependency installation and compilation section.
-2. Configure one `config-minimal.yml` or `config.yml` for each camera, skip the `geometry` section for now.
+2. Copy `config/legacy/config-minimal.yml` or `config/legacy/config.yml` to the repo root as a
+   `config[X].yml` for each camera, and fill it in. Skip the `geometry` section for now.
    The camera ids are assigned like in ssl-vision:
    ![Camera id pattern](camera_ids.png)
 3. Start `build/vision_processor config[X].yml` for each camera.
@@ -78,18 +79,18 @@ Installation with PIP: `pip install protobuf pyyaml`
    Subsequent edits to thresholds, tracking limits and color references in `config[X].yml`
    are picked up live (within ~0.5 s) without a restart; camera, geometry, network and stream
    sections still require a restart.
-7. Modify `geometry[X].yml` to match your field geometry.
+7. Copy `config/legacy/geometry-divA.yml` or `config/legacy/geometry-divB.yml` to `geometry[X].yml`
+   and modify it to match your field geometry.
    (for simple use cases configuring the field size, penalty area and goal will suffice)
 8. Start `python/geom_publisher.py geometry[X].yml`.
    The calibration is successful when the reprojected livestream views are parallel to the image frame.
    If the calibration is unsuccessful, restart the geom_publisher for a new geometry calibration.
    For setups with multiple cameras it is recommended to tune the calibration by hand.
 
-Your own `config[X].yml`/`geometry[X].yml` files (camera or venue specific) are gitignored by
-default and won't be committed. Only the reference templates -- `config.yml`, `config-minimal.yml`,
-`geometry-divA.yml`, `geometry-divB.yml` -- are tracked; the GUI's unified `vision.yml` (and the
-older `gui/config.yml` and `gui/geometry.yml` working copies) are gitignored the same way. If you need to
-track a variant anyway, `git add -f` it.
+The reference configs live in [config/](config/README.md) and are read-only: copy one and edit the
+copy. Every other `.yml` config, wherever it is (your `config[X].yml`/`geometry[X].yml`, the GUI's
+`vision.yml`), is gitignored and won't be committed. If you need to track a variant anyway, `git add -f`
+it.
 
 
 ## Troubleshooting

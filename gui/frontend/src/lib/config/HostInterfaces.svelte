@@ -1,4 +1,7 @@
 <script lang="ts">
+  import RichText from "../RichText.svelte";
+  import { network as networkText } from "../text/network";
+  const text = networkText.interfaces;
   import SettingsCard from "../SettingsCard.svelte";
   import { Checkbox, Toggle, Alert, P } from "flowbite-svelte";
   import {
@@ -103,9 +106,7 @@
     }}
   >
     Auto
-    <span class="hint ms-1"
-      >(skips loopback, disconnected, and virtual interfaces)</span
-    >
+    <span class="hint ms-1">{text.autoHint}</span>
   </Toggle>
 
   <ul class:muted={selection.auto}>
@@ -126,21 +127,18 @@
         </Checkbox>
       </li>
     {:else}
-      <li class="hint">Waiting for the host…</li>
+      <li class="hint">{text.waiting}</li>
     {/each}
   </ul>
 
   <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-    Only this host's sockets; vision_processors use their system's default
-    route. Broadcast receiving listens on every interface.
+    {text.scope}
   </P>
 
   {#if loopbackOff && network.state}
     <Alert color="yellow" class="mt-2 p-3 text-sm">
-      Multicast is off on <code>{network.state.loopback}</code>. Programs on
-      this machine that multicast over loopback won't hear each other. To enable
-      it until reboot:
-      <pre>sudo ip link set {network.state.loopback} multicast on</pre>
+      <RichText text={text.loopbackOff(network.state.loopback)} />
+      <pre>{text.loopbackFix(network.state.loopback)}</pre>
     </Alert>
   {/if}
 </SettingsCard>
@@ -165,7 +163,7 @@
 
   .detail,
   .hint {
-    color: var(--color-gray-600);
+    color: var(--text-muted);
     font-size: 0.8rem;
   }
 

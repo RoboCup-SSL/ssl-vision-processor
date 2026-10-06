@@ -10,7 +10,7 @@ category nav on the left, the selected category's panel on the right. A tab
 bar above the panel gives quick access to the categories used most, Virtual
 Field, Geometry, and Color. All three edit the host's `vision.yml` working
 copy, which applies live; Save in the settings menu writes it to disk, and a
-tab shows an asterisk while it has unsaved changes. Virtual Field edits the
+tab shows an asterisk while it has unsaved changes. Field Dimensions edits the
 shared field. Geometry holds the selected camera's calibration lock and the
 corner picker, which marks calibration corners on a debug snapshot. Debug
 snapshots (via `GET /api/snapshots`) are only
@@ -51,12 +51,17 @@ badge and snapshot grid to show anything.
   bookmarks work. The tab bar is links styled with Flowbite's tab theme rather
   than its Tabs component, which can't leave every tab unselected on a page
   that isn't a tab.
-- `src/lib/FieldEditor.svelte` is the Virtual Field editor, backed by
+- `src/lib/FieldEditor.svelte` is the Field Dimensions editor, backed by
   `src/lib/geometry.svelte.ts`, a module level `$state` object shared with
   anything else that needs the field config.
 - `src/lib/config/GeometryPanel.svelte` is the Geometry category's panel. It
   embeds `src/lib/CornerPicker.svelte`, backed by
   `src/lib/lineCorners.svelte.ts` in the same way.
+- `src/lib/alerts/` is the Alerts page and its sidebar summary.
+  `alerts.ts` derives every known problem from state the browser already
+  has and sorts it into errors, warnings, and cautions; `docs.ts` holds the
+  resolution docs its "How to fix" buttons open. To add an alert, push it in
+  `collect()` and point its actions at a page and/or a doc.
 - `src/lib/api.ts` holds the fetch helpers (`requestJSON`, `withLoadingState`)
   every panel's load and save functions are built on.
 - `src/lib/wrapper-bus.ts` is a single `WebSocket` client. It exposes

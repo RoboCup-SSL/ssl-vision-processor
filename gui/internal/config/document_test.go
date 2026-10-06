@@ -218,7 +218,7 @@ func TestDiffClassifiesSections(t *testing.T) {
 		"cameras[0].seed.line_corners":       {SectionGeometry, 0},
 		"cameras[0].config.color.orange":     {SectionColor, 0},
 		"defaults.color.reference_force":     {SectionColor, -1},
-		"defaults.thresholds.min_confidence": {SectionOther, -1},
+		"defaults.thresholds.min_confidence": {SectionAdvanced, -1},
 		"cameras[0].calibration.camera.tz":   {SectionGeometry, 0},
 		"defaults.network":                   {SectionNetwork, -1},
 		"cameras[0].config.camera.gain":      {SectionCamera, 0},

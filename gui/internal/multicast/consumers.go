@@ -37,13 +37,20 @@ func VisionConsumer(absorb func(*vision.SSL_GeometryData), track func(cameraID u
 	}
 }
 
-// RefereeConsumer counts valid referee messages. The host doesn't use their
-// contents yet; hearing them is what shows the game controller address is
-// right.
-func RefereeConsumer() Consumer {
+// RefereeConsumer counts valid referee messages and hands each one's yellow
+// and blue team names to track. Hearing them is what shows the game
+// controller address is right.
+func RefereeConsumer(track func(yellow, blue string)) Consumer {
 	return func(data []byte, _ *net.UDPAddr) bool {
 		var referee gamecontroller.Referee
+		if proto.Unmarshal(data, &referee) != nil {
+			return false
+		}
 
-		return proto.Unmarshal(data, &referee) == nil
+		if track != nil {
+			track(referee.GetYellow().GetName(), referee.GetBlue().GetName())
+		}
+
+		return true
 	}
 }

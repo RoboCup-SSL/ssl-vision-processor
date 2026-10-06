@@ -16,6 +16,43 @@ Required for flowbite-svelte, confirmed against the library's own app.css
 @plugin "flowbite/plugin";
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* The page itself, light and dark. color-scheme makes native controls
+   (scrollbars, date pickers) follow. */
+@layer base {
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+  }
+
+  /* Inline code in prose, e.g. RichText's `backticks`. */
+  :not(pre) > code {
+    background: var(--surface-muted);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+  }
+}
+
+/* Neutral colors for components' own <style> blocks, which can't use dark:
+   utilities. Each flips in dark mode. */
+:root {
+  --surface-muted: var(--color-gray-100);
+  --text-muted: var(--color-gray-500);
+  --text-subtle: var(--color-gray-700);
+  --line: var(--color-gray-300);
+  --line-strong: var(--color-gray-400);
+}
+
+:root.dark {
+  --surface-muted: var(--color-gray-800);
+  --text-muted: var(--color-gray-400);
+  --text-subtle: var(--color-gray-300);
+  --line: var(--color-gray-600);
+  --line-strong: var(--color-gray-500);
+}
+
 /*
 Also required, confirmed against flowbite-svelte's own "Colors" doc page
 (flowbite-svelte.com/docs/pages/colors): a default-colored Button (no `color`
@@ -90,3 +127,18 @@ uses primary. The team colors are its .bg-team-* backgrounds.
 }
 
 @source "../node_modules/flowbite-svelte/dist";
+
+/*
+flowbite-svelte's red and yellow Alerts turn bright (bg-*-200) in dark mode,
+unlike Flowbite's own design and its primary Alert. These match the latter:
+a dark panel with colored text.
+*/
+.dark [role="alert"].bg-yellow-100 {
+  background-color: var(--color-gray-800);
+  color: var(--color-yellow-300);
+}
+
+.dark [role="alert"].bg-red-100 {
+  background-color: var(--color-gray-800);
+  color: var(--color-red-400);
+}

@@ -4,6 +4,7 @@
   import { wizard, wizardCameraCount } from "../wizard.svelte";
   import { config } from "../../config.svelte";
   import { minCameraCount } from "../../cameraLayout";
+  import { wizard as text } from "../../text/wizard";
 
   let min = $derived(config.doc ? minCameraCount(config.doc) : 1);
 
@@ -63,10 +64,6 @@
   </div>
 
   <Helper>
-    Sets the layout to {wizardCameraCount()} region{wizardCameraCount() === 1
-      ? ""
-      : "s"}{wizard.fieldLayout === "half"
-      ? ", since a half field is half of a full one"
-      : ""}. Assign cameras to regions on the Camera Layout page.
+    {text.layoutCount(wizardCameraCount(), wizard.fieldLayout === "half")}
   </Helper>
 </div>

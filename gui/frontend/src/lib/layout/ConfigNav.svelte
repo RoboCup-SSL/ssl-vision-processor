@@ -1,15 +1,19 @@
 <script lang="ts">
+  import { app } from "../text/app";
   import { Heading, SidebarGroup, SidebarItem } from "flowbite-svelte";
   import {
     nav,
     selectedInstance,
     isCategoryDirty,
     categoryHref,
+    isCategoryVisible,
   } from "./nav.svelte";
   import { CONFIG_CATEGORIES } from "./configCategories";
 
   let sharedCategories = $derived(
-    CONFIG_CATEGORIES.filter((c) => c.scope === "shared"),
+    CONFIG_CATEGORIES.filter(
+      (c) => c.scope === "shared" && c.inNav !== false && isCategoryVisible(c),
+    ),
   );
   let instanceCategories = $derived(
     CONFIG_CATEGORIES.filter((c) => c.scope === "per-instance"),
@@ -21,7 +25,7 @@
   let instance = $derived(selectedInstance());
 
   const HEADING =
-    "mt-5 mb-1 px-2 text-xs font-semibold tracking-wider text-gray-500 uppercase";
+    "mt-5 mb-1 px-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase";
 </script>
 
 <nav aria-label="Settings">
@@ -41,7 +45,7 @@
     {#if instance}
       {instance.host} / cam {instance.cameraId}
     {:else}
-      Per-instance (no cameras yet)
+      {app.sidebar.noCameras}
     {/if}
   </Heading>
   <SidebarGroup class="space-y-0.5">

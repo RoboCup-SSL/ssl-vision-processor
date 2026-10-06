@@ -1,4 +1,7 @@
 <script lang="ts">
+  import RichText from "../RichText.svelte";
+  import { SELECT_INSTANCE } from "../text/common";
+  import { color as text } from "../text/color";
   import { untrack } from "svelte";
   import type { VisionInstance } from "../layout/nav.svelte";
   import { config } from "../config.svelte";
@@ -90,16 +93,15 @@
 </script>
 
 <section class="color-panel">
-  <Heading tag="h2" class="mb-2 text-xl font-semibold">Color</Heading>
+  <Heading tag="h2" class="mb-2 text-xl font-semibold">{text.heading}</Heading>
 
   {#if instance}
     <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-      Editing {instance.host} / cam {instance.cameraId}'s
-      <code>color:</code> block.
+      <RichText text={text.editing(instance.host, instance.cameraId)} />
     </P>
   {:else}
     <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400"
-      >Select a vision processor on the left first.</P
+      >{SELECT_INSTANCE}</P
     >
   {/if}
 
@@ -197,14 +199,12 @@
     </TableBody>
   </Table>
 
-  <Heading tag="h3" class="mb-1 text-base font-semibold">Update weights</Heading
+  <Heading tag="h3" class="mb-1 text-base font-semibold"
+    >{text.updateWeights.heading}</Heading
   >
-  <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-    How much each new color leans on its configured reference vs. last frame's
-    color vs. what was actually sampled this frame. Drag the marker, or edit the
-    minimum reference weight directly -- see src/blobs/colorupdate.cpp's
-    updateColor for the exact blend this mirrors.
-  </P>
+  <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400"
+    >{text.updateWeights.intro}</P
+  >
   <WeightTriangle
     bind:referenceForce={colorConfig.config.referenceForce}
     bind:historyForce={colorConfig.config.historyForce}
@@ -262,12 +262,6 @@
     /* Wide enough for YuvPositionPane's plane+slider+readout row (1100px
        max-width there); everything else in this panel is narrower anyway. */
     max-width: 1100px;
-  }
-
-  code {
-    background: var(--color-gray-100);
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
   }
 
   .swatch {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { geometry as text } from "../text/geometry";
   import SettingsCard from "../SettingsCard.svelte";
   import { Button, Spinner, Alert, P } from "flowbite-svelte";
   import {
@@ -35,11 +36,7 @@
   }
 
   function unlock(): void {
-    if (
-      confirm(
-        `Unlock camera ${String(cameraId)}'s calibration? It stops being published now, and the camera recalibrates the next time its vision_processor restarts.`,
-      )
-    ) {
+    if (confirm(text.confirmUnlock(cameraId))) {
       void unlockCalibration(cameraId);
     }
   }
@@ -55,16 +52,18 @@
   {:else}
     <P size="sm" class="mb-2">
       {#if status.calibration === "locked" && locked}
-        <strong>Locked</strong> at {new Date(locked.lockedAt).toLocaleString()}
-        ({lockedResolution(locked.camera)}). Published in place of anything the
-        camera sends, and kept across restarts once saved.
+        <strong>{text.calibration.locked}</strong>
+        {text.calibration.lockedDetail(
+          new Date(locked.lockedAt).toLocaleString(),
+          lockedResolution(locked.camera),
+        )}
       {:else if status.calibration === "live"}
-        <strong>Live, not locked</strong>{liveResolution
+        <strong>{text.calibration.live}</strong>{liveResolution
           ? ` (${liveResolution})`
-          : ""}. The camera calibrated itself; it recalibrates on its next
-        restart unless you lock this.
+          : ""}{text.calibration.liveDetail}
       {:else}
-        <strong>None.</strong> No calibration received from this camera yet.
+        <strong>{text.calibration.none}</strong>
+        {text.calibration.noneDetail}
       {/if}
     </P>
 
@@ -80,14 +79,10 @@
       <Button
         size="sm"
         disabled={!status.live || config.busy}
-        title={status.live
-          ? "Store the calibration this camera last sent"
-          : "No calibration received from this camera yet"}
+        title={status.live ? text.lockTitle : text.nothingToLock}
         onclick={() => void lockCalibration(cameraId)}
       >
-        {status.calibration === "locked"
-          ? "Re-lock latest live calibration"
-          : "Lock current calibration"}
+        {status.calibration === "locked" ? text.relock : text.lock}
       </Button>
       <Button
         size="sm"
@@ -95,13 +90,11 @@
         disabled={status.calibration === "none" || config.busy}
         onclick={unlock}
       >
-        Unlock (recalibrates on processor restart)
+        {text.calibration.unlock}
       </Button>
     </div>
     <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-      Locking and unlocking apply immediately; Save writes them to the file.
-      There's no way yet to make a running vision_processor recalibrate on
-      request -- it needs a restart.
+      {text.calibration.footer}
     </P>
   {/if}
 </SettingsCard>

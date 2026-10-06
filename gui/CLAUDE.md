@@ -262,5 +262,6 @@ Not automated -- there is no CI hardware to run it on.
   MSE, chosen over WebRTC because latency doesn't matter for setup and it
   avoids Firefox's Constrained-Baseline-only WebRTC H.264), but the corner
   picker needs full-resolution stills, which the stream isn't.
-- **A video grid.** The backend's `keyframes` mode is built for it; the
-  Svelte side has only the single camera Stream panel.
+- **i18n (planned for v2.1).** Not yet: the GUI is English only. When it
+  comes, every user-facing string moves to a per-language catalog looked up by
+  key (Paraglide is the Svelte-native candidate: compile-time and typed).

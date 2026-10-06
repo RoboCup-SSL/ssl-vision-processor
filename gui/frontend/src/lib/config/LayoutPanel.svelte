@@ -17,6 +17,7 @@
   import SettingsCard from "../SettingsCard.svelte";
   import FormRow from "../FormRow.svelte";
   import LayoutMap from "./LayoutMap.svelte";
+  import { layout as text } from "../text/layout";
   import { layoutView, flips, type FeedMode } from "../layoutView.svelte";
   import { config, cameraStatus } from "../config.svelte";
   import { navHref, selectedInstance } from "../layout/nav.svelte";
@@ -67,7 +68,7 @@
     if (!doc || next === count) return;
 
     pending = {
-      title: `Split the field ${String(next)} way${next === 1 ? "" : "s"}`,
+      title: text.confirm.splitTitle(next),
       plan: planCount(doc, next),
       count: next,
     };
@@ -82,8 +83,8 @@
     pending = {
       title:
         plan.length === 2
-          ? `Swap cameras ${String(Math.min(from, to))} and ${String(Math.max(from, to))}`
-          : `Move camera ${String(from)} to ${String(to)}`,
+          ? text.confirm.swapTitle(from, to)
+          : text.confirm.moveTitle(from, to),
       plan,
     };
   }
@@ -115,31 +116,22 @@
   let axes = $derived.by(() => {
     const f = flips();
 
-    return `+x points ${f.x ? "left" : "right"}, +y ${f.y ? "down" : "up"}`;
+    return text.axes(f.x, f.y);
   });
 </script>
 
 {#if doc && slot}
   <div class="max-w-7xl">
-    <Heading tag="h2" class="mb-2 text-xl font-semibold">Camera Layout</Heading>
-    <P size="sm" class="mb-3 text-gray-600 dark:text-gray-400">
-      Each vision_processor covers one region of the field. Its camera ID and
-      the camera count decide which region, and so the corners its calibration
-      fits to. One host can run any number of cameras.
-    </P>
+    <Heading tag="h2" class="mb-2 text-xl font-semibold">{text.heading}</Heading
+    >
+    <P size="sm" class="mb-3 text-gray-600 dark:text-gray-400">{text.intro}</P>
 
     <SettingsCard title="Layout">
       <FormRow
         label="Cameras"
         labelWidth={LABEL_WIDTH}
-        notes={[
-          "vision_processor's geometry.camera_amount. The field is halved along its longer side for each doubling.",
-        ]}
-        warnings={uncovered.length > 0
-          ? [
-              `No camera covers region${uncovered.length === 1 ? "" : "s"} ${uncovered.join(", ")}.`,
-            ]
-          : []}
+        notes={text.cameraCount}
+        warnings={uncovered.length > 0 ? [text.uncovered(uncovered)] : []}
       >
         <ButtonGroup>
           {#each CAMERA_COUNTS as n (n)}
@@ -148,9 +140,7 @@
               size="sm"
               color={n === count ? "primary" : "alternative"}
               disabled={tooSmall}
-              title={tooSmall
-                ? "Move cameras with higher IDs to lower ones first."
-                : undefined}
+              title={tooSmall ? text.countTooSmall : undefined}
               onclick={() => {
                 requestCount(n);
               }}
@@ -164,7 +154,7 @@
         <span class="text-sm">
           {mm(slot.slice.maxX - slot.slice.minX)} × {mm(
             slot.slice.maxY - slot.slice.minY,
-          )} mm, plus the boundary on outer edges
+          )} mm, {text.eachRegion}
         </span>
       </FormRow>
       <FormRow label="Hardware" labelWidth={LABEL_WIDTH}>
@@ -185,7 +175,7 @@
           }}
         />
         <div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
-          <span class="text-gray-600">Video</span>
+          <span class="text-gray-600 dark:text-gray-400">Video</span>
           <ButtonGroup>
             {#each FEEDS as { mode, label } (mode)}
               <Button
@@ -197,7 +187,7 @@
               >
             {/each}
           </ButtonGroup>
-          <span class="ms-2 text-gray-600">View</span>
+          <span class="ms-2 text-gray-600 dark:text-gray-400">View</span>
           <Button
             size="xs"
             color={layoutView.rotate180 ? "primary" : "alternative"}
@@ -213,9 +203,8 @@
             }}>⇋ Mirror</Button
           >
         </div>
-        <P size="xs" class="mt-1 text-gray-500">
-          {axes}. Click a region to select it; it plays live. The view is saved
-          in this browser only.
+        <P size="xs" class="mt-1 text-gray-500 dark:text-gray-400">
+          {axes}. {text.mapHelp}
         </P>
       </SettingsCard>
 
@@ -231,11 +220,7 @@
         <FormRow
           label="Live"
           labelWidth="5rem"
-          errors={slot.conflict
-            ? [
-                "Several vision_processors send this camera ID. Each must have its own; check their cam_id.",
-              ]
-            : []}
+          errors={slot.conflict ? [text.conflict] : []}
         >
           <span class="text-sm">{liveLabel(slot.sources)}</span>
         </FormRow>
@@ -244,7 +229,7 @@
           label="Camera"
           for="layout-camera"
           labelWidth="5rem"
-          notes={["Picking a camera that covers another region swaps the two."]}
+          notes={text.cameraPicker}
         >
           <Select
             id="layout-camera"
@@ -278,9 +263,7 @@
           <FormRow
             label="Video"
             labelWidth="5rem"
-            notes={[
-              "Turns this camera's video to match the field, for a camera mounted at an angle. Only the GUI uses it.",
-            ]}
+            notes={text.videoOrientation}
           >
             <span class="flex items-center gap-2">
               <Button
@@ -299,7 +282,7 @@
                   setDisplay(selected, { mirror: !camera.display?.mirror });
                 }}>⇋ Mirror</Button
               >
-              <span class="text-sm text-gray-600">
+              <span class="text-sm text-gray-600 dark:text-gray-400">
                 {camera.display?.rotate ?? 0}°{camera.display?.mirror
                   ? ", mirrored"
                   : ""}
@@ -315,11 +298,7 @@
           <FormRow
             label="Config"
             labelWidth="5rem"
-            hints={camera.configPath
-              ? []
-              : [
-                  "Remote: this host can't write its config.yml yet. Set cam_id there by hand.",
-                ]}
+            hints={camera.configPath ? [] : [text.remote]}
           >
             <span class="text-sm break-all">
               {camera.configPath ?? "remote"}
@@ -375,7 +354,7 @@
             {@const camera = s.camera}
             {@const rowStatus = cameraStatus(s.cameraId)}
             <TableBodyRow
-              class={`cursor-pointer ${s.severity === "warning" ? "bg-yellow-50" : ""} ${s.severity === "error" ? "bg-red-50" : ""} ${s.cameraId === selected ? "font-semibold" : ""}`}
+              class={`cursor-pointer ${s.severity === "warning" ? "bg-yellow-50 dark:bg-yellow-900/30" : ""} ${s.severity === "error" ? "bg-red-50 dark:bg-red-900/30" : ""} ${s.cameraId === selected ? "font-semibold" : ""}`}
               onclick={() => {
                 picked = s.cameraId;
               }}
@@ -422,7 +401,9 @@
                   {/if}
                 </TableBodyCell>
               {:else}
-                <TableBodyCell class="px-2 py-1.5 text-gray-500 italic">
+                <TableBodyCell
+                  class="px-2 py-1.5 text-gray-500 dark:text-gray-400 italic"
+                >
                   No camera
                 </TableBodyCell>
                 <TableBodyCell></TableBodyCell>
@@ -440,16 +421,15 @@
     </SettingsCard>
 
     {#if unplaced.length > 0}
-      <SettingsCard title="Heard but not placed">
-        <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-          These vision_processors send detections with a camera ID that no
-          camera here has.
-        </P>
+      <SettingsCard title={text.unplaced.title}>
+        <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400"
+          >{text.unplaced.intro}</P
+        >
         {#each unplaced as source (`${String(source.cameraId)}@${source.address}`)}
           <div class="flex items-center gap-3 py-1 text-sm">
             <span class="font-semibold">Camera {source.cameraId}</span>
             <span>{source.address}</span>
-            <span class="text-gray-500">
+            <span class="text-gray-500 dark:text-gray-400">
               {source.receiving ? `${String(source.fps)} fps` : "silent"}
             </span>
             {#if source.cameraId < count}
@@ -463,10 +443,8 @@
                 Add as camera {source.cameraId}
               </Button>
             {:else}
-              <span class="text-yellow-700">
-                Outside the {count}-camera layout; its cam_id is wrong or the
-                count is too low.
-              </span>
+              <span class="text-yellow-700">{text.unplaced.outside(count)}</span
+              >
             {/if}
           </div>
         {/each}
@@ -491,24 +469,18 @@
               {`${hostName(step.camera)} · ${deviceLabel(cameraDevice(doc, step.camera))}:`}
             </span>
             {step.from !== step.to
-              ? `camera ${String(step.from)} → ${String(step.to)}`
-              : `camera ${String(step.from)}, new region`}
-            <ul class="ms-4 list-disc text-gray-600">
-              <li>Camera and color settings stay with it.</li>
+              ? text.confirm.moved(step.from, step.to)
+              : text.confirm.newRegion(step.from)}
+            <ul class="ms-4 list-disc text-gray-600 dark:text-gray-400">
+              <li>{text.confirm.settingsStay}</li>
               {#if step.seedStale}
-                <li>
-                  Its line corners are kept but marked for re-picking: they were
-                  picked for the old region.
-                </li>
+                <li>{text.confirm.seedStale}</li>
               {/if}
               {#if step.calibrationRemoved}
-                <li>
-                  Its locked calibration is removed. It recalibrates when its
-                  vision_processor restarts.
-                </li>
+                <li>{text.confirm.calibrationRemoved}</li>
               {/if}
               {#if !step.camera.configPath}
-                <li>Remote: set its cam_id by hand.</li>
+                <li>{text.confirm.remote}</li>
               {/if}
             </ul>
           </li>
@@ -516,12 +488,13 @@
       </ul>
 
       <Alert color="yellow" class="mt-3 p-2 text-sm">
-        vision_processor reads its camera ID and count only at startup. Restart
-        the affected ones after saving.
+        {text.confirm.restart}
       </Alert>
     {/if}
 
-    <div class="flex justify-end gap-2 border-t border-gray-200 pt-4">
+    <div
+      class="flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700 pt-4"
+    >
       <Button
         color="alternative"
         onclick={() => {

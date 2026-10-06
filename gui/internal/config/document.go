@@ -41,7 +41,15 @@ type Document struct {
 	// geometry:, color:, thresholds:, ...) and applies to every camera.
 	Defaults map[string]any `yaml:"defaults,omitempty" json:"defaults,omitempty"`
 	Layout   *Layout        `yaml:"layout,omitempty" json:"layout,omitempty"`
-	Cameras  []Camera       `yaml:"cameras" json:"cameras"`
+	// Teams overrides robot heights by team. Shown in the GUI only for now:
+	// vision_processor still looks heights up in bot_heights_file by game
+	// controller team name.
+	Teams *Teams `yaml:"teams,omitempty" json:"teams,omitempty"`
+	// CompetitionField is a match setup, with a game controller, rather than
+	// casual lab use. The GUI keys height choices by team and raises missing
+	// setup to errors; vision_processor doesn't read it.
+	CompetitionField bool     `yaml:"competition_field,omitempty" json:"competitionField,omitempty"`
+	Cameras          []Camera `yaml:"cameras" json:"cameras"`
 	// Host is settings for this GUI host alone; no vision_processor reads it.
 	Host *Host `yaml:"host,omitempty" json:"host,omitempty"`
 }
@@ -52,6 +60,49 @@ type Layout struct {
 	// (vision_processor's geometry.camera_amount). It can exceed the number of
 	// cameras, leaving some regions uncovered.
 	CameraCount int `yaml:"camera_count" json:"cameraCount"`
+}
+
+// Teams overrides robot heights by team. Keyed by the game controller's
+// team name, as vision_processor's height table is, so an override follows
+// its team through a color switch (the game controller swaps the whole team
+// record, name included, between colors).
+type Teams struct {
+	Overrides map[string]TeamOverride `yaml:"overrides,omitempty" json:"overrides,omitempty"`
+	// ByColor is each color's height off a competition field, where there's
+	// usually no game controller to name the teams.
+	ByColor *ColorOverrides `yaml:"by_color,omitempty" json:"byColor,omitempty"`
+}
+
+// ColorOverrides is a height choice per color.
+type ColorOverrides struct {
+	Yellow *TeamOverride `yaml:"yellow,omitempty" json:"yellow,omitempty"`
+	Blue   *TeamOverride `yaml:"blue,omitempty" json:"blue,omitempty"`
+}
+
+// TeamOverride is a team's robot height when it isn't (rightly) in the
+// height table: another table entry's (Name), or a custom Height. Neither
+// set means a custom height not entered yet.
+type TeamOverride struct {
+	Name   string   `yaml:"name,omitempty" json:"name,omitempty"`
+	Height *float64 `yaml:"height,omitempty" json:"height,omitempty"`
+}
+
+// maxRobotHeight bounds a custom height. The rules cap robots at 150 mm
+// (Division A) and 180 mm (Division B); this only catches typos.
+const maxRobotHeight = 500
+
+func (t TeamOverride) validate(prefix string) error {
+	var errs error
+
+	if t.Name != "" && t.Height != nil {
+		errs = errors.Join(errs, fmt.Errorf("%s: set name or height, not both", prefix))
+	}
+
+	if t.Height != nil && (*t.Height <= 0 || *t.Height > maxRobotHeight) {
+		errs = errors.Join(errs, fmt.Errorf("%s.height: want 0-%d mm, got %g", prefix, maxRobotHeight, *t.Height))
+	}
+
+	return errs
 }
 
 // CameraCounts are the supported Layout.CameraCount values. vision_processor
@@ -240,6 +291,26 @@ func (d Document) Validate() error {
 		add(fmt.Errorf("defaults: %w", err))
 	}
 
+	if d.Teams != nil {
+		for name, o := range d.Teams.Overrides {
+			if name == "" {
+				add(errors.New("teams.overrides: a team name can't be empty"))
+			}
+
+			add(o.validate(fmt.Sprintf("teams.overrides[%q]", name)))
+		}
+
+		if c := d.Teams.ByColor; c != nil {
+			if c.Yellow != nil {
+				add(c.Yellow.validate("teams.by_color.yellow"))
+			}
+
+			if c.Blue != nil {
+				add(c.Blue.validate("teams.by_color.blue"))
+			}
+		}
+	}
+
 	count := d.CameraCount()
 	if !slices.Contains(CameraCounts, count) {
 		add(fmt.Errorf("layout.camera_count: want one of %v, got %d", CameraCounts, count))
@@ -302,6 +373,10 @@ func (d Document) Validate() error {
 		}
 
 		if err := validateCamera(d.Effective(c)["camera"]); err != nil {
+			add(fmt.Errorf("%s: %w", prefix, err))
+		}
+
+		if err := validateAdvanced(d.Effective(c)); err != nil {
 			add(fmt.Errorf("%s: %w", prefix, err))
 		}
 
@@ -561,4 +636,19 @@ func deepCopy(v any) any {
 	default:
 		return v
 	}
+}
+
+// DefaultBotHeightsFile is vision_processor's bot_heights_file when unset
+// (src/Resources.cpp).
+const DefaultBotHeightsFile = "robot-heights.yml"
+
+// BotHeightsFile is the robot height table the cameras read, from Defaults'
+// bot_heights_file. Like vision_processor, a relative path is relative to
+// the working directory.
+func (d Document) BotHeightsFile() string {
+	if path, ok := d.Defaults["bot_heights_file"].(string); ok && path != "" {
+		return path
+	}
+
+	return DefaultBotHeightsFile
 }

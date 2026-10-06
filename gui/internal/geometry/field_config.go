@@ -118,7 +118,7 @@ func LoadFieldFile(path string) (FieldConfig, OptionalLinesConfig, *vision.SSL_G
 }
 
 // LoadPreset is LoadFieldFile without the models, for serving the rulebook
-// presets (geometry-divA.yml, geometry-divB.yml) straight from the same files
+// presets (config/legacy/geometry-div{A,B}.yml) straight from the same files
 // a human would open, rather than a copy that could drift from them.
 func LoadPreset(path string) (FieldConfig, OptionalLinesConfig, error) {
 	field, opt, _, err := LoadFieldFile(path)

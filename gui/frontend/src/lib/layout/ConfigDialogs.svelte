@@ -1,4 +1,7 @@
 <script lang="ts">
+  import RichText from "../RichText.svelte";
+  import { app } from "../text/app";
+  const text = app.dialogs;
   import { Modal, Button, Input, Label, Alert, Toast } from "flowbite-svelte";
   import {
     config,
@@ -96,17 +99,19 @@
   size="lg"
   class={MODAL_CLASS}
 >
-  <p class="text-sm text-gray-600">
-    Writes to <code>{config.state?.path}</code>.
+  <p class="text-sm text-gray-600 dark:text-gray-400">
+    <RichText text={text.writesTo(config.state?.path ?? "")} />
   </p>
 
   {#if changes.length === 0}
-    <p class="text-sm">No unsaved changes.</p>
+    <p class="text-sm">{text.noChanges}</p>
   {:else}
     <ChangeList {changes} />
   {/if}
 
-  <div class="flex justify-end gap-2 border-t border-gray-200 pt-4">
+  <div
+    class="flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700 pt-4"
+  >
     <Button
       color="alternative"
       onclick={() => {
@@ -138,11 +143,13 @@
       placeholder="vision.yml"
     />
   </div>
-  <p class="text-sm text-gray-600">
-    The GUI edits and watches the new file from then on.
+  <p class="text-sm text-gray-600 dark:text-gray-400">
+    {text.saveAsNote}
   </p>
 
-  <div class="flex justify-end gap-2 border-t border-gray-200 pt-4">
+  <div
+    class="flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700 pt-4"
+  >
     <Button
       color="alternative"
       onclick={() => {
@@ -174,15 +181,17 @@
 
   {#if changes.length > 0}
     <Alert color="yellow" class="p-2 text-sm">
-      Loading discards {changes.length} unsaved change{changes.length === 1
-        ? ""
-        : "s"}, and applies the loaded file live.
+      {text.loadDiscards(changes.length)}
     </Alert>
   {:else}
-    <p class="text-sm text-gray-600">The loaded file applies live.</p>
+    <p class="text-sm text-gray-600 dark:text-gray-400">
+      {text.loadApplies}
+    </p>
   {/if}
 
-  <div class="flex justify-end gap-2 border-t border-gray-200 pt-4">
+  <div
+    class="flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700 pt-4"
+  >
     <Button
       color="alternative"
       onclick={() => {
@@ -203,31 +212,34 @@
   dismissable={false}
 >
   <p class="text-sm">
-    <code>{config.state?.path}</code> was edited outside the GUI.
+    <RichText text={text.editedOutside(config.state?.path ?? "")} />
   </p>
 
   {#if external?.error}
     <Alert color="red" class="p-2 text-sm">
-      It can't be loaded as it is:
+      {text.cantLoad}
       <pre class="error-detail">{external.error}</pre>
     </Alert>
   {:else if external && external.changes.length > 0}
-    <p class="text-sm text-gray-600">Loading it would change:</p>
+    <p class="text-sm text-gray-600 dark:text-gray-400">
+      {text.wouldChange}
+    </p>
     <ChangeList changes={external.changes} />
   {:else}
-    <p class="text-sm text-gray-600">
-      The values match what's running; only formatting or comments differ.
+    <p class="text-sm text-gray-600 dark:text-gray-400">
+      {text.formattingOnly}
     </p>
   {/if}
 
   {#if changes.length > 0}
     <Alert color="yellow" class="p-2 text-sm">
-      You have {changes.length} unsaved change{changes.length === 1 ? "" : "s"}.
-      Loading discards them; overwriting replaces the edited file with them.
+      {text.unsavedConflict(changes.length)}
     </Alert>
   {/if}
 
-  <div class="flex justify-end gap-2 border-t border-gray-200 pt-4">
+  <div
+    class="flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700 pt-4"
+  >
     <Button color="alternative" onclick={later}>Later</Button>
     <Button color="alternative" disabled={config.busy} onclick={overwriteDisk}
       >Overwrite disk</Button
@@ -247,6 +259,10 @@
     padding: 0.5rem;
     border-radius: 4px;
     background: rgb(255 255 255 / 0.6);
+  }
+
+  :global(.dark) .error-detail {
+    background: rgb(0 0 0 / 0.3);
     font-size: 0.8rem;
     white-space: pre-wrap;
   }

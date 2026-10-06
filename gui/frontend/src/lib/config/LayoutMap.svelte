@@ -5,6 +5,8 @@
   import type { ConfigDocument, CameraDoc } from "../config.svelte";
   import VideoPlayer from "../video/VideoPlayer.svelte";
   import { layoutView, flips } from "../layoutView.svelte";
+  import { video as videoText } from "../text/video";
+  import type { StreamStatus } from "../video/videoStream";
   import {
     slots,
     cameraDevice,
@@ -33,6 +35,13 @@
 
   let flip = $derived(flips());
 
+  // The latest received frame rate per camera, from each tile's video status.
+  let fps = $state<Record<number, number | undefined>>({});
+
+  function onstatus(status: StreamStatus): void {
+    fps[status.camera] = status.receiving ? status.fps : undefined;
+  }
+
   // Field mm to percent of the sketch: +x right and +y up, unless the view
   // is turned around or mirrored.
   function placement(slot: SlotInfo): string {
@@ -45,6 +54,23 @@
     const h = ((maxY - minY) / (2 * halfWidth)) * 100 - 2 * GAP;
 
     return `left:${String(left)}%;top:${String(top)}%;width:${String(w)}%;height:${String(h)}%`;
+  }
+
+  // The tile corner the details go in: the outer one on screen, preferring
+  // the top and the left. A tile spanning the whole width or height counts as
+  // left or top, so one camera is top-left, two are top-left and top-right,
+  // and four take all four corners.
+  function corner(slot: SlotInfo): { top: boolean; left: boolean } {
+    const { minX, maxX, minY, maxY } = slot.slice;
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const fullWidth = maxX - minX >= length;
+    const fullHeight = maxY - minY >= width;
+
+    return {
+      left: fullWidth || (flip.x ? centerX > 0 : centerX < 0),
+      top: fullHeight || (flip.y ? centerY < 0 : centerY > 0),
+    };
   }
 
   // The camera's own orientation (how it's mounted), then the view's. A
@@ -80,6 +106,7 @@
   {#each slots(doc) as slot (slot.cameraId)}
     {@const camera = slot.camera}
     {@const video = camera !== undefined && layoutView.feeds !== "off"}
+    {@const at = corner(slot)}
     <button
       type="button"
       class="tile absolute overflow-hidden rounded border-2 text-left text-xs"
@@ -104,17 +131,26 @@
             : "keyframes"}
           rotate={orientation.rotate}
           mirror={orientation.mirror}
+          {onstatus}
         />
       {/if}
 
       <span
-        class="info relative flex max-w-full flex-col items-start gap-0.5"
+        class="info absolute flex max-w-full flex-col gap-0.5"
+        class:top-0={at.top}
+        class:bottom-0={!at.top}
+        class:left-0={at.left}
+        class:right-0={!at.left}
+        class:items-start={at.left}
+        class:items-end={!at.left}
+        class:text-right={!at.left}
+        data-corner={`${at.top ? "top" : "bottom"}-${at.left ? "left" : "right"}`}
         class:p-1.5={!video}
         class:caption={video}
       >
         <span class="flex w-full items-center gap-1.5">
           <span class="text-base leading-none font-bold">{slot.cameraId}</span>
-          <span class="text-gray-500">{slot.region}</span>
+          <span class="text-gray-500 dark:text-gray-400">{slot.region}</span>
           {#if video && camera}
             <span class="font-medium">{hostName(camera)}</span>
             <span
@@ -123,6 +159,13 @@
               class:bg-gray-400={!slot.sources.some((x) => x.receiving)}
               title={liveLabel(slot.sources)}
             ></span>
+            {#if fps[slot.cameraId] !== undefined}
+              <span
+                class="text-gray-600 tabular-nums dark:text-gray-300"
+                title={videoText.fpsTitle}
+                >{videoText.fps(fps[slot.cameraId] ?? 0)}</span
+              >
+            {/if}
           {/if}
           {#if slot.conflict}
             <span class="ms-auto text-red-700" title="Camera ID conflict"
@@ -144,11 +187,11 @@
             ></span>
             {hostName(camera)}
           </span>
-          <span class="max-w-full truncate text-gray-500">
+          <span class="max-w-full truncate text-gray-500 dark:text-gray-400">
             {deviceLabel(cameraDevice(doc, camera))}
           </span>
         {:else}
-          <span class="text-gray-500 italic">No camera</span>
+          <span class="text-gray-500 dark:text-gray-400 italic">No camera</span>
         {/if}
 
         {#if !video}
@@ -199,12 +242,48 @@
   }
 
   /* Over the video, the details sit in a small box in the corner. */
+  /* Over video, the details are a label tucked into the tile's top-left
+     corner. A <button> centres its content, so .info is pinned there
+     rather than left in the flow. */
   .caption {
     display: inline-flex;
-    padding: 0.15rem 0.35rem;
-    margin: 0.25rem;
-    border-radius: 0.25rem;
+    padding: 0.15rem 0.4rem;
     background: rgb(255 255 255 / 0.8);
+  }
+
+  /* Round only the corner facing into the tile. */
+  .caption[data-corner="top-left"] {
+    border-bottom-right-radius: 0.25rem;
+  }
+
+  .caption[data-corner="top-right"] {
+    border-bottom-left-radius: 0.25rem;
+  }
+
+  .caption[data-corner="bottom-left"] {
+    border-top-right-radius: 0.25rem;
+  }
+
+  .caption[data-corner="bottom-right"] {
+    border-top-left-radius: 0.25rem;
+  }
+
+  /* Dark tiles over the field in dark mode, so their dark-mode text reads. */
+  :global(.dark) .tile {
+    background: rgb(17 24 39 / 0.7);
+    border-color: rgb(255 255 255 / 0.35);
+  }
+
+  :global(.dark) .tile:hover {
+    background: rgb(17 24 39 / 0.9);
+  }
+
+  :global(.dark) .tile.empty {
+    background: rgb(17 24 39 / 0.45);
+  }
+
+  :global(.dark) .caption {
+    background: rgb(17 24 39 / 0.8);
   }
 
   .tile.selected {

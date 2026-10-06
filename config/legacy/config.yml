@@ -1,0 +1,152 @@
+# VisionProcessor configuration
+
+# Vision camera ID handled by this VisionProcessor instance.
+# On multi camera fields the IDs have to be ordered according to camera_ids.png.
+#cam_id: 0
+
+# Team bot heights yml file (heights in mm)
+#bot_heights_file: robot-heights.yml
+
+camera:
+  # Camera driver type. Availability depending on libraries installed.
+  # Existing: SPINNAKER (FLIR cameras), MVIMPACT (Bluefox3 cameras), OPENCV(files, v4l2 cameras)
+  #driver: SPINNAKER
+
+  # Spinnaker, mvIMPACT or OpenCV(v4l2) camera id
+  #id: 0
+  # OpenCV camera device, image or video file path (if unset id is used instead)
+  #path: /dev/video0
+
+  # Camera resolution as reported by the camera. VisionProcessor might use half (true color) resolution internally with SPINNAKER and MVIMPACT.
+  # 0 = highest resolution supported by the camera
+  #width: 0
+  #height: 0
+
+  # Camera exposure time in ms to adjust brightness. Higher values lead to more motion blur. Lower values lead to a darker image.
+  # Camera frame rate will drop if set equal to or higher than the frame time (1 / fps_cam).
+  # 0.0 = automatic exposure
+  #exposure: 0.0
+  # Camera gain to adjust brightness. Higher values lead to more noise. Lower values lead to a darker image.
+  # Frequently changing bot identities or team colors indicate an image that is too bright (all colors becoming nearly white).
+  # 0.0 = automatic gain
+  #gain: 0.0
+  # Camera gamma as nonlinear brightness adjustment. Only supported on SPINNAKER and OPENCV.
+  # Low values reduce differences between bright and dark illuminated areas. High values increase the color contrast.
+  # 1.0 = no gamma
+  #gamma: 1.0
+
+  # Camera white balance. OUTDOOR or INDOOR for auto white balance with green or gray carpet respectively.
+  # (distinction between OUTDOOR and INDOOR currently only implemented for SPINNAKER backend)
+  #white_balance: OUTDOOR
+  # If you want to set manual white balance values use this format:
+  #white_balance:
+  #  red: 1.0
+  #  blue: 1.0
+
+geometry:
+  # Total camera amount over the field
+  #camera_amount: 1
+  # Camera height above field in mm
+  # 0.0 = automated camera height calibration, this does not work if the camera looks perpendicular to the field
+  #camera_height: 0.0
+
+  # Field line crossings at the edges of the camera extent in pixels from the top left image corner.
+  # The first coordinate must be the edge with the smallest x and y field coordinate.
+  #line_corners:
+  #- [0 , 1000]
+  #- [0 , 0]
+  #- [1000, 0]
+  #- [1000, 1000]
+
+  # Enable field line pixel refinement.
+  # Disable in cluttered environments when the geometry calibration has failed multiple times in a row.
+  #refinement: true
+
+  # Minimum brightness difference to surrounding pixels for the classification as field line pixel (0 - 255)
+  #field_line_threshold: 5
+  # Minimum length of line segments to ensure angular stability in pixels
+  #min_line_segment_length: 10.0
+  # Maximum perpendicular offset of line segments for merging in pixels
+  #max_line_segment_offset: 10.0
+  # Maximum relative angle of line segments for merging in °
+  #max_line_segment_angle: 3.0
+
+thresholds:
+  # Minimum mean cosine similarity (not normalized) of the blob border gradient (0 - 195075.0)
+  # High value lead to undetected blobs. Low values lead to an increase in false positive blob detections.
+  #circularity: 15.0
+  # Minimum circularity/(3*stddev) ball blob score
+  #score: 5.0
+
+  # Maximum amount of blobs processed per frame. Should not be necessary to adjust this value.
+  #blobs: 2000
+
+  # Minimum confidence (0.0 - 1.0)
+  #min_confidence: 0.2
+
+  # Min ball camera edge distance in mm
+  #min_cam_edge_distance: 170.0
+
+  # Maximum allowed clipping of two objects in mm
+  #clipping_tolerance: 10.0
+
+  # Added tolerance to geometry related operations in mm.
+  # Affects field border cutoff area and field line blob classification.
+  #geometry_tolerance: 10.0
+
+color:
+  # Strength of the reference color during color updates (0.0 - 0.5-history_force/2)
+  #reference_force: 0.1
+  # Strength of the previous color during color updates (0.0 - 1.0-reference_force)
+  #history_force: 0.7
+
+  # Reference colors used for ball determination
+  #orange: [192, 128, 64]
+  #field: [128, 128, 128]
+  # Reference colors used for center blob determination
+  #yellow: [255, 128, 0]
+  #blue: [0, 128, 255]
+  # Reference colors used for side blob determination
+  #green: [0, 255, 128]
+  #pink: [255, 0, 128]
+
+tracking:
+  # Min tracking radius in mm
+  #min_tracking_radius: 20.0
+
+  # Max tracked bot acceleration in m/s^2
+  #max_bot_acceleration: 6.5
+
+network:
+  # Game controller multicast ip address
+  #gc_ip: "224.5.23.1"
+  # Game controller multicast port
+  #gc_port: 10003
+
+  # Vision multicast IP address
+  #vision_ip: "224.5.23.2"
+  # Vision multicast port
+  #vision_port: 10006
+
+stream:
+  # If false no network live stream will be encoded and sent
+  #active: true
+  # Only stream raw camera footage. Useful for recordings.
+  #raw_feed: false
+
+  # Camera stream ip prefix
+  #ip_base_prefix: 224.5.23.
+  # Camera stream ip end base (cam_id is added to maintain separation)
+  #ip_base_end: 100
+  # Camera stream port
+  #port: 10100
+
+debug:
+  # Ground truth file. Only used by blob and geometry benchmark.
+  #ground_truth: gt.yml
+  # Wait for geometry prior to processing frames
+  #wait_for_geometry: false
+  # Save additional debug images in img/.
+  #debug_images: false
+  # Periodically overwrite img/.sample.<camId>.png while calibration isn't accepted yet, every N milliseconds. 0 disables.
+  #debug_stream_interval_ms: 0

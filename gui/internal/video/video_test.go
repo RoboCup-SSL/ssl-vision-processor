@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -472,5 +473,41 @@ func TestHandleWebSocketRejectsBadRequests(t *testing.T) {
 		if resp.StatusCode != want {
 			t.Errorf("%s: status %d, want %d", path, resp.StatusCode, want)
 		}
+	}
+}
+
+func TestFrameRateUsesIntervals(t *testing.T) {
+	start := time.Unix(1000, 0)
+	at := func(ms ...int) []time.Time {
+		out := make([]time.Time, len(ms))
+		for i, m := range ms {
+			out[i] = start.Add(time.Duration(m) * time.Millisecond)
+		}
+
+		return out
+	}
+
+	for _, tc := range []struct {
+		name   string
+		frames []time.Time
+		want   float64
+	}{
+		{"none", nil, 0},
+		{"one", at(0), 0},
+		{"30 fps", at(0, 33, 67, 100, 133, 167, 200), 30},
+		{"uneven", at(0, 40, 90, 120), 25},
+	} {
+		if got := frameRate(tc.frames); math.Abs(got-tc.want) > 0.01 {
+			t.Errorf("%s: frameRate = %.3f, want %.3f", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestTrimFramesKeepsTheWindow(t *testing.T) {
+	now := time.Unix(1000, 0)
+	frames := []time.Time{now.Add(-500 * time.Millisecond), now.Add(-150 * time.Millisecond), now}
+
+	if got := trimFrames(frames, now); len(got) != 2 {
+		t.Fatalf("kept %d frames, want the 2 within %v", len(got), fpsWindow)
 	}
 }

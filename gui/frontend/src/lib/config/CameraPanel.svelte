@@ -1,4 +1,5 @@
 <script lang="ts">
+  import RichText from "../RichText.svelte";
   import SettingsCard from "../SettingsCard.svelte";
   import { Input, Select, Alert, Badge, Heading, P } from "flowbite-svelte";
   import { cameraCount, regionLabel } from "../cameraLayout";
@@ -19,6 +20,8 @@
   import VideoPlayer from "../video/VideoPlayer.svelte";
   import FormRow from "../FormRow.svelte";
   import SliderField from "./SliderField.svelte";
+  import { camera as text } from "../text/camera";
+  import { NO_HOST, PLACEHOLDER_RANGE } from "../text/common";
 
   interface Props {
     instance: VisionInstance | undefined;
@@ -54,35 +57,22 @@
     settings.path ?? `/dev/video${String(settings.id)}`,
   );
 
-  const KIND_LABEL: Record<VideoDevice["kind"], string> = {
-    "by-id": "this camera, any port",
-    "by-path": "this USB port",
-    node: "may change",
-  };
+  const KIND_LABEL: Record<VideoDevice["kind"], string> = text.path.kind;
 
   let pathNotes = $derived.by((): string[] => {
-    const notes = [
-      "Device, image, or video file. Unset means /dev/video{id}.",
-      "The list shows cameras on the host running this GUI.",
-    ];
+    const notes = [...text.path.notes];
     const device = devices.find((d) => d.path === effectivePath);
 
-    if (device?.kind === "by-id")
-      notes.push("Follows this camera to any USB port.");
-    if (device?.kind === "by-path")
-      notes.push("Follows the USB port, whichever camera is in it.");
+    if (device?.kind === "by-id") notes.push(text.path.byId);
+    if (device?.kind === "by-path") notes.push(text.path.byPath);
     if (!device && devices.length > 0 && effectivePath.startsWith("/dev/"))
-      notes.push("Not on this host; fine if the camera is on another machine.");
+      notes.push(text.path.notOnHost);
 
     return notes;
   });
 
   let pathWarnings = $derived(
-    /^\/dev\/video\d+$/.test(effectivePath)
-      ? [
-          "/dev/videoN can change when devices re-enumerate. A /dev/v4l/by-id path follows the camera.",
-        ]
-      : [],
+    /^\/dev\/video\d+$/.test(effectivePath) ? [text.path.unstable] : [],
   );
 
   // Resolution
@@ -117,13 +107,13 @@
       width < 0 ||
       height < 0
     ) {
-      sizeError = "Width and height must be whole numbers.";
+      sizeError = text.resolution.notWhole;
 
       return;
     }
 
     if ((width === 0) !== (height === 0)) {
-      sizeError = "Set both, or 0 for both (the camera's maximum).";
+      sizeError = text.resolution.setBoth;
 
       return;
     }
@@ -134,65 +124,37 @@
   }
 
   let resolutionNotes = $derived(
-    settings.driver === "OPENCV"
-      ? [
-          "0 asks for the largest the camera offers.",
-          "Check the size under the video: OpenCV doesn't always get what it asks for.",
-        ]
-      : [
-          "0 is the sensor's maximum.",
-          "Bayer cameras are processed at half this internally.",
-        ],
+    settings.driver === "OPENCV" ? text.resolution.opencv : text.resolution.sdk,
   );
 
   // Exposure, gain, gamma
 
   let exposureNotes = $derived([
-    "Longer is brighter but blurs motion.",
-    "At or above the frame time (33 ms at 30 fps) the frame rate drops.",
+    ...text.exposure.notes,
     ...(settings.driver === "OPENCV"
-      ? [
-          "Shown in the camera's 100 µs steps: vision_processor sends the file's value × 1000, so 166 here is 16.6 ms and the file stores 0.166.",
-          "Placeholder range: the UC70 dev camera's 3-2047.",
-        ]
-      : ["Placeholder range until vision_processor reports the camera's."]),
+      ? text.exposure.opencv
+      : text.exposure.sdk),
   ]);
 
   let exposureWarnings = $derived(
     settings.driver === "OPENCV" && settings.exposure === 0
-      ? [
-          "vision_processor's OpenCV driver sends auto_exposure = 1 for Auto, which V4L2 cameras read as Manual: the camera keeps its last exposure.",
-        ]
+      ? [text.exposure.opencvAutoBroken]
       : [],
   );
 
   let gainNotes = $derived([
-    "Brighter but noisier. Noise means more false blobs and more processing time.",
-    "Robot ids or team colors flickering means the image is too bright.",
-    "0 means automatic, so a manual gain of exactly 0 isn't possible.",
-    ...(settings.driver === "OPENCV"
-      ? [
-          "Auto leaves the camera's own setting: OpenCV doesn't turn auto gain on.",
-          "Placeholder range: the UC70 dev camera's 0-8.",
-        ]
-      : ["Placeholder range until vision_processor reports the camera's."]),
+    ...text.gain.notes,
+    ...(settings.driver === "OPENCV" ? text.gain.opencv : text.gain.sdk),
   ]);
 
   let gammaNotes = $derived([
-    "Below 1 evens out bright and dark areas; above 1 adds color contrast.",
-    ...(settings.driver === "OPENCV"
-      ? [
-          "V4L2 counts gamma × 100 and vision_processor sends the file's value unscaled, so 100 here is a gamma of 1.0.",
-          "Placeholder range: the UC70 dev camera's 100-300.",
-        ]
-      : ["Placeholder range until vision_processor reports the camera's."]),
+    ...text.gamma.notes,
+    ...(settings.driver === "OPENCV" ? text.gamma.opencv : text.gamma.sdk),
   ]);
 
   let gammaWarnings = $derived(
     settings.driver === "OPENCV" && settings.gamma !== 1
-      ? [
-          "vision_processor's OpenCV driver currently ignores gamma other than 1.0 (opencvdriver.cpp:43 checks the wrong way round).",
-        ]
+      ? [text.gamma.opencvIgnored]
       : [],
   );
 
@@ -224,28 +186,20 @@
   }
 
   let wbNotes = $derived.by((): string[] => {
-    if (driver.wbProfiles)
-      return [
-        "Outdoor and indoor are Spinnaker's two auto profiles, for green and gray carpet.",
-      ];
+    if (driver.wbProfiles) return text.whiteBalance.profiles;
+    if (settings.driver === "MVIMPACT") return text.whiteBalance.mvimpact;
 
-    if (settings.driver === "MVIMPACT")
-      return ["Automatic calibrates once, from the first frame after start."];
-
-    return ["Automatic turns on the camera's own auto white balance."];
+    return text.whiteBalance.auto;
   });
 
   let wbChannelNotes = $derived(
     settings.driver === "OPENCV"
-      ? [
-          "Sent as V4L2 red/blue balance in camera units. Many UVC webcams only have a color temperature control, so this may do nothing; the UC70 dev camera has no red/blue controls at all.",
-          "Placeholder range: generic 8-bit.",
-        ]
+      ? text.whiteBalance.channelOpencv
       : [
           settings.driver === "SPINNAKER"
-            ? "Balance ratio relative to green; 1.0 is neutral."
-            : "Gain relative to green; 1.0 is neutral.",
-          "Placeholder range until vision_processor reports the camera's.",
+            ? text.whiteBalance.channelSpinnaker
+            : text.whiteBalance.channelMvimpact,
+          PLACEHOLDER_RANGE,
         ],
   );
 </script>
@@ -253,15 +207,11 @@
 <section class="camera-panel">
   <div class="mb-2 flex flex-wrap items-center gap-3">
     <Heading tag="h2" class="w-auto text-xl font-semibold"
-      >Camera settings</Heading
+      >{text.heading}</Heading
     >
     {#if instance && config.doc}
-      <Badge
-        color="gray"
-        href={categoryHref("layout")}
-        title="Which region of the field this camera covers. Change it on the Camera Layout page."
-      >
-        {instance.host || "(no host)"} · camera {instance.cameraId} of {cameraCount(
+      <Badge color="gray" href={categoryHref("layout")} title={text.slotChip}>
+        {instance.host || NO_HOST} · camera {instance.cameraId} of {cameraCount(
           config.doc,
         )} · {regionLabel(config.doc, instance.cameraId)}
       </Badge>
@@ -270,14 +220,10 @@
 
   {#if instance}
     <Alert color="primary" class="mb-3 p-2 text-sm">
-      These apply when cam {instance.cameraId}'s vision_processor restarts: it
-      reads <code>camera:</code> only at startup.
-      {#if configPath}
-        The host writes them to <code>{configPath}</code>.
-      {:else}
-        This camera has no <code>config_path</code>, so the host doesn't write
-        its config file; copy these to it by hand.
-      {/if}
+      <RichText text={text.restartBanner(instance.cameraId)} />
+      <RichText
+        text={configPath ? text.writesTo(configPath) : text.noConfigPath}
+      />
     </Alert>
 
     <div class="layout">
@@ -294,14 +240,7 @@
 
         <div class="capture">
           <SettingsCard title="Device" class="mb-0">
-            <FormRow
-              label="Driver"
-              for="cam-driver"
-              notes={[
-                "SPINNAKER and MVIMPACT need vision_processor built with their SDKs.",
-                "Unset means SPINNAKER.",
-              ]}
-            >
+            <FormRow label="Driver" for="cam-driver" notes={text.driver}>
               <Select
                 id="cam-driver"
                 size="sm"
@@ -324,9 +263,7 @@
               <FormRow
                 label="Camera index"
                 for="cam-id"
-                notes={[
-                  "Position in the SDK's camera list, in detection order.",
-                ]}
+                notes={text.cameraIndex}
               >
                 <Input
                   id="cam-id"
@@ -563,7 +500,7 @@
     </div>
   {:else}
     <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400"
-      >Select a vision processor on the left first.</P
+      >{text.noInstance}</P
     >
   {/if}
 </section>

@@ -93,6 +93,7 @@
       viewer over internal/hub that hasn't been started). Lift it into those
       once they exist rather than growing it further here.
     -->
+    <!-- text-ok: temporary developer tooling, removed with it. -->
     <p class="below-hint">
       Temporary debug utilities -- see the note in this file's source.
     </p>
@@ -147,6 +148,12 @@
     margin: 0 0 1rem;
   }
 
+  :global(.dark) .below-hint {
+    color: var(--color-yellow-300);
+    background: rgb(113 63 18 / 0.3);
+    border-color: var(--color-yellow-800);
+  }
+
   .grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -161,12 +168,12 @@
     width: 100%;
     height: auto;
     display: block;
-    background: #f5f5f5;
+    background: var(--surface-muted);
   }
 
   figcaption {
     font-size: 0.75rem;
-    color: #666;
+    color: var(--text-muted);
     margin-top: 0.25rem;
   }
 
@@ -176,7 +183,7 @@
   }
 
   pre {
-    background: #f5f5f5;
+    background: var(--surface-muted);
     padding: 1rem;
     border-radius: 4px;
     overflow: auto;
@@ -185,7 +192,7 @@
   }
 
   .hint {
-    color: #666;
+    color: var(--text-muted);
     font-style: italic;
   }
 </style>

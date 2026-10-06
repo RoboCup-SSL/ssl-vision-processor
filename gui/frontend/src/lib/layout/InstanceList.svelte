@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { app } from "../text/app";
   import {
     Heading,
     Indicator,
@@ -22,13 +23,12 @@
 
 <Heading
   tag="h2"
-  class="px-2 text-xs font-semibold tracking-wider text-gray-500 uppercase"
+  class="px-2 text-xs font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase"
 >
   Vision processors
 </Heading>
-<P size="xs" italic class="mt-1 mb-2 px-2 text-gray-500">
-  One row per camera role, not per machine -- a host running all 4 cameras of a
-  quad setup appears here 4 times. From vision.yml's cameras list.
+<P size="xs" italic class="mt-1 mb-2 px-2 text-gray-500 dark:text-gray-400">
+  {app.sidebar.instancesHelp}
 </P>
 
 <SidebarGroup class="space-y-0.5">
@@ -40,7 +40,9 @@
       active={instance.id === selectedInstance()?.id}
     >
       {#snippet subtext()}
-        <span class="flex items-center gap-1.5 text-xs text-gray-500">
+        <span
+          class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"
+        >
           cam {instance.cameraId}{config.doc && cameraCount(config.doc) > 1
             ? ` · ${regionLabel(config.doc, instance.cameraId)}`
             : ""}

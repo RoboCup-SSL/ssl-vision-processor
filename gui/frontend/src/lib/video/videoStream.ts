@@ -8,6 +8,8 @@
 // falls more than maxLag behind the newest frame, and trims what's been
 // watched so memory stays bounded.
 
+import { video as text } from "../text/video";
+
 export type Mode = "full" | "keyframes";
 
 // Mirrors gui/internal/video's Status.
@@ -17,6 +19,9 @@ export interface StreamStatus {
   active: boolean;
   receiving: boolean;
   packets: number;
+  // The rate frames arrive from vision_processor over the last 200 ms, not
+  // what this player shows (keyframes mode shows about one a second).
+  fps: number;
   source?: string;
   // Why the host's socket isn't fully open; it retries until it is.
   problem?: string;
@@ -69,9 +74,7 @@ export class VideoStream {
 
   start(): void {
     if (typeof MediaSource === "undefined") {
-      this.events.error(
-        "This browser doesn't support Media Source Extensions.",
-      );
+      this.events.error(text.noMSE);
 
       return;
     }
@@ -108,7 +111,7 @@ export class VideoStream {
       if (this.stopped || this.ws !== ws) return;
 
       this.ws = null;
-      this.events.error("Lost the connection to the host. Reconnecting…");
+      this.events.error(text.lostConnection);
 
       const delay =
         RECONNECT_MS[Math.min(this.attempts, RECONNECT_MS.length - 1)] ?? 5000;
@@ -145,9 +148,7 @@ export class VideoStream {
 
     if (!MediaSource.isTypeSupported(mime)) {
       this.unsupported = true;
-      this.events.error(
-        `This browser can't play ${format.codec} (H.264). On Linux, Chromium and Firefox need the system's FFmpeg libraries; Google Chrome bundles its own.`,
-      );
+      this.events.error(text.unsupportedCodec(format.codec));
 
       return;
     }
@@ -209,7 +210,7 @@ export class VideoStream {
   private readonly onVideoError = (): void => {
     if (this.stopped || !this.video.error) return;
 
-    this.events.error(`Video decode error: ${this.video.error.message}`);
+    this.events.error(text.decodeError(this.video.error.message));
     this.resetMedia();
     this.ws?.close();
   };
@@ -245,7 +246,7 @@ export class VideoStream {
         this.queue.unshift(op);
         this.trim(0);
       } else {
-        this.events.error(`Playback failed: ${String(err)}`);
+        this.events.error(text.playbackFailed(String(err)));
         this.resetMedia();
         this.ws?.close();
       }

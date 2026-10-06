@@ -11,6 +11,8 @@ import {
   type OptionalFieldLines,
 } from "./geometry.svelte";
 
+import { app } from "./text/app";
+
 export type Section =
   | "field"
   | "camera"
@@ -18,6 +20,8 @@ export type Section =
   | "color"
   | "network"
   | "layout"
+  | "advanced"
+  | "overview"
   | "other";
 
 // Mirrors gui/internal/config's Change: one leaf difference between two
@@ -63,6 +67,13 @@ export interface Seed {
   slot?: Slot;
 }
 
+// A team's robot height: another height table entry's (name), or a custom
+// height in mm. Neither set: a custom height not entered yet.
+export interface TeamOverride {
+  name?: string;
+  height?: number;
+}
+
 // A camera's place in the layout: its id out of the camera count.
 export interface Slot {
   cameraId: number;
@@ -99,6 +110,16 @@ export interface ConfigDocument {
   defaults?: Record<string, unknown>;
   // Unset: the camera count rounded up to a power of 2 (cameraCount()).
   layout?: { cameraCount: number };
+  // Robot height overrides by game controller team name; see
+  // gui/internal/config's Teams.
+  teams?: {
+    overrides?: Record<string, TeamOverride>;
+    // Per color, off a competition field.
+    byColor?: { yellow?: TeamOverride; blue?: TeamOverride };
+  };
+  // A match setup with a game controller, rather than lab use; see
+  // gui/internal/config's Document.CompetitionField.
+  competitionField?: boolean;
   cameras: CameraDoc[];
   // Settings for the GUI host alone; see gui/internal/config's Host.
   host?: {
@@ -235,7 +256,7 @@ async function putDoc(json: string): Promise<void> {
   if (response.status === 409) {
     // Another tab edited first. Take the host's version rather than
     // clobbering it.
-    config.error = "Edited elsewhere at the same time; reloaded the latest.";
+    config.error = app.editedElsewhere;
     await loadConfig();
 
     return;
@@ -383,11 +404,13 @@ export function formatValue(value: unknown): string {
 }
 
 export const SECTION_LABELS: Record<Section, string> = {
-  field: "Virtual Field",
+  field: "Field Dimensions",
   camera: "Camera Settings",
   geometry: "Geometry",
   color: "Color",
   network: "Network",
   layout: "Camera Layout",
+  advanced: "Advanced",
+  overview: "Overview",
   other: "Other settings",
 };

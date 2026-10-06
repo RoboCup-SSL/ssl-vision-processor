@@ -21,6 +21,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/logging"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/referee"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -39,7 +40,7 @@ var configPath = flag.String("config", "vision.yml", "Host configuration file (f
 // setup. Without -importGeometry the field comes from -geometryPreset.
 var importGeometry = flag.String("importGeometry", "geometry.yml", "Legacy field geometry file to import into a new -config, default: geometry.yml")
 var importConfig = flag.String("importConfig", "config.yml", "Legacy vision_processor config.yml to import into a new -config as its camera, default: config.yml")
-var geometryPreset = flag.String("geometryPreset", "geometry-divB.yml", "Field preset for a new -config when there's no -importGeometry, default: geometry-divB.yml")
+var geometryPreset = flag.String("geometryPreset", "config/legacy/geometry-divB.yml", "Field preset for a new -config when there's no -importGeometry, default: config/legacy/geometry-divB.yml")
 var imgDir = flag.String("imgDir", "img", "Directory the vision processor writes debug snapshot images to, default: img")
 var logLevelFlag = flag.String("logLevel", "Info", "Log Level: Debug, Info, Warn, Error. Default: Info")
 var logFile = flag.String("logFile", "logs/vision-processor-gui.log", "Rotating log file to write alongside stderr, empty to disable. Default: logs/vision-processor-gui.log")
@@ -99,11 +100,15 @@ func run() int {
 	_, addrs, auto, ifaces := currentNetwork(store)
 	opts := multicast.Options{Verbose: level == slog.LevelDebug}
 	tracker := detections.NewTracker()
+	teams := &referee.Teams{}
+	trackTeams := func(yellow, blue string) { teams.Record(yellow, blue, time.Now()) }
 	track := func(id uint32, from net.IP) { tracker.Record(id, from, time.Now()) }
 	sockets := &networkSockets{
 		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(opts), multicast.VisionConsumer(geom.Absorb, track)),
 		detections: tracker,
-		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, opts, multicast.RefereeConsumer()),
+		teams:      teams,
+		heights:    &referee.Heights{},
+		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, opts, multicast.RefereeConsumer(trackTeams)),
 		video:      video.NewManager(level == slog.LevelDebug),
 		auto:       auto,
 		ifaces:     ifaces,
@@ -289,6 +294,11 @@ type networkSockets struct {
 	gc     *multicast.Endpoint
 	// detections is which camera_ids the vision socket hears, from where.
 	detections *detections.Tracker
+	// teams is the current match's teams, from the game controller socket;
+	// heights is the robot height table they're looked up in.
+	teams       *referee.Teams
+	heights     *referee.Heights
+	heightsFile string
 	// video opens each camera's stream only while someone watches it.
 	video *video.Manager
 
@@ -328,6 +338,7 @@ func (s *networkSockets) apply(store *config.Store) {
 	s.mu.Lock()
 	previous := s.used
 	s.auto, s.ifaces, s.used = auto, ifaces, used
+	s.heightsFile = doc.BotHeightsFile()
 	s.mu.Unlock()
 
 	switch {
@@ -384,7 +395,7 @@ func publishNetworkState(wsHub *hub.Hub, sockets *networkSockets) {
 	now := time.Now()
 
 	sockets.mu.Lock()
-	auto, ifaces := sockets.auto, sockets.ifaces
+	auto, ifaces, heightsFile := sockets.auto, sockets.ifaces, sockets.heightsFile
 	sockets.mu.Unlock()
 
 	loopback, loopbackMulticast, _ := multicast.LoopbackMulticast()
@@ -393,6 +404,7 @@ func publishNetworkState(wsHub *hub.Hub, sockets *networkSockets) {
 		Vision                multicast.Status      `json:"vision"`
 		GC                    multicast.Status      `json:"gc"`
 		Cameras               []detections.Source   `json:"cameras"`
+		Referee               referee.State         `json:"referee"`
 		AutoInterfaces        bool                  `json:"autoInterfaces"`
 		Interfaces            []multicast.Interface `json:"interfaces"`
 		Loopback              string                `json:"loopback"`
@@ -403,6 +415,7 @@ func publishNetworkState(wsHub *hub.Hub, sockets *networkSockets) {
 		Vision:                sockets.vision.Status(now),
 		GC:                    sockets.gc.Status(now),
 		Cameras:               sockets.detections.Sources(now),
+		Referee:               referee.Describe(sockets.teams, sockets.heights, heightsFile),
 		AutoInterfaces:        auto,
 		Interfaces:            ifaces,
 		Loopback:              loopback,

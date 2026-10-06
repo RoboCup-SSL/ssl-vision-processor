@@ -14,12 +14,14 @@
   let { changes }: Props = $props();
 
   const SECTION_ORDER: Section[] = [
+    "overview",
+    "network",
     "field",
     "layout",
+    "advanced",
     "camera",
     "geometry",
     "color",
-    "network",
     "other",
   ];
 
@@ -73,7 +75,7 @@
   }
 
   .path {
-    color: var(--color-gray-700);
+    color: var(--text-subtle);
   }
 
   .values {

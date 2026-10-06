@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { geometry } from "./text/geometry";
+  const text = geometry.cornerPicker;
   import SettingsCard from "./SettingsCard.svelte";
   import { Button, Alert, P } from "flowbite-svelte";
   import { untrack } from "svelte";
@@ -220,6 +222,11 @@
     commit();
   }
 
+  let imageSize = $derived(`${String(imageWidth)}x${String(imageHeight)}`);
+  let pickedSize = $derived(
+    seed ? `${String(seed.resolution[0])}x${String(seed.resolution[1])}` : "",
+  );
+
   // The label/stroke sizes below are SVG user-space units, i.e. image
   // pixels (viewBox == the image's natural size) -- not screen pixels. They
   // must scale with image resolution the same way the handle radius already
@@ -232,47 +239,34 @@
   let labelStrokeWidth = $derived(handleRadius * 0.3);
 </script>
 
-<SettingsCard title="Corner picker" class="max-w-[900px]">
-  <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-    Drag the four markers onto the real field corners in the image below, then
-    click the number on whichever one sits where the goal line meets the
-    touchline nearest this field's (0,0) corner -- that one turns green and
-    becomes first in the output. The other three can be in any order; the
-    calibration algorithm works that out itself. Changes apply when you let go
-    of a marker; Save keeps them.
-  </P>
+<SettingsCard title={text.title} class="max-w-[900px]">
+  <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">{text.intro}</P>
 
   {#if region && region.count > 1}
     <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-      This camera covers region {cameraId} of {region.count} ({region.label}): x {Math.round(
-        region.slice.minX,
-      )} … {Math.round(region.slice.maxX)}, y {Math.round(region.slice.minY)} … {Math.round(
-        region.slice.maxY,
-      )} mm. The first marker goes on its ({Math.round(region.slice.minX)}, {Math.round(
-        region.slice.minY,
-      )}) corner.
+      {text.region(cameraId, region.count, region.label, {
+        minX: Math.round(region.slice.minX),
+        maxX: Math.round(region.slice.maxX),
+        minY: Math.round(region.slice.minY),
+        maxY: Math.round(region.slice.maxY),
+      })}
     </P>
   {/if}
 
   {#if resolutionStatus === "rescalable" && seed}
     <Alert color="yellow" class="my-2 text-sm">
-      Corners were picked at {seed.resolution[0]}x{seed.resolution[1]}, but this
-      image is {imageWidth}x{imageHeight}. Same aspect ratio, so they can be
-      scaled to fit.
+      {text.rescalable(pickedSize, imageSize)}
       <Button size="xs" class="ms-2" onclick={rescaleSeed}>
-        Rescale corners to {imageWidth}x{imageHeight}
+        {text.rescale(imageSize)}
       </Button>
     </Alert>
   {:else if resolutionStatus === "aspect" && seed}
     <Alert color="yellow" class="my-2 text-sm">
-      Corners were picked at {seed.resolution[0]}x{seed.resolution[1]}, but this
-      image is {imageWidth}x{imageHeight} -- a different aspect ratio, so they can't
-      be scaled. Re-pick them on this image.
+      {text.otherAspect(pickedSize, imageSize)}
     </Alert>
   {:else if resolutionStatus === "unknown"}
     <Alert color="yellow" class="my-2 text-sm">
-      These corners were saved without the resolution they were picked at, so a
-      camera resolution change can't be detected. Move any marker to record it.
+      {text.unknownResolution}
     </Alert>
   {/if}
 
@@ -401,7 +395,7 @@
   }
 
   pre {
-    background: #f5f5f5;
+    background: var(--surface-muted);
     padding: 0.75rem;
     border-radius: 4px;
     font-size: 0.85rem;

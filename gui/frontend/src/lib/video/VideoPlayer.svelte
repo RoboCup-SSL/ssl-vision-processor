@@ -6,6 +6,7 @@
     type StreamFormat,
     type StreamStatus,
   } from "./videoStream";
+  import { video as text } from "../text/video";
 
   // One camera's live stream. Built to be reused by a grid later: each
   // player owns its own connection, and "keyframes" mode costs a fraction of
@@ -19,6 +20,8 @@
     // width and height so it still fits the box.
     rotate?: number;
     mirror?: boolean;
+    // Each status message from the host, e.g. for its received frame rate.
+    onstatus?: (status: StreamStatus) => void;
   }
 
   let {
@@ -27,6 +30,7 @@
     compact = false,
     rotate = 0,
     mirror = false,
+    onstatus,
   }: Props = $props();
 
   let quarterTurn = $derived(((rotate % 180) + 180) % 180 === 90);
@@ -72,6 +76,7 @@
     const stream = new VideoStream(video, streamCamera, streamMode, {
       status: (s) => {
         status = s;
+        onstatus?.(s);
       },
       format: (f) => {
         format = f;
@@ -95,14 +100,11 @@
 
   let overlay = $derived.by((): string | null => {
     if (error) return error;
-    if (!status) return "Connecting…";
-    if (!status.active)
-      return `Streaming is off for this camera (stream.active). Nothing to show.`;
-    if (status.problem)
-      return `Can't listen for video on ${status.address}: ${status.problem}. Retrying…`;
-    if (!status.receiving)
-      return `Waiting for video on ${status.address}. Is the vision_processor running?`;
-    if (!format) return "Waiting for a keyframe…";
+    if (!status) return text.connecting;
+    if (!status.active) return text.streamingOff;
+    if (status.problem) return text.cantListen(status.address, status.problem);
+    if (!status.receiving) return text.waiting(status.address);
+    if (!format) return text.waitingKeyframe;
 
     return null;
   });
@@ -133,6 +135,7 @@
     {/if}
     {#if status}
       · {status.address}{status.source ? ` from ${status.source}` : ""}
+      {#if status.receiving}· {text.receivedFps(status.fps)}{/if}
     {/if}
     {#if mode === "keyframes"}
       · keyframes only
@@ -194,7 +197,7 @@
 
   .meta {
     margin: 0.3rem 0 0;
-    color: #666;
+    color: var(--text-muted);
     font-size: 0.8rem;
   }
 </style>

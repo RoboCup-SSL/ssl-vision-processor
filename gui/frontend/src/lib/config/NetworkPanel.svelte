@@ -1,7 +1,9 @@
 <script lang="ts">
+  import RichText from "../RichText.svelte";
   import SettingsCard from "../SettingsCard.svelte";
   import { Input, Select, Indicator, Alert, Heading, P } from "flowbite-svelte";
   import { untrack } from "svelte";
+  import { network as text } from "../text/network";
   import { config } from "../config.svelte";
   import FormRow from "../FormRow.svelte";
   import HostInterfaces from "./HostInterfaces.svelte";
@@ -52,7 +54,7 @@
       !errors.gc_ip &&
       draft.vision_ip === draft.gc_ip &&
       draft.vision_port === draft.gc_port
-      ? "Vision and game controller can't use the same address and port."
+      ? text.errors.sameAddress
       : null,
   );
 
@@ -76,14 +78,14 @@
       title: "Vision",
       ipKey: "vision_ip",
       portKey: "vision_port",
-      what: "detection packets",
+      what: text.status.visionWhat,
     },
     {
       id: "gc",
       title: "Game controller",
       ipKey: "gc_ip",
       portKey: "gc_port",
-      what: "referee messages",
+      what: text.status.gcWhat,
     },
   ] as const;
 
@@ -125,40 +127,35 @@
   }
 
   function describe(status: SocketStatus | undefined, what: string): string {
-    if (!status) return "Waiting for the host…";
+    if (!status) return text.status.waiting;
 
-    if (status.problem) return `Not open: ${status.problem}. Retrying…`;
+    if (status.problem) return text.status.notOpen(status.problem);
 
-    const via = status.mode === "port" ? " (listening on the port)" : "";
+    const via = status.mode === "port" ? text.status.viaPort : "";
 
-    if (!status.lastHeard) return `No ${what} heard on this address yet${via}.`;
+    if (!status.lastHeard) return text.status.neverHeard(what, via);
 
     const age = Math.max(
       0,
       (Date.now() - new Date(status.lastHeard).getTime()) / 1000,
     );
-    const from = status.source ? ` from ${status.source}` : "";
+    const from = status.source ? text.status.from(status.source) : "";
 
     return status.receiving
-      ? `Receiving: ${String(status.heard)} ${what}, latest${from}${via}.`
-      : `Silent for ${age.toFixed(0)} s (last${from})${via}.`;
+      ? text.status.receiving(status.heard, what, from, via)
+      : text.status.silent(age.toFixed(0), from, via);
   }
 </script>
 
 <div class="network-panel">
-  <Heading tag="h2" class="mb-2 text-xl font-semibold">Network</Heading>
-  <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-    Shared by the host and every vision_processor (vision.yml's
-    <code>defaults.network</code>). The host reopens its sockets as soon as a
-    change applies. vision_processors read these only at startup, so restart
-    them after a change.
-  </P>
+  <Heading tag="h2" class="mb-2 text-xl font-semibold">{text.heading}</Heading>
+  <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400"
+    ><RichText text={text.intro} /></P
+  >
 
   {#if overriding.length > 0}
     <Alert color="yellow" class="mb-3 p-2 text-sm">
-      Camera{overriding.length === 1 ? "" : "s"}
-      {overriding.join(", ")} override{overriding.length === 1 ? "s" : ""} these in
-      their own config, so their vision_processor uses different groups than the host.
+      {text.status.overriding(overriding)}
     </Alert>
   {/if}
 
@@ -258,7 +255,7 @@
 
       <p class="status">
         {#if g.status && g.status.address !== `${current[g.ipKey]}:${String(current[g.portKey])}`}
-          Reopening on {current[g.ipKey]}:{current[g.portKey]}…
+          {text.reopening(`${current[g.ipKey]}:${String(current[g.portKey])}`)}
         {:else}
           {describe(g.status, g.what)}
         {/if}
@@ -281,7 +278,7 @@
   }
 
   .status {
-    color: var(--color-gray-600);
+    color: var(--text-muted);
     font-size: 0.8rem;
   }
 

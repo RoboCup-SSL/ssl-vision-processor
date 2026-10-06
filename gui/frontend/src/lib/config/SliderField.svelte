@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Input, Range, Toggle } from "flowbite-svelte";
+  import { Button, Input, Range, Toggle } from "flowbite-svelte";
   import { untrack } from "svelte";
   import FormRow from "../FormRow.svelte";
 
@@ -18,7 +18,11 @@
     // label defaults to "Auto"; gamma's sentinel (1.0) reads "Off".
     auto?: { value: number; fallback: number; label?: string };
     notes?: string[];
+    hints?: string[];
     warnings?: string[];
+    // A button that puts the setting back to its default; disabled while it
+    // already is.
+    reset?: { label: string; disabled: boolean; onclick: () => void };
     onchange: (value: number) => void;
   }
 
@@ -32,7 +36,9 @@
     unit = "",
     auto,
     notes = [],
+    hints = [],
     warnings = [],
+    reset,
     onchange,
   }: Props = $props();
 
@@ -51,7 +57,7 @@
   }
 </script>
 
-<FormRow {label} for={id} {notes} {warnings}>
+<FormRow {label} for={id} {notes} {hints} {warnings}>
   <div class="controls">
     {#if auto}
       <Toggle
@@ -97,6 +103,17 @@
       />
     </div>
     <span class="unit">{unit}</span>
+    {#if reset}
+      <Button
+        size="xs"
+        color="alternative"
+        class="shrink-0 px-2"
+        title={reset.label}
+        aria-label={reset.label}
+        disabled={reset.disabled}
+        onclick={reset.onclick}>↺</Button
+      >
+    {/if}
   </div>
 </FormRow>
 
@@ -110,7 +127,7 @@
   .unit {
     flex-shrink: 0;
     width: 5.5rem;
-    color: var(--color-gray-500);
+    color: var(--text-muted);
     font-size: 0.8rem;
   }
 </style>

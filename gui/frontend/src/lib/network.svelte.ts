@@ -5,6 +5,7 @@
 // Socket status arrives separately, once a second, on the network.state topic.
 import { config } from "./config.svelte";
 import { topic } from "./wrapper-bus";
+import { network as text } from "./text/network";
 
 // Mirrors gui/internal/multicast's Status.
 export interface SocketStatus {
@@ -44,11 +45,33 @@ export interface DetectionSource {
   receiving: boolean;
 }
 
+// The current match's teams and their robot heights, from
+// gui/internal/referee's State.
+export interface RefereeTeam {
+  name: string;
+  // From the height table; unset when the team isn't in it.
+  height?: number;
+}
+
+export interface RefereeState {
+  // When the last referee message arrived; unset if none has.
+  heard?: string;
+  yellow: RefereeTeam;
+  blue: RefereeTeam;
+  heightsFile: string;
+  heightsError?: string;
+  meanHeight?: number;
+  maxHeight?: number;
+  // The whole table, team name to height in mm.
+  heights?: Record<string, number>;
+}
+
 export interface NetworkState {
   vision: SocketStatus;
   gc: SocketStatus;
   // Every camera_id heard in the last 30 s, by camera_id then address.
   cameras: DetectionSource[] | null;
+  referee: RefereeState;
   autoInterfaces: boolean;
   interfaces: HostInterface[] | null;
   // The loopback interface, and whether multicast is enabled on it.
@@ -142,8 +165,8 @@ export function writeInterfaces(auto: boolean, skip: string[]): void {
 // Whether the address is a sensible choice is advice's job, below.
 export function ipv4Error(ip: string): string | null {
   const octets = parseIPv4(ip);
-  if (!octets) return "Not an IPv4 address.";
-  if (octets.every((o) => o === 0)) return "0.0.0.0 isn't a destination.";
+  if (!octets) return text.errors.notIPv4;
+  if (octets.every((o) => o === 0)) return text.errors.zeroAddress;
 
   return null;
 }
@@ -151,7 +174,7 @@ export function ipv4Error(ip: string): string | null {
 export function portError(port: number): string | null {
   return Number.isInteger(port) && port >= 1 && port <= 65535
     ? null
-    : "Must be 1 to 65535.";
+    : text.errors.portRange;
 }
 
 function parseIPv4(ip: string): number[] | null {
@@ -167,10 +190,7 @@ function parseIPv4(ip: string): number[] | null {
 
 export type Kind = "vision" | "gc";
 
-const KIND_LABEL: Record<Kind, string> = {
-  vision: "vision",
-  gc: "game controller",
-};
+const KIND_LABEL: Record<Kind, string> = text.kind;
 
 // The league's standard groups; a redundant second system adds 10 to the port.
 export const STANDARD: Record<Kind, { ip: string; port: number }> = {
@@ -184,15 +204,7 @@ const BACKUP_OFFSET = 10;
 // geometry message.
 const LEGACY_VISION_PORT = 10005;
 
-// Other well known SSL UDP ports, for "normally used by" notes.
-const KNOWN_PORTS: Record<number, string> = {
-  10003: "the game controller",
-  10013: "the backup game controller",
-  10005: "legacy vision",
-  10006: "vision",
-  10016: "backup vision",
-  10010: "the tracker",
-};
+const KNOWN_PORTS = text.knownPorts;
 
 export interface Preset<T> {
   label: string;
@@ -204,13 +216,13 @@ export function addressPresets(
   interfaces: HostInterface[],
 ): Preset<string>[] {
   return [
-    { label: "Standard multicast", value: STANDARD[kind].ip },
-    { label: "Broadcast, all interfaces", value: "255.255.255.255" },
+    { label: text.presets.standardMulticast, value: STANDARD[kind].ip },
+    { label: text.presets.broadcastAll, value: "255.255.255.255" },
     ...interfaces.flatMap((i) =>
       i.used && i.broadcast
         ? [
             {
-              label: `Broadcast, ${i.name} (${i.address ?? ""})`,
+              label: text.presets.broadcastOn(i.name, i.address ?? ""),
               value: i.broadcast,
             },
           ]
@@ -222,12 +234,12 @@ export function addressPresets(
 export function portPresets(kind: Kind): Preset<number>[] {
   const standard = STANDARD[kind].port;
   const presets = [
-    { label: "Standard", value: standard },
-    { label: "Backup", value: standard + BACKUP_OFFSET },
+    { label: text.presets.standard, value: standard },
+    { label: text.presets.backup, value: standard + BACKUP_OFFSET },
   ];
 
   if (kind === "vision") {
-    presets.push({ label: "Legacy", value: LEGACY_VISION_PORT });
+    presets.push({ label: text.presets.legacy, value: LEGACY_VISION_PORT });
   }
 
   return presets;
@@ -260,55 +272,37 @@ export function addressAdvice(
   const other: Kind = kind === "vision" ? "gc" : "vision";
 
   if (a === 127) {
-    advice.warnings.push("Loopback: only reaches this machine.");
+    advice.warnings.push(text.address.loopback);
   } else if (a >= 224 && a <= 239) {
     if (a === 224 && b === 0 && c === 0) {
-      advice.warnings.push(
-        "224.0.0.x is reserved for routing protocols. Pick another group.",
-      );
+      advice.warnings.push(text.address.reserved);
     } else if (a === 232) {
-      advice.warnings.push(
-        "232.x is source-specific multicast: plain joins may receive nothing.",
-      );
+      advice.warnings.push(text.address.sourceSpecific);
     }
 
     if (ip === STANDARD[other].ip) {
-      advice.notes.push(
-        `Standard ${KIND_LABEL[other]} group. Works on a different port.`,
-      );
+      advice.notes.push(text.address.otherStandard(KIND_LABEL[other]));
     } else if (ip !== STANDARD[kind].ip) {
-      advice.notes.push(
-        "Non-standard group. Every SSL tool on the field must use it too.",
-      );
+      advice.notes.push(text.address.nonStandard);
     }
 
     for (const std of [STANDARD.vision.ip, STANDARD.gc.ip]) {
       const stdOctets = parseIPv4(std);
       if (ip !== std && stdOctets && low23(octets) === low23(stdOctets)) {
-        advice.notes.push(
-          `Same Ethernet MAC as ${std}: switches can't filter them apart.`,
-        );
+        advice.notes.push(text.address.sameMac(std));
       }
     }
   } else {
     const iface = state?.interfaces?.find((i) => i.broadcast === ip);
 
     if (ip === "255.255.255.255") {
-      advice.notes.push(
-        "Broadcast: floods the subnet. vision_processor sends it out its default route only.",
-      );
+      advice.notes.push(text.address.broadcastAll);
     } else if (iface) {
-      advice.notes.push(
-        `Subnet broadcast on ${iface.name}: floods the subnet.`,
-      );
+      advice.notes.push(text.address.broadcastOn(iface.name));
     } else if (d === 255) {
-      advice.warnings.push(
-        "Not multicast. Looks like a subnet broadcast, but no interface on this host has it.",
-      );
+      advice.warnings.push(text.address.unknownBroadcast);
     } else {
-      advice.warnings.push(
-        "Not multicast or broadcast: only the machine at this IP receives.",
-      );
+      advice.warnings.push(text.address.unicast);
     }
   }
 
@@ -325,9 +319,7 @@ export function portAdvice(
 
   const start = state?.unprivilegedPortStart ?? 1024;
   if (port < start) {
-    advice.notes.push(
-      `Below ${String(start)}: binding needs root or CAP_NET_BIND_SERVICE, here and on every vision_processor${state?.root ? " (this host runs as root)" : ""}.`,
-    );
+    advice.notes.push(text.port.privileged(start, state?.root ?? false));
   }
 
   const standard = STANDARD[kind].port;
@@ -336,17 +328,13 @@ export function portAdvice(
   if (port === standard) return advice;
 
   if (kind === "vision" && port === LEGACY_VISION_PORT) {
-    advice.notes.push(
-      "Legacy 2014 format port: old clients get detections but not this geometry.",
-    );
+    advice.notes.push(text.port.legacy);
   } else if (port === standard + BACKUP_OFFSET) {
-    advice.notes.push("Backup (+10) port, for a redundant second system.");
+    advice.notes.push(text.port.backup);
   } else if (known) {
-    advice.notes.push(`Normally ${known}'s port.`);
+    advice.notes.push(text.port.known(known));
   } else {
-    advice.notes.push(
-      "Non-standard port. Every SSL tool on the field must use it too.",
-    );
+    advice.notes.push(text.port.nonStandard);
   }
 
   return advice;

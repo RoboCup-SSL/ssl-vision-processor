@@ -56,7 +56,9 @@
 
 <section class="field-editor">
   <div class="title-row">
-    <Heading tag="h2" class="mb-2 text-xl font-semibold">Virtual field</Heading>
+    <Heading tag="h2" class="mb-2 text-xl font-semibold"
+      >Field dimensions</Heading
+    >
     <span class="path">{config.state?.path ?? ""}</span>
     <Button size="xs" outline class="ms-auto" onclick={openWizard}>
       Run setup wizard
@@ -65,8 +67,10 @@
 
   {#if config.doc}
     {@const doc = config.doc}
-    <div class="layout">
-      <form>
+    <form class="layout">
+      <!-- Top: the choices that shape the field, beside its picture.
+           Below: every dimension, full width. -->
+      <div class="choices">
         <SettingsCard title="Field layout">
           <div class="radios">
             <Radio
@@ -87,26 +91,6 @@
             >
           </div>
 
-          {#if fieldLayout === "half"}
-            <FormRow
-              label={`Half length (full: ${String(doc.field.fieldLength ?? 0)}mm)`}
-              for="field-half-length"
-              labelWidth={LABEL_WIDTH}
-            >
-              <Input
-                id="field-half-length"
-                type="number"
-                size="sm"
-                value={halfLength}
-                oninput={(e: Event) => {
-                  setHalfLength(
-                    (e.currentTarget as HTMLInputElement).valueAsNumber,
-                  );
-                }}
-              />
-            </FormRow>
-          {/if}
-
           <FormRow label="Cameras" labelWidth={LABEL_WIDTH}>
             <span class="flex flex-wrap items-center gap-2 text-sm">
               {count} region{count === 1 ? "" : "s"}{instance && count > 1
@@ -121,7 +105,63 @@
           </FormRow>
         </SettingsCard>
 
+        <SettingsCard title="Markings present on this field">
+          <div class="checks">
+            {#each OPTIONAL_LINE_FIELDS as { key, label } (key)}
+              <Checkbox bind:checked={doc.optionalFieldLines[key]}>
+                {label}
+              </Checkbox>
+            {/each}
+          </div>
+        </SettingsCard>
+      </div>
+
+      <div class="sketch">
+        <FieldSketch
+          fieldLength={doc.field.fieldLength ?? 0}
+          fieldWidth={doc.field.fieldWidth ?? 0}
+          lines={virtualField.fieldLines}
+          arcs={virtualField.fieldArcs}
+          slice={fieldSlice}
+        />
+      </div>
+
+      <div class="dimensions">
         <SettingsCard title="Dimensions">
+          <!-- The file always holds the full length; a half field is entered
+               as half of it (see fieldLayout above). -->
+          {#if fieldLayout === "half"}
+            <FormRow
+              label={`Half field length (full: ${String(doc.field.fieldLength ?? 0)} mm)`}
+              for="field-length"
+              labelWidth={LABEL_WIDTH}
+            >
+              <Input
+                id="field-length"
+                type="number"
+                size="sm"
+                value={halfLength}
+                oninput={(e: Event) => {
+                  setHalfLength(
+                    (e.currentTarget as HTMLInputElement).valueAsNumber,
+                  );
+                }}
+              />
+            </FormRow>
+          {:else}
+            <FormRow
+              label="Field length"
+              for="field-length"
+              labelWidth={LABEL_WIDTH}
+            >
+              <Input
+                id="field-length"
+                type="number"
+                size="sm"
+                bind:value={doc.field.fieldLength}
+              />
+            </FormRow>
+          {/if}
           {#each DIMENSION_FIELDS as { key, label } (key)}
             <FormRow {label} for={`field-${key}`} labelWidth={LABEL_WIDTH}>
               <Input
@@ -133,28 +173,8 @@
             </FormRow>
           {/each}
         </SettingsCard>
-
-        <SettingsCard title="Markings present on this field">
-          <div class="checks">
-            {#each OPTIONAL_LINE_FIELDS as { key, label } (key)}
-              <Checkbox bind:checked={doc.optionalFieldLines[key]}>
-                {label}
-              </Checkbox>
-            {/each}
-          </div>
-        </SettingsCard>
-      </form>
-
-      <div class="sketch">
-        <FieldSketch
-          fieldLength={doc.field.fieldLength ?? 0}
-          fieldWidth={doc.field.fieldWidth ?? 0}
-          lines={virtualField.fieldLines}
-          arcs={virtualField.fieldArcs}
-          slice={fieldSlice}
-        />
       </div>
-    </div>
+    </form>
   {:else}
     <P
       size="sm"
@@ -179,14 +199,18 @@
   .path {
     font-family: monospace;
     font-size: 0.8rem;
-    color: var(--color-gray-600);
+    color: var(--text-muted);
   }
 
   .layout {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
+    column-gap: 1.5rem;
     align-items: start;
+  }
+
+  .dimensions {
+    grid-column: 1 / -1;
   }
 
   .radios,

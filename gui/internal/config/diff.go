@@ -15,6 +15,8 @@ const (
 	SectionNetwork  = "network"
 	SectionCamera   = "camera"
 	SectionLayout   = "layout"
+	SectionAdvanced = "advanced"
+	SectionOverview = "overview"
 	SectionOther    = "other"
 )
 
@@ -188,6 +190,8 @@ func classify(path []string) (string, *int) {
 		return SectionNetwork, nil
 	case first == "layout":
 		return SectionLayout, nil
+	case first == "teams" || first == "competition_field":
+		return SectionOverview, nil
 	case first == "defaults":
 		switch segment(1) {
 		case "color":
@@ -196,6 +200,8 @@ func classify(path []string) (string, *int) {
 			return SectionNetwork, nil
 		case "camera":
 			return SectionCamera, nil
+		case "thresholds", "tracking":
+			return SectionAdvanced, nil
 		}
 
 		return SectionOther, nil
@@ -216,6 +222,8 @@ func classify(path []string) (string, *int) {
 				return SectionNetwork, &id
 			case "camera":
 				return SectionCamera, &id
+			case "thresholds", "tracking":
+				return SectionAdvanced, &id
 			case "geometry", "":
 				return SectionGeometry, &id
 			default:

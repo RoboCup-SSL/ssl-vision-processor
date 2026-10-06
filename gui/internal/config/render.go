@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -101,9 +102,19 @@ func writeIfChanged(path string, data []byte) (bool, error) {
 	return true, atomicWrite(path, data)
 }
 
+// errReadOnly is an existing file with no write permission, such as the
+// reference files in the repo's config/ directory.
+var errReadOnly = errors.New("file is read-only")
+
 // atomicWrite replaces path via a temp file and rename, so a reader (the
 // watcher, vision_processor's own reload) never sees a half-written file.
+// A rename replaces a file whatever its permissions, so a read-only file is
+// refused here instead.
 func atomicWrite(path string, data []byte) error {
+	if info, err := os.Stat(path); err == nil && info.Mode().Perm()&0o222 == 0 {
+		return fmt.Errorf("%s: %w", path, errReadOnly)
+	}
+
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
 	if err != nil {
 		return err

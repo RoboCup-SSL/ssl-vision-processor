@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { color } from "../text/color";
+  const text = color.updateWeights;
   // Drag-to-set control for the three color-update weights (see
   // src/blobs/colorupdate.cpp:58-61's updateColor -- this triangle IS that
   // blend, visualized): reference_force, history_force, and the implied
@@ -399,21 +401,15 @@
           </Button>
 
           <Modal
-            title="Unlock the reference weight floor?"
+            title={text.unlockTitle}
             bind:open={showUnlockConfirm}
             size="xs"
           >
-            <p>
-              This floor keeps the reference color from being tuned toward 0.
-              Reference is the only weight never gated on having samples this
-              frame -- without a floor, a color that goes sample-starved for a
-              while has nothing left pulling it back toward its configured
-              value.
-            </p>
+            <p>{text.unlockBody}</p>
             {#snippet footer()}
               <Button color="alternative" onclick={cancelUnlock}>Cancel</Button>
               <Button color="red" onclick={confirmUnlock}>
-                I understand, unlock
+                {text.unlockConfirm}
               </Button>
             {/snippet}
           </Modal>
@@ -454,8 +450,8 @@
   }
 
   .triangle {
-    fill: #f5f5f5;
-    stroke: #999;
+    fill: var(--surface-muted);
+    stroke: var(--line-strong);
     stroke-width: 0.5;
   }
 
@@ -479,7 +475,7 @@
   }
 
   .vertex-label {
-    fill: #444;
+    fill: var(--text-subtle);
     font-size: 4px;
     text-anchor: middle;
     pointer-events: none;
@@ -508,7 +504,7 @@
   }
 
   .readout dt {
-    color: #666;
+    color: var(--text-muted);
   }
 
   .readout dd {
@@ -528,6 +524,6 @@
     flex-direction: column;
     gap: 0.25rem;
     font-size: 0.85rem;
-    color: #444;
+    color: var(--text-subtle);
   }
 </style>

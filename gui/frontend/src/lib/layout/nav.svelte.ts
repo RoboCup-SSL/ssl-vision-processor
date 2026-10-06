@@ -3,6 +3,13 @@
 // object, per the project convention (see CLAUDE.md).
 import { CONFIG_CATEGORIES, type ConfigCategory } from "./configCategories";
 import { config, changesFor, type Section } from "../config.svelte";
+import { preferences } from "../preferences.svelte";
+
+// Whether a category's page can be shown: expert-only pages need "Expert
+// user" on.
+export function isCategoryVisible(category: ConfigCategory): boolean {
+  return !category.expert || preferences.expertUser;
+}
 
 // One row in the instance list: a single camera role, keyed by camera_id (its
 // position on the field) -- a host running all 4 cameras of a quad setup
@@ -52,15 +59,23 @@ function applyHash(): void {
 
   if (camera) nav.selectedInstanceId = `cam:${camera}`;
 
-  if (category && CONFIG_CATEGORIES.some((c) => c.id === category)) {
-    nav.selectedCategoryId = category;
-  }
+  const found = CONFIG_CATEGORIES.find((c) => c.id === category);
+  if (found && isCategoryVisible(found)) nav.selectedCategoryId = found.id;
 }
 
 applyHash();
 window.addEventListener("hashchange", applyHash);
 
 $effect.root(() => {
+  // Leaving a page that just became hidden (expert mode turned off on it).
+  $effect(() => {
+    const current = CONFIG_CATEGORIES.find(
+      (c) => c.id === nav.selectedCategoryId,
+    );
+    if (current && !isCategoryVisible(current))
+      nav.selectedCategoryId = "field";
+  });
+
   $effect(() => {
     const href = categoryHref(nav.selectedCategoryId);
     if (location.hash !== href) history.replaceState(null, "", href);
@@ -92,6 +107,7 @@ export function selectedCategory(): ConfigCategory {
   const fallback = CONFIG_CATEGORIES.find((c) => c.id === "field");
   if (fallback) return fallback;
 
+  // text-ok: an internal invariant, not shown to users.
   throw new Error("CONFIG_CATEGORIES is missing the 'field' category");
 }
 
@@ -101,6 +117,8 @@ export function selectedCategory(): ConfigCategory {
 const CATEGORY_SECTIONS: Record<string, Section> = {
   field: "field",
   layout: "layout",
+  overview: "overview",
+  advanced: "advanced",
   camera: "camera",
   geometry: "geometry",
   color: "color",

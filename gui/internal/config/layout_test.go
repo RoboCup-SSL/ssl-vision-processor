@@ -217,3 +217,65 @@ func TestDiffFallsBackToIDsWhenAMoveCantBeMatched(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateChecksTeamOverrides(t *testing.T) {
+	tall, both := 900.0, 150.0
+
+	for _, tc := range []struct {
+		name      string
+		overrides map[string]TeamOverride
+		reason    string
+	}{
+		{"custom height too tall", map[string]TeamOverride{"Custom FC": {Height: &tall}}, `teams.overrides["Custom FC"].height`},
+		{"name and height", map[string]TeamOverride{"Custom FC": {Name: "ER-Force", Height: &both}}, "set name or height"},
+		{"empty team name", map[string]TeamOverride{"": {Height: &both}}, "can't be empty"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := loadFixture(t)
+			doc.Teams = &Teams{Overrides: tc.overrides}
+
+			if err := doc.Validate(); err == nil || !strings.Contains(err.Error(), tc.reason) {
+				t.Fatalf("Validate = %v, want an error mentioning %q", err, tc.reason)
+			}
+		})
+	}
+
+	// A custom height not entered yet is allowed; the GUI warns about it.
+	doc := loadFixture(t)
+	doc.Teams = &Teams{Overrides: map[string]TeamOverride{"Custom FC": {Height: &both}, "ER Force": {Name: "ER-Force"}, "New FC": {}}}
+
+	if err := doc.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	after := doc.clone()
+	after.Teams.Overrides["Custom FC"] = TeamOverride{Height: &tall}
+	for _, c := range Diff(doc, after) {
+		if c.Section != SectionOverview {
+			t.Errorf("%s: section %s, want %s", c.Path, c.Section, SectionOverview)
+		}
+	}
+}
+
+func TestValidateChecksColorOverridesAndClassifiesCompetition(t *testing.T) {
+	tall, ok := 900.0, 150.0
+
+	doc := loadFixture(t)
+	doc.Teams = &Teams{ByColor: &ColorOverrides{Blue: &TeamOverride{Height: &tall}}}
+
+	if err := doc.Validate(); err == nil || !strings.Contains(err.Error(), "teams.by_color.blue.height") {
+		t.Fatalf("Validate = %v, want a by_color height error", err)
+	}
+
+	doc.Teams.ByColor.Blue.Height = &ok
+	if err := doc.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	after := doc.clone()
+	after.CompetitionField = true
+	changes := Diff(doc, after)
+	if len(changes) != 1 || changes[0].Path != "competition_field" || changes[0].Section != SectionOverview {
+		t.Fatalf("changes = %+v, want competition_field in overview", changes)
+	}
+}

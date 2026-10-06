@@ -272,12 +272,14 @@ func TestVisionConsumerAbsorbsGeometryButCountsOnlyDetections(t *testing.T) {
 }
 
 func TestRefereeConsumer(t *testing.T) {
-	refereeConsume := RefereeConsumer()
+	var yellow, blue string
+
+	refereeConsume := RefereeConsumer(func(y, b string) { yellow, blue = y, b })
 	consume := func(data []byte) bool { return refereeConsume(data, nil) }
 
-	team := func() *gamecontroller.Referee_TeamInfo {
+	team := func(name string) *gamecontroller.Referee_TeamInfo {
 		return &gamecontroller.Referee_TeamInfo{
-			Name:        proto.String("t"),
+			Name:        proto.String(name),
 			Score:       proto.Uint32(0),
 			RedCards:    proto.Uint32(0),
 			YellowCards: proto.Uint32(0),
@@ -293,12 +295,16 @@ func TestRefereeConsumer(t *testing.T) {
 		Command:          gamecontroller.Referee_HALT.Enum(),
 		CommandCounter:   proto.Uint32(1),
 		CommandTimestamp: proto.Uint64(1),
-		Yellow:           team(),
-		Blue:             team(),
+		Yellow:           team("ER-Force"),
+		Blue:             team("TIGERs Mannheim"),
 	}
 
 	if !consume(marshal(t, referee)) {
 		t.Fatal("referee message not counted")
+	}
+
+	if yellow != "ER-Force" || blue != "TIGERs Mannheim" {
+		t.Fatalf("tracked yellow=%q blue=%q, want ER-Force and TIGERs Mannheim", yellow, blue)
 	}
 
 	if consume(marshal(t, &vision.SSL_WrapperPacket{})) {

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import RichText from "../RichText.svelte";
+  import { SELECT_INSTANCE } from "../text/common";
+  import { stream } from "../text/placeholder";
   import { Heading, P } from "flowbite-svelte";
   import type { VisionInstance } from "../layout/nav.svelte";
   import VideoPlayer from "../video/VideoPlayer.svelte";
@@ -11,14 +14,12 @@
 </script>
 
 <section class="stream-panel">
-  <Heading tag="h2" class="mb-2 text-xl font-semibold">Live video</Heading>
+  <Heading tag="h2" class="mb-2 text-xl font-semibold">{stream.heading}</Heading
+  >
 
   {#if instance}
     <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-      {instance.host} / cam {instance.cameraId}'s H.264 stream, relayed by the
-      host without re-encoding. vision_processor cycles through its views (raw,
-      then processed) unless <code>stream.raw_feed</code> is set. For exact pixels,
-      such as picking corners, use the snapshots on the Geometry tab.
+      <RichText text={stream.intro(instance.host, instance.cameraId)} />
     </P>
 
     {#key instance.cameraId}
@@ -26,7 +27,7 @@
     {/key}
   {:else}
     <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400"
-      >Select a vision processor on the left first.</P
+      >{SELECT_INSTANCE}</P
     >
   {/if}
 </section>

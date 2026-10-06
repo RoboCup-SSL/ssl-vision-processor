@@ -53,7 +53,7 @@
 -->
 <Modal
   bind:open={wizard.open}
-  title="Virtual field setup"
+  title="Field setup"
   size="lg"
   class="fixed inset-0 m-auto"
 >
@@ -72,7 +72,9 @@
   {/if}
 
   {#if showFooterNav}
-    <div class="flex justify-between border-t border-gray-200 pt-4">
+    <div
+      class="flex justify-between border-t border-gray-200 dark:border-gray-700 pt-4"
+    >
       <Button color="alternative" onclick={previousStep}>Back</Button>
       {#if isLastStep}
         <Button onclick={finishWizard}>Apply</Button>

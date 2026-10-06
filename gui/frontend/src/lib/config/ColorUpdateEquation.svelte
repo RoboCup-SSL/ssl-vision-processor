@@ -64,7 +64,7 @@
   }
 
   .hint {
-    color: var(--color-gray-600);
+    color: var(--text-muted);
   }
 
   .term {
@@ -74,7 +74,7 @@
   }
 
   .op {
-    color: var(--color-gray-500);
+    color: var(--text-muted);
   }
 
   .swatch {
@@ -88,10 +88,10 @@
   .swatch.placeholder {
     background: repeating-linear-gradient(
       45deg,
-      var(--color-gray-200),
-      var(--color-gray-200) 3px,
-      var(--color-gray-100) 3px,
-      var(--color-gray-100) 6px
+      var(--line),
+      var(--line) 3px,
+      var(--surface-muted) 3px,
+      var(--surface-muted) 6px
     );
   }
 </style>

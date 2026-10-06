@@ -78,20 +78,21 @@ before returning.
 
 ## Package responsibilities
 
-| Package                | Responsibility                                                                 |
-| ---------------------- | -------------------------------------------------------------------------------|
-| `cmd/ssl-vision-processor-gui` | Flags, wiring, HTTP handlers and routes.                                |
-| `internal/config`      | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files. |
-| `internal/geometry`    | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state. |
-| `internal/multicast`   | The vision, game controller, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
-| `internal/hub`         | In-process topic pub/sub and the `/ws` WebSocket handler.                     |
-| `internal/detections`  | Which camera_ids the vision socket hears, from which address, at what rate. Feeds the Camera Layout page. |
-| `internal/snapshot`    | Debug image listing and serving.                                              |
-| `internal/video`       | Live video: each camera's H.264 RTP stream relayed to browsers as fragmented MP4. |
-| `internal/v4l`         | Lists this host's Video4Linux capture devices for the camera path picker.     |
-| `internal/logging`     | slog setup: a coloured console handler and a rotating file handler.           |
-| `internal/vision`, `internal/gamecontroller` | Generated protobuf bindings. Not committed, see Build-time codegen below. |
-| `frontend`             | Svelte 5 and TypeScript, embedded into the binary via `//go:embed`.           |
+| Package                                      | Responsibility                                                                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `cmd/ssl-vision-processor-gui`               | Flags, wiring, HTTP handlers and routes.                                                                                                |
+| `internal/config`                            | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files.             |
+| `internal/geometry`                          | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state.                                         |
+| `internal/multicast`                         | The vision, game controller, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
+| `internal/hub`                               | In-process topic pub/sub and the `/ws` WebSocket handler.                                                                               |
+| `internal/detections`                        | Which camera_ids the vision socket hears, from which address, at what rate. Feeds the Camera Layout page.                               |
+| `internal/referee`                           | The current match's teams, from the game controller, and their robot heights from `bot_heights_file`.                                   |
+| `internal/snapshot`                          | Debug image listing and serving.                                                                                                        |
+| `internal/video`                             | Live video: each camera's H.264 RTP stream relayed to browsers as fragmented MP4.                                                       |
+| `internal/v4l`                               | Lists this host's Video4Linux capture devices for the camera path picker.                                                               |
+| `internal/logging`                           | slog setup: a coloured console handler and a rotating file handler.                                                                     |
+| `internal/vision`, `internal/gamecontroller` | Generated protobuf bindings. Not committed, see Build-time codegen below.                                                               |
+| `frontend`                                   | Svelte 5 and TypeScript, embedded into the binary via `//go:embed`.                                                                     |
 
 ## Data flow: geometry state
 
@@ -194,24 +195,24 @@ JSON float and YAML decodes integers as ints, so without this every edit would s
 
 All routes are registered in `cmd/ssl-vision-processor-gui/routes.go`.
 
-| Method | Path                          | Purpose                                                             |
-| ------ | ----------------------------- | -------------------------------------------------------------------|
-| GET    | `/api/health`                 | Liveness check.                                                     |
-| GET    | `/api/geometry`                | The full wrapper packet, as canonical protojson.                   |
-| GET    | `/api/geometry/presets`        | The rulebook presets, read live from `geometry-divA.yml`/`geometry-divB.yml`. |
-| GET    | `/api/config`                  | The working document and the store's state.                         |
-| PUT    | `/api/config`                  | Replace the working document and apply it live. 409 on a stale revision. |
-| POST   | `/api/config/save`             | Write the working document to disk. 409 if the file changed on disk, unless forced. |
-| POST   | `/api/config/save-as`          | Write to a new path and edit that file from then on.                |
-| POST   | `/api/config/load`             | Load another file, discarding unsaved changes.                      |
-| POST   | `/api/config/reload`           | Accept the file as it is on disk, discarding unsaved changes.       |
-| POST   | `/api/config/cameras/{id}/calibration` | Lock the camera's latest live calibration.                  |
-| DELETE | `/api/config/cameras/{id}/calibration` | Unlock it and stop publishing any calibration for the camera. |
-| GET    | `/api/camera/devices`          | This host's capture devices: stable by-id and by-path links, then raw nodes. |
-| GET    | `/api/snapshots`               | List of debug images currently on disk.                            |
-| GET    | `/api/snapshot/{camID}/{view}` | One debug image.                                                    |
-| GET    | `/ws`                          | WebSocket, see below.                                               |
-| GET    | `/ws/video/{id}?mode=full\|keyframes` | One camera's live video, see Live video below.                |
+| Method | Path                                   | Purpose                                                                             |
+| ------ | -------------------------------------- | ----------------------------------------------------------------------------------- |
+| GET    | `/api/health`                          | Liveness check.                                                                     |
+| GET    | `/api/geometry`                        | The full wrapper packet, as canonical protojson.                                    |
+| GET    | `/api/geometry/presets`                | The rulebook presets, read live from `config/legacy/geometry-div{A,B}.yml`.         |
+| GET    | `/api/config`                          | The working document and the store's state.                                         |
+| PUT    | `/api/config`                          | Replace the working document and apply it live. 409 on a stale revision.            |
+| POST   | `/api/config/save`                     | Write the working document to disk. 409 if the file changed on disk, unless forced. |
+| POST   | `/api/config/save-as`                  | Write to a new path and edit that file from then on.                                |
+| POST   | `/api/config/load`                     | Load another file, discarding unsaved changes.                                      |
+| POST   | `/api/config/reload`                   | Accept the file as it is on disk, discarding unsaved changes.                       |
+| POST   | `/api/config/cameras/{id}/calibration` | Lock the camera's latest live calibration.                                          |
+| DELETE | `/api/config/cameras/{id}/calibration` | Unlock it and stop publishing any calibration for the camera.                       |
+| GET    | `/api/camera/devices`                  | This host's capture devices: stable by-id and by-path links, then raw nodes.        |
+| GET    | `/api/snapshots`                       | List of debug images currently on disk.                                             |
+| GET    | `/api/snapshot/{camID}/{view}`         | One debug image.                                                                    |
+| GET    | `/ws`                                  | WebSocket, see below.                                                               |
+| GET    | `/ws/video/{id}?mode=full\|keyframes`  | One camera's live video, see Live video below.                                      |
 
 An unrouted `/api/*` path returns 404 rather than falling through to the frontend, so a typo'd endpoint fails
 with a clear status instead of returning HTML to a caller expecting JSON. Every other path serves the embedded
@@ -277,4 +278,5 @@ regenerates them as an ordinary build prerequisite. See `gui/README.md` for the 
   a running instance to recalibrate.
 - **Remote snapshots.** `internal/snapshot` assumes the gui host and the vision_processor instance share a
   filesystem. Live video (above) works remotely, but the full-resolution snapshots the corner picker needs do not.
-- **A video grid.** `keyframes` mode exists for it; only the single camera view is built.
+- **Translation (i18n), planned for v2.1.** User-facing text moving into one catalog per language, looked up by
+  key. Until then the text stays English and in the source.

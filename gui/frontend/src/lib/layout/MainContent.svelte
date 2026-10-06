@@ -8,6 +8,9 @@
   import StreamPanel from "../config/StreamPanel.svelte";
   import CameraPanel from "../config/CameraPanel.svelte";
   import LayoutPanel from "../config/LayoutPanel.svelte";
+  import AdvancedPanel from "../config/AdvancedPanel.svelte";
+  import OverviewPanel from "../config/OverviewPanel.svelte";
+  import AlertsPanel from "../alerts/AlertsPanel.svelte";
   import ConfigCategoryPlaceholder from "../config/ConfigCategoryPlaceholder.svelte";
 
   let category = $derived(selectedCategory());
@@ -17,10 +20,16 @@
 <div class="main-content">
   <TabBar />
 
-  {#if nav.selectedCategoryId === "field"}
+  {#if nav.selectedCategoryId === "alerts"}
+    <AlertsPanel />
+  {:else if nav.selectedCategoryId === "overview"}
+    <OverviewPanel />
+  {:else if nav.selectedCategoryId === "field"}
     <FieldEditor />
   {:else if nav.selectedCategoryId === "layout"}
     <LayoutPanel />
+  {:else if nav.selectedCategoryId === "advanced"}
+    <AdvancedPanel />
   {:else if nav.selectedCategoryId === "camera"}
     <CameraPanel {instance} />
   {:else if nav.selectedCategoryId === "geometry"}
@@ -38,6 +47,8 @@
 
 <style>
   .main-content {
-    padding: 1rem 1.5rem;
+    /* No top padding: the tab bar's group headers sit flush under the
+       header bar. */
+    padding: 0 1.5rem 1rem;
   }
 </style>

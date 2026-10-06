@@ -1,9 +1,11 @@
 <script lang="ts">
+  import RichText from "../../RichText.svelte";
   import { Li, List } from "flowbite-svelte";
   import { config } from "../../config.svelte";
   import { wizard, wizardCameraCount } from "../wizard.svelte";
   import { cameraCount } from "../../cameraLayout";
   import { OPTIONAL_LINE_FIELDS } from "../../fieldConfigFields";
+  import { wizard as text } from "../../text/wizard";
 
   let count = $derived(wizardCameraCount());
   let changes = $derived(
@@ -16,11 +18,11 @@
 </script>
 
 <div class="flex flex-col gap-3">
-  <p class="text-sm text-gray-700">
-    Review, then apply to put these values live on the field.
+  <p class="text-sm text-gray-700 dark:text-gray-300">
+    {text.review}
   </p>
 
-  <List class="flex flex-col gap-1 text-sm text-gray-700">
+  <List class="flex flex-col gap-1 text-sm text-gray-700 dark:text-gray-300">
     <Li>
       Field: {wizard.draft.field.fieldLength ?? 0}mm x {wizard.draft.field
         .fieldWidth ?? 0}mm
@@ -30,16 +32,11 @@
       {markings.length > 0 ? markings.map((f) => f.label).join(", ") : "none"}
     </Li>
     <Li>
-      Cameras: {count} region{count === 1 ? "" : "s"}{changes
-        ? ". This changes every camera's region: their line corners need re-picking and locked calibrations are removed."
-        : ""}
+      {text.finishCameras(count, changes)}
     </Li>
   </List>
 
-  <p class="text-sm text-gray-600">
-    Applying takes effect immediately but doesn't save -- use Save in the
-    settings menu (or Ctrl+S) to write <code
-      >{config.state?.path ?? "vision.yml"}</code
-    >, then calibrate each camera on its own Geometry tab.
+  <p class="text-sm text-gray-600 dark:text-gray-400">
+    <RichText text={text.applyNote(config.state?.path ?? "vision.yml")} />
   </p>
 </div>

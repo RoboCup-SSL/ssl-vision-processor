@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { wizard as text } from "../../text/wizard";
   import { onMount } from "svelte";
   import { Button, Spinner } from "flowbite-svelte";
   import { virtualField, loadFieldPresets } from "../../geometry.svelte";
@@ -18,12 +19,14 @@
 </script>
 
 <div class="flex flex-col gap-4">
-  <p class="text-sm text-gray-600">
-    Start from a regulation field, or configure a custom one.
+  <p class="text-sm text-gray-600 dark:text-gray-400">
+    {text.start}
   </p>
 
   {#if virtualField.presets.length === 0}
-    <div class="flex items-center gap-2 text-sm text-gray-500">
+    <div
+      class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400"
+    >
       <Spinner size="4" /> Loading presets...
     </div>
   {:else}

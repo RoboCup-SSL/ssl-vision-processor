@@ -10,7 +10,7 @@
   // A short, curated list, not FieldEditor's full one: goal depth/height, line
   // thickness, ball radius, and max robot radius are close enough to standard
   // for most setups to skip asking here. They're still editable in the main
-  // Virtual Field window for anyone who needs to adjust them.
+  // Field Dimensions page for anyone who needs to adjust them.
   const WIZARD_DIMENSION_KEYS: FieldConfigField["key"][] = [
     "fieldWidth",
     "penaltyAreaDepth",
@@ -45,7 +45,9 @@
 </script>
 
 <div class="flex flex-col gap-2">
-  <p class="text-sm text-gray-600">All dimensions are in millimeters.</p>
+  <p class="text-sm text-gray-600 dark:text-gray-400">
+    All dimensions are in millimeters.
+  </p>
 
   {#if wizard.fieldLayout === "half"}
     <div class="flex items-center justify-between gap-2">

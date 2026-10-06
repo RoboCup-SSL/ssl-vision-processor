@@ -86,6 +86,8 @@ type source struct {
 	gop      [][]byte // full rate segments since the last keyframe
 	keyframe []byte   // the latest keyframes-only segment
 	warned   bool
+	// frames is when each recent frame arrived, for Status.FPS.
+	frames []time.Time
 }
 
 func newSource(id int, verbose bool) *source {
@@ -219,6 +221,7 @@ func (s *source) stopIfIdle() {
 	s.asm = assembler{}
 	s.mux = newMuxer()
 	s.format, s.init, s.gop, s.keyframe = nil, nil, nil, nil
+	s.frames = nil
 
 	slog.Info("video stream closed, no viewers", "camera", s.id)
 }
@@ -242,6 +245,8 @@ func (s *source) handle(data []byte, _ *net.UDPAddr) bool {
 	}
 
 	for _, au := range s.asm.push(&pkt) {
+		s.frames = append(trimFrames(s.frames, now), now)
+
 		out, err := s.mux.push(au, now)
 		if err != nil {
 			if !s.warned {
@@ -364,7 +369,10 @@ type Status struct {
 	Active    bool   `json:"active"`
 	Receiving bool   `json:"receiving"`
 	Packets   uint64 `json:"packets"`
-	Source    string `json:"source,omitempty"`
+	// FPS is the rate frames arrive from vision_processor, over the last
+	// fpsWindow, whatever a viewer's mode shows. 0 when nothing arrives.
+	FPS    float64 `json:"fps"`
+	Source string  `json:"source,omitempty"`
 	// Problem is why the socket isn't fully open, if it isn't.
 	Problem string `json:"problem,omitempty"`
 }
@@ -378,6 +386,9 @@ func (s *source) sendStatus(v *viewer) {
 		ep := s.endpoint.Status(time.Now())
 		status.Receiving, status.Packets, status.Source, status.Problem = ep.Receiving, ep.Heard, ep.Source, ep.Problem
 	}
+
+	s.frames = trimFrames(s.frames, time.Now())
+	status.FPS = frameRate(s.frames)
 
 	data, _ := json.Marshal(status)
 	trySend(v, Message{Data: data})
@@ -394,4 +405,34 @@ func trySend(v *viewer, m Message) bool {
 
 func free(v *viewer) int {
 	return cap(v.ch) - len(v.ch)
+}
+
+// fpsWindow is how far back Status.FPS looks. Short, so it follows changes
+// quickly; the jitter that brings is accepted.
+const fpsWindow = 200 * time.Millisecond
+
+// trimFrames drops frame arrival times older than fpsWindow before now.
+func trimFrames(frames []time.Time, now time.Time) []time.Time {
+	i := 0
+	for i < len(frames) && now.Sub(frames[i]) > fpsWindow {
+		i++
+	}
+
+	return frames[i:]
+}
+
+// frameRate is frames per second from their arrival times: the intervals
+// between them, not their count, so a short window still gives a fractional
+// rate. 0 with fewer than two frames.
+func frameRate(frames []time.Time) float64 {
+	if len(frames) < 2 {
+		return 0
+	}
+
+	span := frames[len(frames)-1].Sub(frames[0]).Seconds()
+	if span <= 0 {
+		return 0
+	}
+
+	return float64(len(frames)-1) / span
 }

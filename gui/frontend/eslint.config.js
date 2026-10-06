@@ -50,6 +50,9 @@ export default ts.config(
       ".svelte-kit/",
       "*.config.js",
       "*.config.ts",
+      // Plain Node scripts, outside the TypeScript projects the type-aware
+      // rules need.
+      "scripts/",
     ],
   },
 );

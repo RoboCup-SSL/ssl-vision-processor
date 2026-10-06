@@ -286,7 +286,9 @@ func (s *Store) writeLocked(path string) error {
 		return err
 	}
 
-	if err := atomicWrite(path, data); err != nil {
+	if err := atomicWrite(path, data); errors.Is(err, errReadOnly) {
+		return &ValidationError{err}
+	} else if err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import RichText from "../RichText.svelte";
+  import { SELECT_INSTANCE } from "../text/common";
+  import { geometry as text } from "../text/geometry";
   import { Heading, P } from "flowbite-svelte";
   import type { ConfigCategory } from "../layout/configCategories";
   import type { VisionInstance } from "../layout/nav.svelte";
@@ -15,17 +18,15 @@
 </script>
 
 <section class="geometry">
-  <Heading tag="h2" class="mb-2 text-xl font-semibold">Geometry</Heading>
+  <Heading tag="h2" class="mb-2 text-xl font-semibold">{text.heading}</Heading>
 
   {#if instance}
     <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-      {instance.host} / cam {instance.cameraId}. The numeric settings below
-      (config.yml's <code>geometry:</code> block) aren't editable here yet; the calibration
-      and corner picker are, and apply live.
+      <RichText text={text.intro(instance.host, instance.cameraId)} />
     </P>
   {:else}
     <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400"
-      >Select a vision processor on the left first.</P
+      >{SELECT_INSTANCE}</P
     >
   {/if}
 
@@ -47,11 +48,5 @@
 <style>
   .geometry {
     max-width: 900px;
-  }
-
-  code {
-    background: var(--color-gray-100);
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
   }
 </style>

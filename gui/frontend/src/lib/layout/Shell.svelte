@@ -2,6 +2,10 @@
   import { connectionState } from "../wrapper-bus";
   import { preferences } from "../preferences.svelte";
   import InstanceList from "./InstanceList.svelte";
+  import AlertSummary from "../alerts/AlertSummary.svelte";
+  import { app as text } from "../text/app";
+  import { links } from "../text/links";
+  import { setCompetitionField } from "../teams.svelte";
   import ConfigNav from "./ConfigNav.svelte";
   import MainContent from "./MainContent.svelte";
   import type { Snippet } from "svelte";
@@ -14,6 +18,8 @@
     Badge,
     Button,
     Indicator,
+    DarkMode,
+    Toggle,
     Kbd,
     Navbar,
     NavBrand,
@@ -83,12 +89,7 @@
   function revert(): void {
     settingsOpen = false;
 
-    if (
-      unsaved === 0 ||
-      confirm(
-        `Discard ${String(unsaved)} unsaved change(s) and reload from disk?`,
-      )
-    ) {
+    if (unsaved === 0 || confirm(text.discardAndReload(unsaved))) {
       void reloadFromDisk();
     }
   }
@@ -102,7 +103,7 @@
       <div class="flex flex-wrap items-center gap-3">
         <NavBrand>
           <h1 class="text-lg font-semibold whitespace-nowrap">
-            vision-processor
+            SSL Vision Processor
           </h1>
         </NavBrand>
         {#each sockets as socket (socket.label)}
@@ -110,10 +111,10 @@
             href={categoryHref("network")}
             class="badge-link"
             title={socket.status?.problem
-              ? `Not open: ${socket.status.problem}. Retrying. Click to configure.`
+              ? text.socketBadge.notOpen(socket.status.problem)
               : socket.status?.receiving
-                ? `Receiving on ${socket.status.address}. Click to configure.`
-                : "Nothing heard on this address. Click to configure."}
+                ? text.socketBadge.receiving(socket.status.address)
+                : text.socketBadge.silent}
           >
             <Badge
               rounded
@@ -132,72 +133,114 @@
         </Badge>
       </div>
 
-      <div class="settings">
-        <Button
-          id="settings-trigger"
-          color="alternative"
-          size="xs"
-          pill
-          class="relative h-8 w-8 p-0 text-base"
-          aria-label="Settings"
-        >
-          <!-- U+FE0E asks for the plain text glyph; without it the button's
-             font stack picks the color emoji. -->
-          <span class="text-lg leading-none text-gray-700">⚙︎</span
-          >{#if unsaved > 0}<Indicator
-              color="primary"
-              size="sm"
-              placement="top-right"
-              title="Unsaved changes"
-            />{/if}
-        </Button>
+      <!-- One flex item, so the Navbar's spacing keeps the two together on
+           the right. -->
+      <div class="flex items-center gap-2">
+        {#if config.doc}
+          <Toggle
+            size="small"
+            checked={config.doc.competitionField === true}
+            title={text.competitionField.title}
+            onchange={(e: Event) => {
+              setCompetitionField(
+                (e.currentTarget as HTMLInputElement).checked,
+              );
+            }}
+            ><span class="text-sm whitespace-nowrap"
+              >{text.competitionField.label}</span
+            ></Toggle
+          >
+        {/if}
+        <DarkMode
+          class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 p-0 dark:border-gray-600"
+          size="sm"
+          ariaLabel="Toggle dark mode"
+        />
 
-        <Dropdown
-          placement="bottom-end"
-          triggeredBy="#settings-trigger"
-          bind:isOpen={settingsOpen}
-        >
-          <DropdownHeader class="px-3">
-            <span class="block text-xs text-gray-500">Configuration</span>
-            <span class="block truncate font-mono text-xs"
-              >{config.state?.path ?? ""}</span
-            >
-          </DropdownHeader>
-          <DropdownGroup>
-            <DropdownItem
-              class={ITEM_CLASS}
-              onclick={() => {
-                openDialog("save");
-              }}
-            >
-              <span>Save{unsaved > 0 ? ` (${String(unsaved)})` : ""}</span>
-              <Kbd class="px-1.5 py-0.5 text-xs font-normal">Ctrl+S</Kbd>
-            </DropdownItem>
-            <DropdownItem
-              class={ITEM_CLASS}
-              onclick={() => {
-                openDialog("saveAs");
-              }}>Save as…</DropdownItem
-            >
-            <DropdownItem
-              class={ITEM_CLASS}
-              onclick={() => {
-                openDialog("load");
-              }}>Load…</DropdownItem
-            >
-            <DropdownItem class={ITEM_CLASS} onclick={revert}
-              >Revert to disk</DropdownItem
-            >
-          </DropdownGroup>
-          <DropdownGroup class="flex flex-col gap-2 p-3">
-            <Checkbox bind:checked={preferences.tooltipsEnabled}>
-              Show extra tooltips
-            </Checkbox>
-            <Checkbox bind:checked={preferences.expertUser}
-              >Expert mode</Checkbox
-            >
-          </DropdownGroup>
-        </Dropdown>
+        <div class="settings">
+          <Button
+            id="settings-trigger"
+            color="alternative"
+            size="xs"
+            pill
+            class="relative h-8 w-8 p-0 text-base"
+            aria-label="Settings"
+          >
+            <!-- U+FE0E asks for the plain text glyph; without it the button's
+             font stack picks the color emoji. -->
+            <span class="text-lg leading-none text-gray-700 dark:text-gray-300"
+              >⚙︎</span
+            >{#if unsaved > 0}<Indicator
+                color="primary"
+                size="sm"
+                placement="top-right"
+                title="Unsaved changes"
+              />{/if}
+          </Button>
+
+          <Dropdown
+            placement="bottom-end"
+            triggeredBy="#settings-trigger"
+            bind:isOpen={settingsOpen}
+          >
+            <DropdownHeader class="px-3">
+              <span class="block text-xs text-gray-500 dark:text-gray-400"
+                >Configuration</span
+              >
+              <span class="block truncate font-mono text-xs"
+                >{config.state?.path ?? ""}</span
+              >
+            </DropdownHeader>
+            <DropdownGroup>
+              <DropdownItem
+                class={ITEM_CLASS}
+                onclick={() => {
+                  openDialog("save");
+                }}
+              >
+                <span>Save{unsaved > 0 ? ` (${String(unsaved)})` : ""}</span>
+                <Kbd class="px-1.5 py-0.5 text-xs font-normal">Ctrl+S</Kbd>
+              </DropdownItem>
+              <DropdownItem
+                class={ITEM_CLASS}
+                onclick={() => {
+                  openDialog("saveAs");
+                }}>Save as…</DropdownItem
+              >
+              <DropdownItem
+                class={ITEM_CLASS}
+                onclick={() => {
+                  openDialog("load");
+                }}>Load…</DropdownItem
+              >
+              <DropdownItem class={ITEM_CLASS} onclick={revert}
+                >Revert to disk</DropdownItem
+              >
+            </DropdownGroup>
+            <DropdownGroup class="flex flex-col gap-2 p-3">
+              <Checkbox bind:checked={preferences.tooltipsEnabled}>
+                Show extra tooltips
+              </Checkbox>
+              <Checkbox bind:checked={preferences.expertUser}
+                >Expert mode</Checkbox
+              >
+            </DropdownGroup>
+            <DropdownGroup>
+              <DropdownItem
+                class={ITEM_CLASS}
+                href={links.repository}
+                target="_blank"
+                rel="noopener noreferrer">GitHub Repository ↗︎</DropdownItem
+              >
+              <DropdownItem
+                class={ITEM_CLASS}
+                href={links.issues}
+                target="_blank"
+                rel="noopener noreferrer">Report An Issue ↗︎</DropdownItem
+              >
+            </DropdownGroup>
+          </Dropdown>
+        </div>
       </div>
     </Navbar>
   </header>
@@ -211,12 +254,13 @@
     ariaLabel="Cameras and settings"
     class="sidebar w-full"
     classes={{
-      div: "h-full overflow-y-auto bg-white px-3 py-4",
+      div: "h-full overflow-y-auto bg-white px-3 py-4 dark:bg-gray-800",
       active:
-        "rounded-md bg-primary-100 px-2 py-1.5 text-sm font-semibold hover:bg-primary-100",
+        "rounded-md bg-primary-100 dark:bg-primary-900 px-2 py-1.5 text-sm font-semibold hover:bg-primary-100 dark:hover:bg-primary-900",
       nonactive: "rounded-md px-2 py-1.5 text-sm",
     }}
   >
+    <AlertSummary />
     <InstanceList />
     <ConfigNav />
   </Sidebar>
@@ -242,6 +286,12 @@
   header {
     grid-column: 1 / -1;
     border-bottom: 1px solid var(--color-gray-200);
+  }
+
+  :global(.dark) header,
+  :global(.dark .sidebar),
+  :global(.dark) .below {
+    border-color: var(--color-gray-700);
   }
 
   /* Only a link around the badge inside it. A flex box rather than an

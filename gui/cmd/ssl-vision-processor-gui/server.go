@@ -274,15 +274,15 @@ func respondConfigErr(w http.ResponseWriter, err error, logMsg string, logArgs .
 	}
 }
 
-// fieldPresets are the rulebook defaults, read live from the same files a
-// human would open (geometry-divA.yml, geometry-divB.yml at the repo root) --
-// not a copy that could drift from them. Saves refuse to touch these paths.
+// fieldPresets are the rulebook defaults, read live from the read-only
+// reference files in the repo's config/ directory, not a copy that could
+// drift from them. Saves refuse to touch these paths.
 var fieldPresets = []struct {
 	Name string
 	Path string
 }{
-	{Name: "Division A", Path: "geometry-divA.yml"},
-	{Name: "Division B", Path: "geometry-divB.yml"},
+	{Name: "Division A", Path: "config/legacy/geometry-divA.yml"},
+	{Name: "Division B", Path: "config/legacy/geometry-divB.yml"},
 }
 
 type fieldPresetResponse struct {

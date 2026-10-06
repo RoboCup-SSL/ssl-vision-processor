@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { color as colorText } from "../text/color";
+  const text = colorText.picker;
   // Issue 18's proposed YUV pane: "reference color positions (editable),
   // currently-autoadapted color positions (display), current color blob
   // sample positions (debug, not yet in the protocol)." This is the first
@@ -734,14 +736,11 @@
   </div>
 
   <Modal
-    title="Restore all colors?"
+    title={text.restoreAllTitle}
     bind:open={showRestoreAllConfirm}
     size="xs"
   >
-    <p>
-      Resets all six reference colors to their defaults. Undo can step back
-      through them one color at a time.
-    </p>
+    <p>{text.restoreAllBody}</p>
     {#snippet footer()}
       <Button
         color="alternative"
@@ -755,23 +754,12 @@
 
   {#if preferences.tooltipsEnabled && gamutFraction < 0.3}
     <Alert color="primary" class="mt-2 p-2 text-sm">
-      Only {Math.round(gamutFraction * 100)}% of the square is a real color at
-      this brightness -- the outlined shape, not a full square, is expected
-      here: brightness this close to {sliceY < 128 ? "black" : "white"} genuinely
-      has few reachable colors. Not a rendering glitch.
+      {text.smallGamut(Math.round(gamutFraction * 100), sliceY < 128)}
     </Alert>
   {/if}
 
   <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-    Drag or click inside the square to set {label || "the reference color"}'s
-    color at the brightness shown. Dragging the slider (or scrolling over either
-    control) only previews a different brightness -- the marker stays exactly
-    where the saved color actually is, even inside the shaded region if that
-    color isn't reachable at the previewed brightness; nothing is saved until
-    you click or drag inside the square again. Ctrl+Z (Cmd+Z on Mac) undoes the
-    last drag, one gesture at a time. The currently-autoadapted position and
-    per-frame blob samples aren't shown yet: both need the other contributor's
-    protobuf work to reach this host.
+    {text.help(label || text.defaultLabel)}
   </P>
 </div>
 
@@ -813,7 +801,7 @@
     height: 660px;
     flex-shrink: 0;
     touch-action: none;
-    border: 1px solid #ccc;
+    border: 1px solid var(--line);
     border-radius: 4px;
     overflow: hidden;
     cursor: crosshair;
@@ -939,14 +927,14 @@
     width: 100%;
     height: 9px;
     border-radius: 4.5px;
-    background: #ccc;
+    background: var(--line);
   }
 
   .y-slider::-moz-range-track {
     width: 100%;
     height: 9px;
     border-radius: 4.5px;
-    background: #ccc;
+    background: var(--line);
   }
 
   /* Invisible, not gone -- the Y=... label (.y-thumb-label) already marks
@@ -1004,7 +992,7 @@
     gap: 0.4rem;
     margin-top: 0.4rem;
     padding-top: 0.4rem;
-    border-top: 1px solid #ddd;
+    border-top: 1px solid var(--line);
   }
 
   /* A Flowbite Button; this only lays out the swatch beside the label. */
@@ -1042,7 +1030,7 @@
   }
 
   .readout dt {
-    color: #666;
+    color: var(--text-muted);
   }
 
   .readout dd {
