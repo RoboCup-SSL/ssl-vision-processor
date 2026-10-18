@@ -11,7 +11,7 @@ FRONTEND_SOURCES = $(shell find frontend -type f \
 
 PROTO_SOURCES = $(shell find ../proto/proto -type f 2>/dev/null)
 
-.PHONY: all frontend install test go-test frontend-test vet build run proto clean
+.PHONY: all frontend install test go-test frontend-test e2e vet build run proto clean
 
 all: install
 
@@ -58,6 +58,15 @@ go-test: frontend
 
 frontend-test: frontend
 	cd frontend && npm run check && npm run lint && npm run check:text && npm test && npm run format:check
+
+# End-to-end smoke tests: the real host, serving the built frontend, driven in
+# the installed Google Chrome by Playwright (frontend/e2e/). The binary goes to
+# a temp dir so a stale one in the tree is never what's tested.
+E2E_BIN := $(shell mktemp -u -t vision-gui-e2e-bin.XXXXXX)
+
+e2e: frontend
+	go build -o $(E2E_BIN) ./cmd/$(BINARY)
+	cd frontend && GUI_BIN=$(E2E_BIN) npx playwright test; status=$$?; rm -f $(E2E_BIN); exit $$status
 
 # CI runs go-test and frontend-test as separate parallel jobs (see
 # .github/workflows/ci.yml) -- this is the single "everything before you

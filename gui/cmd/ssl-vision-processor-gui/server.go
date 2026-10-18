@@ -33,15 +33,21 @@ func NewVisionServer(geom *geometry.Geometry, store *config.Store, status Status
 	mux := http.NewServeMux()
 	s.addRoutes(mux)
 
-	// A browser page from an origin that isn't the host's own or trusted
-	// can't change state; a trusted one also gets CORS headers.
-	return policy.Handler(mux, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		httpjson.Error(w, http.StatusForbidden, httpjson.CodeCrossOrigin, "cross-origin request refused; see -allowOrigin")
-	}))
+	// A browser page from an untrusted origin can't change state; a trusted
+	// one also gets CORS headers. A request must name this host by one of its
+	// own names, against DNS rebinding.
+	return policy.Handler(mux,
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpjson.Error(w, http.StatusForbidden, httpjson.CodeCrossOrigin, "cross-origin request refused; see -allowOrigin")
+		}),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpjson.Error(w, http.StatusMisdirectedRequest, httpjson.CodeUnknownHost, "this host doesn't answer to "+r.Host+"; add it with -allowHost")
+		}))
 }
 
-// handleCameraDevices lists this host's capture devices for the camera path
-// picker. Empty, not an error, on a machine without Video4Linux.
+// handleCameraDevices lists this host's capture devices, candidates for a
+// camera's camera.path. Empty, not an error, on a machine without
+// Video4Linux.
 func (s *VisionServer) handleCameraDevices() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		devices := v4l.List(v4l.System)
@@ -75,6 +81,7 @@ func (s *VisionServer) handleGetAlerts() http.HandlerFunc {
 	}
 }
 
+// handleHealth reports that the host is up and serving.
 func (s *VisionServer) handleHealth() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		httpjson.Write(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -238,6 +245,9 @@ type saveRequest struct {
 	Force bool `json:"force"`
 }
 
+// handleSave writes the working document to vision.yml. A 409 disk_changed
+// means the file was edited elsewhere since it was loaded (config.state's
+// external describes how); force overwrites it anyway.
 func (s *VisionServer) handleSave() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req saveRequest
@@ -260,6 +270,8 @@ type saveAsRequest struct {
 	Path     string `json:"path"`
 }
 
+// handleSaveAs writes the working document to another path, and loads from,
+// saves to, and watches that file from then on.
 func (s *VisionServer) handleSaveAs() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req saveAsRequest
@@ -351,10 +363,17 @@ func (s *VisionServer) handleEffectiveConfig() http.HandlerFunc {
 	}
 }
 
+// handleLockCalibration stores the camera's latest live calibration in the
+// working document, so it is published in place of whatever the camera sends
+// and, once saved, survives restarts. A 409 no_live_calibration means none
+// has been received yet.
 func (s *VisionServer) handleLockCalibration() http.HandlerFunc {
 	return s.calibrationHandler(s.store.LockCalibration, "locking calibration")
 }
 
+// handleUnlockCalibration removes the camera's locked calibration and stops
+// publishing any calibration for it, so its vision_processor calibrates
+// again the next time it starts.
 func (s *VisionServer) handleUnlockCalibration() http.HandlerFunc {
 	return s.calibrationHandler(s.store.UnlockCalibration, "unlocking calibration")
 }
@@ -421,8 +440,8 @@ type fieldPresetResponse struct {
 	OptionalFieldLines geometry.OptionalLinesConfig `json:"optionalFieldLines"`
 }
 
-// handleGetFieldPresets serves the rulebook presets for the setup wizard. A
-// preset file that can't be read (wrong working directory, for one) is
+// handleGetFieldPresets serves the rulebook field dimensions (Division A and
+// B). A preset file that can't be read (wrong working directory, for one) is
 // skipped with a warning rather than failing the whole request.
 func (s *VisionServer) handleGetFieldPresets() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

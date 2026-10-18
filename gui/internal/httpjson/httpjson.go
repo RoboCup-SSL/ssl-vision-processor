@@ -22,6 +22,7 @@ const (
 	CodeNoLiveCalibration = "no_live_calibration" // nothing received to lock yet
 	CodePrecondition      = "precondition"        // a required header (If-Match) is missing
 	CodeCrossOrigin       = "cross_origin"        // a browser request on behalf of another site
+	CodeUnknownHost       = "unknown_host"        // the request names this host by a name it doesn't answer to
 	CodeUnsupportedMedia  = "unsupported_media"   // wrong Content-Type
 	CodeInternal          = "internal"            // the host's fault, logged
 )

@@ -52,13 +52,26 @@ type Alert struct {
 // cameraWarnings are config.CameraStatus warning codes by severity. Codes
 // not listed are cautions.
 var cameraWarnings = map[string]string{
-	"field_changed":               Warning,
-	"calibration_aspect_mismatch": Warning,
-	"seed_stale":                  Warning,
-	"seed_aspect_mismatch":        Warning,
-	"unknown_setting":             Warning,
-	"seed_rescalable":             Caution,
-	"seed_resolution_unknown":     Caution,
+	config.WarningFieldChanged:              Warning,
+	config.WarningCalibrationAspectMismatch: Warning,
+	config.WarningSeedStale:                 Warning,
+	config.WarningSeedAspectMismatch:        Warning,
+	config.WarningUnknownSetting:            Warning,
+	config.WarningSeedRescalable:            Caution,
+	config.WarningSeedResolutionUnknown:     Caution,
+}
+
+// Codes is every alert code Collect can raise, sorted: its own and the
+// camera warning codes it passes through.
+func Codes() []string {
+	codes := append([]string{
+		CodeRenderFailed, CodeCameraIDConflict, CodeRegionUncovered, CodeCameraUnplaced, CodeFileChanged,
+		CodeSocketProblem, CodeSocketSilent, CodeHeightsUnreadable, CodeTeamDefaultHeight, CodeLoopbackMulticast,
+	}, config.WarningCodes...)
+
+	slices.Sort(codes)
+
+	return codes
 }
 
 // Network is what the host's sockets report.

@@ -32,7 +32,8 @@ type Entry struct {
 	View     string `json:"view"`
 }
 
-// HandleList serves the set of snapshots currently on disk in dir.
+// HandleList lists the debug images vision_processor has written to dir
+// (-imgDir), by camera and view.
 func HandleList(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		entries, err := list(dir)
@@ -100,7 +101,8 @@ func list(dir string) ([]Entry, error) {
 // (*, ?, [, ]), which is what actually matters; dots are harmless here.
 var validSegment = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
 
-// HandleGet serves the most recently written {camID}.{view}.* file in dir.
+// HandleGet serves a camera's latest debug image for one view, e.g.
+// /api/snapshot/0/raw.
 func HandleGet(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		camID := r.PathValue("camID")

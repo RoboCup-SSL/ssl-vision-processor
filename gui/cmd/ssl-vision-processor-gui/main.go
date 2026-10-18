@@ -43,7 +43,8 @@ var configPath = flag.String("config", "vision.yml", "Host configuration file (f
 var importGeometry = flag.String("importGeometry", "geometry.yml", "Legacy field geometry file to import into a new -config, default: geometry.yml")
 var importConfig = flag.String("importConfig", "config.yml", "Legacy vision_processor config.yml to import into a new -config as its camera, default: config.yml")
 var geometryPreset = flag.String("geometryPreset", "config/legacy/geometry-divB.yml", "Field preset for a new -config when there's no -importGeometry, default: config/legacy/geometry-divB.yml")
-var allowOrigin = flag.String("allowOrigin", "", "Comma-separated origins (scheme://host:port) whose browser pages may use the API besides the host's own, e.g. a separately served UI. Default: none")
+var allowOrigin = flag.String("allowOrigin", "", "Comma-separated origins (scheme://host:port) whose browser pages may use the API on a competition field, besides the host's own; * for any. In a lab, pages from this network are allowed anyway. Default: none")
+var allowHost = flag.String("allowHost", "", "Comma-separated extra names this host is reached by, e.g. a DNS alias; * to turn the check off. Its IPs, hostname, .local name and reverse-DNS names are always accepted. Default: none")
 var imgDir = flag.String("imgDir", "img", "Directory the vision processor writes debug snapshot images to, default: img")
 var logLevelFlag = flag.String("logLevel", "Info", "Log Level: Debug, Info, Warn, Error. Default: Info")
 var logFile = flag.String("logFile", "logs/vision-processor-gui.log", "Rotating log file to write alongside stderr, empty to disable. Default: logs/vision-processor-gui.log")
@@ -85,9 +86,14 @@ func run() int {
 		return 1
 	}
 
-	geom, store, err := openConfig(*configPath)
+	h, err := newHost(*configPath, hostOptions{
+		trustedOrigins: splitList(*allowOrigin),
+		allowedHosts:   splitList(*allowHost),
+		imgDir:         *imgDir,
+		verbose:        level == slog.LevelDebug,
+	})
 	if err != nil {
-		slog.Error("loading config", "path", *configPath, "err", err)
+		slog.Error("starting", "config", *configPath, "err", err)
 
 		return 1
 	}
@@ -100,33 +106,11 @@ func run() int {
 
 	warnLoopbackMulticast()
 
-	_, addrs, auto, ifaces := currentNetwork(store)
-	opts := multicast.Options{Verbose: level == slog.LevelDebug}
-	tracker := detections.NewTracker()
-	match := &referee.Match{}
-	trackTeams := func(yellow, blue string) { match.Teams.Record(yellow, blue, time.Now()) }
-	track := func(id uint32, from net.IP) { tracker.Record(id, from, time.Now()) }
-	sockets := &networkSockets{
-		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(opts), multicast.VisionConsumer(geom.Absorb, track)),
-		detections: tracker,
-		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, opts, multicast.RefereeConsumer(trackTeams)),
-		video:      video.NewManager(level == slog.LevelDebug),
-		auto:       auto,
-		ifaces:     ifaces,
-	}
-	sockets.apply(store)
-	wsHub := hub.New(wrapperPacketTopic, configStateTopic, networkStateTopic, alertsStateTopic)
-	status := &hostStatus{store: store, sockets: sockets, match: match}
+	// Reverse lookups can be slow; until they finish, the host is still
+	// reachable by IP, hostname and .local name.
+	go func() { h.policy.AddOwnHosts(ownHostNames(ctx)...) }()
 
-	store.OnChange(func() {
-		// A changed address or interface selection takes effect at once: the
-		// endpoints close their sockets and reopen.
-		sockets.apply(store)
-		match.SetHeightsFile(botHeightsFile(store))
-
-		publishConfigState(wsHub, store)
-		publishStatus(wsHub, status)
-	})
+	geom, store, sockets, match, wsHub, status := h.geom, h.store, h.sockets, h.match, h.hub, h.status
 
 	var wg sync.WaitGroup
 
@@ -157,16 +141,9 @@ func run() int {
 	})
 	runBackground(&wg, "config file watcher", func() error { return store.Watch(ctx, configWatchInterval) })
 
-	policy, err := origins.New(splitList(*allowOrigin)...)
-	if err != nil {
-		slog.Error("-allowOrigin", "err", err)
-
-		return 1
-	}
-
 	srv := &http.Server{
 		Addr:              *address,
-		Handler:           NewVisionServer(geom, store, status, policy, wsHub, sockets.video, *imgDir),
+		Handler:           h.handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -203,6 +180,86 @@ func run() int {
 	slog.Info("shutdown complete")
 
 	return 0
+}
+
+// host is everything the process runs, wired together but not yet running:
+// nothing opens a socket or starts a loop until run() starts its background
+// tasks, which is what lets tests build one.
+type host struct {
+	geom    *geometry.Geometry
+	store   *config.Store
+	sockets *networkSockets
+	match   *referee.Match
+	hub     *hub.Hub
+	status  *hostStatus
+	policy  *origins.Policy
+	handler http.Handler
+}
+
+type hostOptions struct {
+	trustedOrigins []string
+	allowedHosts   []string
+	imgDir         string
+	verbose        bool
+}
+
+// newHost opens the config at path and wires the store, geometry, sockets,
+// hub and HTTP handler together. A store change re-points the sockets,
+// switches the origin rules for a competition field, and publishes the
+// config, network and alert topics.
+func newHost(path string, opts hostOptions) (*host, error) {
+	geom, store, err := openConfig(path)
+	if err != nil {
+		return nil, err
+	}
+
+	policy, err := origins.New(origins.Options{TrustedOrigins: opts.trustedOrigins, AllowedHosts: opts.allowedHosts})
+	if err != nil {
+		return nil, fmt.Errorf("-allowOrigin / -allowHost: %w", err)
+	}
+
+	_, addrs, auto, ifaces := currentNetwork(store)
+	mcOpts := multicast.Options{Verbose: opts.verbose}
+	tracker := detections.NewTracker()
+	match := &referee.Match{}
+	trackTeams := func(yellow, blue string) { match.Teams.Record(yellow, blue, time.Now()) }
+	track := func(id uint32, from net.IP) { tracker.Record(id, from, time.Now()) }
+	sockets := &networkSockets{
+		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(mcOpts), multicast.VisionConsumer(geom.Absorb, track)),
+		detections: tracker,
+		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, mcOpts, multicast.RefereeConsumer(trackTeams)),
+		video:      video.NewManager(opts.verbose),
+		auto:       auto,
+		ifaces:     ifaces,
+	}
+	sockets.apply(store)
+	match.SetHeightsFile(botHeightsFile(store))
+
+	wsHub := hub.New(wrapperPacketTopic, configStateTopic, networkStateTopic, alertsStateTopic)
+	status := &hostStatus{store: store, sockets: sockets, match: match}
+	policy.SetStrict(competitionField(store))
+
+	store.OnChange(func() {
+		// A changed address or interface selection takes effect at once: the
+		// endpoints close their sockets and reopen.
+		sockets.apply(store)
+		match.SetHeightsFile(botHeightsFile(store))
+		policy.SetStrict(competitionField(store))
+
+		publishConfigState(wsHub, store)
+		publishStatus(wsHub, status)
+	})
+
+	return &host{
+		geom:    geom,
+		store:   store,
+		sockets: sockets,
+		match:   match,
+		hub:     wsHub,
+		status:  status,
+		policy:  policy,
+		handler: NewVisionServer(geom, store, status, policy, wsHub, sockets.video, opts.imgDir),
+	}, nil
 }
 
 // configWatchInterval is how often vision.yml is checked for edits made
@@ -507,6 +564,39 @@ func outboundIP() (string, error) {
 	}
 
 	return addr.IP.String(), nil
+}
+
+// competitionField is whether the working document is a match setup, which
+// limits browser pages to the -allowOrigin list.
+func competitionField(store *config.Store) bool {
+	doc, _ := store.Working()
+
+	return doc.CompetitionField
+}
+
+// ownHostNames is this machine's hostname and the names its addresses
+// reverse-resolve to, for the API's host check. Lookups that take too long
+// are skipped.
+func ownHostNames(ctx context.Context) []string {
+	names := []string{}
+
+	if name, err := os.Hostname(); err == nil {
+		names = append(names, name, name+".local")
+	}
+
+	addrs, _ := net.InterfaceAddrs()
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	for _, a := range addrs {
+		if ipnet, ok := a.(*net.IPNet); ok {
+			found, _ := net.DefaultResolver.LookupAddr(ctx, ipnet.IP.String())
+			names = append(names, found...)
+		}
+	}
+
+	return names
 }
 
 // splitList splits a comma-separated flag, dropping empty entries.

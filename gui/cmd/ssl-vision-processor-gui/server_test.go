@@ -39,7 +39,8 @@ func testServer(t *testing.T) (http.Handler, string) {
 		t.Fatalf("openConfig: %v", err)
 	}
 
-	policy, err := origins.New("http://trusted.example")
+	// httptest requests name the host example.com.
+	policy, err := origins.New(origins.Options{TrustedOrigins: []string{"http://trusted.example"}, AllowedHosts: []string{"example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -618,5 +619,26 @@ func TestConfigFilesListsTheCurrentFile(t *testing.T) {
 
 	if len(files) != 1 || files[0].Path != path || !files[0].Current {
 		t.Errorf("files = %+v, want just %s as current", files, path)
+	}
+}
+
+// DNS rebinding: an attacker's domain pointed at this host looks same-origin
+// to the browser, so a request naming an unknown host is refused outright.
+func TestUnknownHostIsRefused(t *testing.T) {
+	h, _ := testServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "http://evil.example/api/config", nil)
+
+	rec := send(h, req)
+	if rec.Code != http.StatusMisdirectedRequest {
+		t.Fatalf("GET via evil.example = %d, want 421", rec.Code)
+	}
+
+	if code := errorBody(t, rec).Error; code != httpjson.CodeUnknownHost {
+		t.Errorf("code = %q, want unknown_host", code)
+	}
+
+	if rec := send(h, httptest.NewRequest(http.MethodGet, "http://192.168.1.50:8085/api/health", nil)); rec.Code != http.StatusOK {
+		t.Errorf("GET by IP = %d, want 200", rec.Code)
 	}
 }

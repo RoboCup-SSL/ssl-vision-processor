@@ -247,12 +247,22 @@ are. `teams` and `competitionField` are read by the host's alerts. Each `Change`
 "Host-local" endpoints describe the machine running the host, and only describe a camera when its
 vision_processor runs on the same machine: device paths and debug images aren't available for remote instances.
 
-Browser pages from other origins are refused (`internal/origins`): state-changing requests via
-`http.CrossOriginProtection` (`Sec-Fetch-Site`, else `Origin` against `Host`), and `/ws` and `/ws/video` upgrades
-by `Origin`. `-allowOrigin http://host:port,...` trusts other origins, such as a separately served UI or a dev
-server: they pass both checks and get CORS headers (preflights answered, `ETag` exposed). Non-browser clients send
-no `Origin` and are unaffected. There is no authentication: anyone who can reach the port can administer the
-host.
+Browser pages from other origins are handled by `internal/origins`. The host's own pages are always allowed. In a
+lab, so is any page served from this network: `localhost`, a loopback, private or link-local IP, a `.local` name, or
+a single-label name such as `laptop`. No public website can have such an origin, because the browser sets `Origin`
+from the page's real address. On a competition field (`competitionField`, switched live) only the host's own pages
+and the `-allowOrigin http://host:port,...` list are allowed; `*` allows any. A page that isn't allowed can't change
+state (the `http.CrossOriginProtection` test: `Sec-Fetch-Site`, else `Origin` against `Host`) or open `/ws` and
+`/ws/video`. An allowed page from another origin gets CORS headers (preflights answered, `ETag` exposed). Clients
+outside a browser send no `Origin` and are unaffected.
+
+Every request must also name the host by something it is: any IP literal, `localhost`, a `.local` or single-label
+name, its hostname, the names its addresses reverse-resolve to, or a `-allowHost` alias (`*` turns the check off).
+Anything else gets 421 `unknown_host`. This stops DNS rebinding, where an attacker points their own domain at this
+host so the browser treats their page as same-origin.
+
+There is no authentication: anyone who can reach the port, including another team on a venue network using this
+UI, can administer the host.
 
 ## WebSocket protocol
 
