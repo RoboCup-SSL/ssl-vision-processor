@@ -47,6 +47,23 @@ func newAPI(mux *http.ServeMux) *api.API {
 		WithExamples(`"12"`)
 	a.SchemaFor(reflect.TypeFor[revision](), rev)
 
+	packet := mustSchema(map[string]any{
+		"type": "object",
+		"description": "An SSL_WrapperPacket from the league's ssl_vision_wrapper.proto, as canonical protojson " +
+			"(camelCase field names, enums as strings).",
+		"properties": map[string]any{
+			"geometry": map[string]any{
+				"type":        "object",
+				"description": "SSL_GeometryData.",
+				"properties": map[string]any{
+					"field": map[string]any{"type": "object", "description": "SSL_GeometryFieldSize: the field template, its lines and arcs."},
+					"calib": map[string]any{"type": "array", "description": "SSL_GeometryCameraCalibration, one per camera.", "items": map[string]any{"type": "object"}},
+				},
+			},
+		},
+	})
+	a.SchemaFor(reflect.TypeFor[wrapperPacket](), packet)
+
 	return a
 }
 
@@ -129,18 +146,23 @@ func settingsSchema() jsonschema.Schema {
 		top[name] = map[string]any{"type": "object", "properties": props}
 	}
 
-	data, err := json.Marshal(map[string]any{
+	return mustSchema(map[string]any{
 		"type":        "object",
 		"description": "vision_processor's config.yml layout, as GET /api/schema describes it. A key it doesn't read is kept but raises an unknown_setting warning.",
 		"properties":  top,
 	})
+}
+
+// mustSchema is a JSON Schema written as plain values.
+func mustSchema(v map[string]any) jsonschema.Schema {
+	data, err := json.Marshal(v)
 	if err != nil {
-		panic(fmt.Sprintf("settings schema: %v", err))
+		panic(fmt.Sprintf("schema: %v", err))
 	}
 
 	var schema jsonschema.Schema
 	if err := json.Unmarshal(data, &schema); err != nil {
-		panic(fmt.Sprintf("settings schema: %v", err))
+		panic(fmt.Sprintf("schema: %v", err))
 	}
 
 	return schema

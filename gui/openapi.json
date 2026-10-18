@@ -41,6 +41,41 @@
         }
       }
     },
+    "/api/camera/devices": {
+      "get": {
+        "tags": [
+          "Host-local"
+        ],
+        "summary": "Lists this host's capture devices: candidates for a camera's camera.path, stable by-id and by-path links first",
+        "description": "Empty on a machine without Video4Linux.",
+        "operationId": "cameraDevices",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/V4LDevice"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/config": {
       "get": {
         "tags": [
@@ -85,12 +120,96 @@
           }
         }
       },
+      "put": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Replaces the working document and applies it live",
+        "description": "Nothing is written to vision.yml until a save.",
+        "operationId": "putConfig",
+        "requestBody": {
+          "description": "A whole working document and the revision it's based on.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Answers a config write with the revision it left the working document at.",
+            "headers": {
+              "ETag": {
+                "style": "simple",
+                "description": "A document revision, quoted as an ETag: \"12\".",
+                "schema": {
+                  "description": "A document revision, quoted as an ETag: \"12\".",
+                  "examples": [
+                    "\"12\""
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error: invalid, bad_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "error: stale",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "error: unsupported_media",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "tags": [
           "Configuration"
         ],
-        "summary": "Applies a JSON Merge Patch (RFC 7396) to the working document and applies it live, for clients that change a few keys rather than resending the whole document",
-        "description": "A stale If-Match is a 409, like PUT's stale revision.",
+        "summary": "Merge-patches the working document and applies it live",
+        "description": "It follows RFC 7396, for clients that change a few keys rather than resending the whole document. A stale If-Match is a 409, like PUT's stale revision.",
         "operationId": "patchConfig",
         "parameters": [
           {
@@ -150,7 +269,7 @@
             }
           },
           "400": {
-            "description": "error: bad_request, invalid",
+            "description": "error: invalid, bad_request",
             "content": {
               "application/json": {
                 "schema": {
@@ -181,6 +300,960 @@
           },
           "428": {
             "description": "error: precondition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/cameras/{id}/calibration": {
+      "post": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Locks the camera's latest live calibration",
+        "description": "It's stored in the working document and published in place of whatever the camera sends; once saved, it survives restarts. A 409 no_live_calibration means none has been received yet.",
+        "operationId": "lockCalibration",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The camera's camera_id.",
+            "required": true,
+            "schema": {
+              "description": "The camera's camera_id.",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Answers a config write with the revision it left the working document at.",
+            "headers": {
+              "ETag": {
+                "style": "simple",
+                "description": "A document revision, quoted as an ETag: \"12\".",
+                "schema": {
+                  "description": "A document revision, quoted as an ETag: \"12\".",
+                  "examples": [
+                    "\"12\""
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error: bad_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "error: no_live_calibration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Removes the camera's locked calibration",
+        "description": "The host stops publishing any calibration for it, so its vision_processor calibrates again the next time it starts.",
+        "operationId": "unlockCalibration",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The camera's camera_id.",
+            "required": true,
+            "schema": {
+              "description": "The camera's camera_id.",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Answers a config write with the revision it left the working document at.",
+            "headers": {
+              "ETag": {
+                "style": "simple",
+                "description": "A document revision, quoted as an ETag: \"12\".",
+                "schema": {
+                  "description": "A document revision, quoted as an ETag: \"12\".",
+                  "examples": [
+                    "\"12\""
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error: bad_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/cameras/{id}/effective": {
+      "get": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Lists every setting of one camera as its vision_processor runs it",
+        "description": "Each value says where it comes from: the camera, the shared defaults, the host, or vision_processor's fallback.",
+        "operationId": "effectiveConfig",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The camera's camera_id.",
+            "required": true,
+            "schema": {
+              "description": "The camera's camera_id.",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every setting of one camera, resolved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigEffectiveConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error: bad_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/files": {
+      "get": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Lists the YAML files beside the current vision.yml, for load and save-as",
+        "description": "",
+        "operationId": "configFiles",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConfigFile"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/load": {
+      "post": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Switches to editing another vision.yml",
+        "description": "It replaces the working document, unsaved changes included, and applies it live.",
+        "operationId": "load",
+        "requestBody": {
+          "description": "Names a vision.yml to load.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Answers a config write with the revision it left the working document at.",
+            "headers": {
+              "ETag": {
+                "style": "simple",
+                "description": "A document revision, quoted as an ETag: \"12\".",
+                "schema": {
+                  "description": "A document revision, quoted as an ETag: \"12\".",
+                  "examples": [
+                    "\"12\""
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error: invalid, bad_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "error: unsupported_media",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/reload": {
+      "post": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Accepts vision.yml as it is on disk",
+        "description": "It discards unsaved changes: the \"load from disk\" answer to the external-change prompt, and \"revert to disk\".",
+        "operationId": "reload",
+        "responses": {
+          "200": {
+            "description": "Answers a config write with the revision it left the working document at.",
+            "headers": {
+              "ETag": {
+                "style": "simple",
+                "description": "A document revision, quoted as an ETag: \"12\".",
+                "schema": {
+                  "description": "A document revision, quoted as an ETag: \"12\".",
+                  "examples": [
+                    "\"12\""
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error: invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/save": {
+      "post": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Writes the working document to vision.yml",
+        "description": "A 409 disk_changed means the file was edited elsewhere since it was loaded (config.state's external describes how); force overwrites it anyway.",
+        "operationId": "save",
+        "requestBody": {
+          "description": "Saves the working document at a revision.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Answers a config write with the revision it left the working document at.",
+            "headers": {
+              "ETag": {
+                "style": "simple",
+                "description": "A document revision, quoted as an ETag: \"12\".",
+                "schema": {
+                  "description": "A document revision, quoted as an ETag: \"12\".",
+                  "examples": [
+                    "\"12\""
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error: invalid, bad_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "error: stale, disk_changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "error: unsupported_media",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/save-as": {
+      "post": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Writes the working document to another path",
+        "description": "The host loads from, saves to, and watches that file from then on.",
+        "operationId": "saveAs",
+        "requestBody": {
+          "description": "Saves the working document to another file.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveAsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Answers a config write with the revision it left the working document at.",
+            "headers": {
+              "ETag": {
+                "style": "simple",
+                "description": "A document revision, quoted as an ETag: \"12\".",
+                "schema": {
+                  "description": "A document revision, quoted as an ETag: \"12\".",
+                  "examples": [
+                    "\"12\""
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "error: invalid, bad_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "error: stale",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "error: unsupported_media",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/geometry": {
+      "get": {
+        "tags": [
+          "Field"
+        ],
+        "summary": "Serves the wrapper packet the host publishes: the field and every camera's calibration, as canonical protojson, the encoding the rest of the league already reads",
+        "description": "",
+        "operationId": "getGeometry",
+        "responses": {
+          "200": {
+            "description": "An SSL_WrapperPacket from the league's ssl_vision_wrapper.proto, as canonical protojson (camelCase field names, enums as strings).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WrapperPacket"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/geometry/presets": {
+      "get": {
+        "tags": [
+          "Field"
+        ],
+        "summary": "Lists the rulebook field dimensions, Division A and B",
+        "description": "A preset file the host can't read (from the wrong working directory, for one) is left out rather than failing the request.",
+        "operationId": "fieldPresets",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FieldPresetResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Status"
+        ],
+        "summary": "Reports that the host is up and serving",
+        "description": "",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Says the host is up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/network": {
+      "get": {
+        "tags": [
+          "Status"
+        ],
+        "summary": "Reports each multicast socket's address and what it hears: network.state on demand",
+        "description": "",
+        "operationId": "network",
+        "responses": {
+          "200": {
+            "description": "Each socket's address and what it has heard, plus the host facts the Network page's presets and notes need. Served as network.state and GET /api/network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkState"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schema": {
+      "get": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Describes every vision_processor setting: type, fallback, bounds, and when a change takes effect",
+        "description": "",
+        "operationId": "getSchema",
+        "responses": {
+          "200": {
+            "description": "Describes everything a client needs to edit vision_processor settings without reading the C++: served as GET /api/schema.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigSchema"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/snapshot/{camID}/{view}": {
+      "get": {
+        "tags": [
+          "Host-local"
+        ],
+        "summary": "Serves a camera's latest debug image for one view",
+        "description": "The most recently written of the views GET /api/snapshots lists, as vision_processor wrote it.",
+        "parameters": [
+          {
+            "name": "camID",
+            "in": "path",
+            "description": "The camera's camera_id.",
+            "required": true,
+            "schema": {
+              "description": "The camera's camera_id.",
+              "type": "integer"
+            }
+          },
+          {
+            "name": "view",
+            "in": "path",
+            "description": "The image's view, as GET /api/snapshots lists it, e.g. raw or geomcalib_input.",
+            "required": true,
+            "schema": {
+              "description": "The image's view, as GET /api/snapshots lists it, e.g. raw or geomcalib_input.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image, PNG or JPEG.",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error: not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/snapshots": {
+      "get": {
+        "tags": [
+          "Host-local"
+        ],
+        "summary": "Lists the debug images on this host, by camera and view",
+        "description": "",
+        "operationId": "snapshots",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SnapshotEntry"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/topics": {
+      "get": {
+        "tags": [
+          "Live updates"
+        ],
+        "summary": "Lists the WebSocket topics /ws accepts",
+        "description": "",
+        "operationId": "topics",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ws": {
+      "get": {
+        "tags": [
+          "Live updates"
+        ],
+        "summary": "Opens the live-updates WebSocket",
+        "description": "Subscribe to topics as described in Live updates above.",
+        "responses": {
+          "101": {
+            "description": "Upgraded to a WebSocket."
+          },
+          "500": {
+            "description": "error: internal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ws/video/{id}": {
+      "get": {
+        "tags": [
+          "Live updates"
+        ],
+        "summary": "Opens a camera's live video WebSocket",
+        "description": "JSON status (once a second) and format (codec and size) messages, and binary fragmented MP4 segments ready for a MediaSource SourceBuffer in sequence mode. A new viewer starts at the last keyframe.",
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "description": "Full (every frame, the default) or keyframes (about one a second, for grids).",
+            "schema": {
+              "description": "Full (every frame, the default) or keyframes (about one a second, for grids).",
+              "enum": [
+                "full",
+                "keyframes"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The camera's camera_id.",
+            "required": true,
+            "schema": {
+              "description": "The camera's camera_id.",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "Upgraded to a WebSocket."
+          },
+          "400": {
+            "description": "error: bad_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpjsonErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "error: not_found",
             "content": {
               "application/json": {
                 "schema": {
@@ -420,6 +1493,59 @@
         },
         "type": "object"
       },
+      "ConfigDriver": {
+        "description": "What a camera driver does with the camera: block (src/driver/*.cpp).",
+        "properties": {
+          "gamma": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "selectsBy": {
+            "description": "How the block picks a device: \"id\", an index in the SDK's camera list, or \"path\", a device or file path.",
+            "type": "string"
+          },
+          "whiteBalanceProfiles": {
+            "description": "Separate OUTDOOR and INDOOR auto profiles.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ConfigEffectiveConfig": {
+        "description": "Every setting of one camera, resolved.",
+        "properties": {
+          "cameraId": {
+            "type": "integer"
+          },
+          "settings": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ConfigEffectiveSetting"
+            },
+            "description": "By dotted config.yml path, as in Schema.",
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "ConfigEffectiveSetting": {
+        "description": "One setting as camera's vision_processor runs it.",
+        "properties": {
+          "known": {
+            "description": "False for a key the schema doesn't describe: it's written to config.yml, but nothing the host knows of reads it.",
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "value": {}
+        },
+        "type": "object"
+      },
       "ConfigExternalState": {
         "description": "Describes a change made to the file on disk by something else. Changes are what loading it would do to the working document.",
         "properties": {
@@ -434,6 +1560,23 @@
           },
           "error": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ConfigFile": {
+        "description": "A YAML file beside the one the store edits.",
+        "properties": {
+          "current": {
+            "description": "The file the store loads from and saves to.",
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          },
+          "readOnly": {
+            "description": "Files (rulebook presets, no write permission) can't be saved over.",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -477,6 +1620,24 @@
         },
         "type": "object"
       },
+      "ConfigRange": {
+        "description": "A control's suggested span and step.",
+        "properties": {
+          "max": {
+            "format": "double",
+            "type": "number"
+          },
+          "min": {
+            "format": "double",
+            "type": "number"
+          },
+          "step": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
       "ConfigResponse": {
         "description": "The working document plus the store's state.",
         "properties": {
@@ -485,6 +1646,41 @@
           },
           "state": {
             "$ref": "#/components/schemas/ConfigState"
+          }
+        },
+        "type": "object"
+      },
+      "ConfigSchema": {
+        "description": "Describes everything a client needs to edit vision_processor settings without reading the C++: served as GET /api/schema.",
+        "properties": {
+          "cameraCounts": {
+            "description": "The supported layout.cameraCount values.",
+            "items": {
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "drivers": {
+            "items": {
+              "$ref": "#/components/schemas/ConfigDriver"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "settings": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ConfigSetting"
+            },
+            "description": "By dotted config.yml path, e.g. \"thresholds.blobs\".",
+            "type": [
+              "object",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -520,6 +1716,50 @@
           "slot": {
             "$ref": "#/components/schemas/ConfigSlot",
             "description": "The slot the corners were picked for. Moving the camera to another slot makes them stale. Nil for corners saved before slots were recorded."
+          }
+        },
+        "type": "object"
+      },
+      "ConfigSetting": {
+        "description": "One key of vision_processor's config.yml layout, as the defaults block and each camera's config hold it.",
+        "properties": {
+          "apply": {
+            "type": "string"
+          },
+          "default": {
+            "description": "Vision_processor's own fallback for an unset key, nil when there is none (derived) or it depends on other keys (camera.path)."
+          },
+          "enum": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "exclusiveMinimum": {
+            "type": "boolean"
+          },
+          "maximum": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "minimum": {
+            "description": "Bounds the host enforces, inclusive unless Exclusive.",
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "range": {
+            "$ref": "#/components/schemas/ConfigRange",
+            "description": "A sensible span for a control, narrower than the bounds. The value itself may be anything within the bounds."
+          },
+          "type": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -1057,6 +2297,45 @@
         },
         "type": "object"
       },
+      "DetectionsSource": {
+        "description": "One camera_id heard from one address.",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "cameraId": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "fps": {
+            "type": "integer"
+          },
+          "lastHeard": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "receiving": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "FieldPresetResponse": {
+        "description": "One rulebook field.",
+        "properties": {
+          "field": {
+            "$ref": "#/components/schemas/GeometryFieldConfig"
+          },
+          "name": {
+            "description": "The division, e.g. \"Division B\".",
+            "type": "string"
+          },
+          "optionalFieldLines": {
+            "$ref": "#/components/schemas/GeometryOptionalLinesConfig"
+          }
+        },
+        "type": "object"
+      },
       "GeometryFieldConfig": {
         "description": "The editable subset of SSL_GeometryFieldSize -- everything except FieldLines/FieldArcs (generated, never hand-edited) and the fields that live elsewhere (Calib is runtime state, not static config).",
         "properties": {
@@ -1141,6 +2420,16 @@
         },
         "type": "object"
       },
+      "HealthResponse": {
+        "description": "Says the host is up.",
+        "properties": {
+          "status": {
+            "description": "Always \"ok\".",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "HttpjsonErrorBody": {
         "description": "The body of every non-2xx API response.",
         "properties": {
@@ -1160,12 +2449,296 @@
         },
         "type": "object"
       },
+      "LoadRequest": {
+        "description": "Names a vision.yml to load.",
+        "properties": {
+          "path": {
+            "description": "The file to load, on the host.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MulticastInterface": {
+        "description": "One local network interface as the Network page shows it.",
+        "properties": {
+          "address": {
+            "description": "Its first IPv4 address, if any; Broadcast that subnet's broadcast address.",
+            "type": "string"
+          },
+          "autoReason": {
+            "type": "string"
+          },
+          "autoUse": {
+            "description": "What automatic selection decides; AutoReason why it doesn't use the interface.",
+            "type": "boolean"
+          },
+          "broadcast": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "usable": {
+            "description": "Means up, multicast capable, and with an IPv4 address: the least a socket needs to use it at all.",
+            "type": "boolean"
+          },
+          "used": {
+            "description": "Whether the host's sockets use it under the current selection.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "MulticastStatus": {
+        "description": "An endpoint's address and what it has heard there.",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "heard": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "lastHeard": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "mode": {
+            "description": "How the receiver was opened: \"multicast\" joined the group, \"port\" listens on the port for anything sent there (broadcast, or unicast to this host).",
+            "type": "string"
+          },
+          "problem": {
+            "description": "Why the sockets aren't fully open, if they aren't.",
+            "type": "string"
+          },
+          "receiving": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NetworkState": {
+        "description": "Each socket's address and what it has heard, plus the host facts the Network page's presets and notes need. Served as network.state and GET /api/network.",
+        "properties": {
+          "autoInterfaces": {
+            "type": "boolean"
+          },
+          "cameras": {
+            "items": {
+              "$ref": "#/components/schemas/DetectionsSource"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "gc": {
+            "$ref": "#/components/schemas/MulticastStatus"
+          },
+          "interfaces": {
+            "items": {
+              "$ref": "#/components/schemas/MulticastInterface"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "loopback": {
+            "type": "string"
+          },
+          "loopbackMulticast": {
+            "type": "boolean"
+          },
+          "referee": {
+            "$ref": "#/components/schemas/RefereeState"
+          },
+          "root": {
+            "type": "boolean"
+          },
+          "unprivilegedPortStart": {
+            "type": "integer"
+          },
+          "vision": {
+            "$ref": "#/components/schemas/MulticastStatus"
+          }
+        },
+        "type": "object"
+      },
+      "PutConfigRequest": {
+        "description": "A whole working document and the revision it's based on.",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/ConfigDocument"
+          },
+          "revision": {
+            "description": "The revision the document is based on; a stale one is a 409.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RefereeState": {
+        "description": "What the GUI shows about the current match.",
+        "properties": {
+          "blue": {
+            "$ref": "#/components/schemas/RefereeTeam"
+          },
+          "heard": {
+            "description": "When the last referee message arrived, nil if none has.",
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "heights": {
+            "additionalProperties": {
+              "format": "double",
+              "type": "number"
+            },
+            "description": "The whole table, team name to height in mm.",
+            "type": "object"
+          },
+          "heightsError": {
+            "type": "string"
+          },
+          "heightsFile": {
+            "description": "The table vision_processor reads (bot_heights_file).",
+            "type": "string"
+          },
+          "maxHeight": {
+            "format": "double",
+            "type": "number"
+          },
+          "meanHeight": {
+            "description": "Vision_processor's height for a team not in the table, until a known team has played; MaxHeight is the tallest in the table, which it uses for its field extent checks.",
+            "format": "double",
+            "type": "number"
+          },
+          "yellow": {
+            "$ref": "#/components/schemas/RefereeTeam"
+          }
+        },
+        "type": "object"
+      },
+      "RefereeTeam": {
+        "description": "One side of the current match.",
+        "properties": {
+          "height": {
+            "description": "The team's robot height from the table, nil when the team isn't in it.",
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "RevisionResponse": {
         "description": "Answers a config write with the revision it left the working document at.",
         "properties": {
           "revision": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SaveAsRequest": {
+        "description": "Saves the working document to another file.",
+        "properties": {
+          "path": {
+            "description": "The file to write, on the host.",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Must be the current one; a stale one is a 409.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SaveRequest": {
+        "description": "Saves the working document at a revision.",
+        "properties": {
+          "force": {
+            "description": "Overwrites vision.yml even if it changed on disk since it was loaded: the \"overwrite disk\" answer to the external-change prompt.",
+            "type": "boolean"
+          },
+          "revision": {
+            "description": "Must be the current one; a stale one is a 409.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SnapshotEntry": {
+        "description": "Identifies one available snapshot.",
+        "properties": {
+          "cameraId": {
+            "type": "integer"
+          },
+          "view": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "V4LDevice": {
+        "description": "One way to name a capture device.",
+        "properties": {
+          "kind": {
+            "description": "\"by-id\" (follows the camera), \"by-path\" (follows the USB port), or \"node\" (/dev/videoN, which can change when devices re-enumerate).",
+            "type": "string"
+          },
+          "name": {
+            "description": "The driver's name for the device, e.g. \"UC70: UC70\".",
+            "type": "string"
+          },
+          "node": {
+            "description": "The /dev/videoN it currently points at.",
+            "type": "string"
+          },
+          "path": {
+            "description": "What goes in camera.path.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WrapperPacket": {
+        "description": "An SSL_WrapperPacket from the league's ssl_vision_wrapper.proto, as canonical protojson (camelCase field names, enums as strings).",
+        "properties": {
+          "geometry": {
+            "description": "SSL_GeometryData.",
+            "properties": {
+              "calib": {
+                "description": "SSL_GeometryCameraCalibration, one per camera.",
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "field": {
+                "description": "SSL_GeometryFieldSize: the field template, its lines and arcs.",
+                "type": "object"
+              }
+            },
+            "type": "object"
           }
         },
         "type": "object"

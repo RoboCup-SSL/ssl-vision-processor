@@ -84,6 +84,7 @@ before returning.
 | `internal/config`                            | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files.             |
 | `internal/geometry`                          | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state.                                         |
 | `internal/multicast`                         | The vision, game controller, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
+| `internal/api`                               | Typed route registration and the OpenAPI 3.1 spec reflected from the handlers' own types and doc comments.                              |
 | `internal/hub`                               | In-process topic pub/sub and the `/ws` WebSocket handler.                                                                               |
 | `internal/detections`                        | Which camera_ids the vision socket hears, from which address, at what rate. Feeds the Camera Layout page.                               |
 | `internal/referee`                           | The current match's teams, from the game controller, and their robot heights from `bot_heights_file`.                                   |
@@ -193,33 +194,19 @@ JSON float and YAML decodes integers as ints, so without this every edit would s
 
 ## HTTP API
 
-All routes are registered in `cmd/ssl-vision-processor-gui/routes.go`.
+Every route is registered in `cmd/ssl-vision-processor-gui/routes.go` through `internal/api`, which builds an
+OpenAPI 3.1 spec from each handler's request and response types, and its summary, descriptions and field docs
+from their Go doc comments. The host serves the spec at `GET /api/openapi.json` and a reference for it at
+`GET /api/docs` (Redoc, embedded, so it works offline), linked from the GUI's settings menu. `gui/openapi.json`
+is the committed copy; `make generate` rewrites it, and CI fails when it, `internal/api/comments_gen.go` or the
+alert codes are stale.
 
-| Method | Path                                   | Purpose                                                                             |
-| ------ | -------------------------------------- | ----------------------------------------------------------------------------------- |
-| GET    | `/api/health`                          | Liveness check.                                                                     |
-| GET    | `/api/topics`                          | The WebSocket topics `/ws` accepts.                                                 |
-| GET    | `/api/network`                         | `network.state` on demand.                                                          |
-| GET    | `/api/alerts`                          | `alerts.state` on demand: every current problem, most serious first.                |
-| GET    | `/api/geometry`                        | The full wrapper packet, as canonical protojson.                                    |
-| GET    | `/api/geometry/presets`                | The rulebook presets, read live from `config/legacy/geometry-div{A,B}.yml`.         |
-| GET    | `/api/schema`                          | Every vision_processor setting: type, C++ fallback, bounds, live or restart.        |
-| GET    | `/api/config`                          | The working document and the store's state.                                         |
-| PUT    | `/api/config`                          | Replace the working document and apply it live. 409 on a stale revision.            |
-| PATCH  | `/api/config`                          | JSON Merge Patch the working document. `If-Match` carries the revision (the ETag).  |
-| GET    | `/api/config/files`                    | The `.yml` files beside the current one, for load and save-as.                      |
-| POST   | `/api/config/save`                     | Write the working document to disk. 409 if the file changed on disk, unless forced. |
-| POST   | `/api/config/save-as`                  | Write to a new path and edit that file from then on.                                |
-| POST   | `/api/config/load`                     | Load another file, discarding unsaved changes.                                      |
-| POST   | `/api/config/reload`                   | Accept the file as it is on disk, discarding unsaved changes.                       |
-| GET    | `/api/config/cameras/{id}/effective`   | Every setting as the camera runs it, and its source: camera, defaults, fallback.    |
-| POST   | `/api/config/cameras/{id}/calibration` | Lock the camera's latest live calibration.                                          |
-| DELETE | `/api/config/cameras/{id}/calibration` | Unlock it and stop publishing any calibration for the camera.                       |
-| GET    | `/api/camera/devices`                  | Host-local. This host's capture devices: by-id and by-path links, then raw nodes.   |
-| GET    | `/api/snapshots`                       | Host-local. Debug images in `-imgDir`.                                              |
-| GET    | `/api/snapshot/{camID}/{view}`         | Host-local. One debug image.                                                        |
-| GET    | `/ws`                                  | WebSocket, see below.                                                               |
-| GET    | `/ws/video/{id}?mode=full\|keyframes`  | One camera's live video, see Live video below.                                      |
+A handler takes one input struct and returns one output. Input fields tagged `path:`, `query:` or `header:` are
+parameters, and a field tagged `body:"<content types>"` is the body; an input with only JSON fields is itself the
+body. Output fields tagged `header:` are response headers. Each route lists the error codes it can return, which
+the spec shows per status; the `cmd` tests fail if any route answers a code it doesn't list. Routes whose
+responses aren't one JSON value (the snapshot image, the two WebSocket upgrades) use `api.Raw` and are
+documented the same way.
 
 An unrouted `/api/*` path returns 404 rather than falling through to the frontend, so a typo'd endpoint fails
 with a clear status instead of returning HTML to a caller expecting JSON. Every other path serves the embedded

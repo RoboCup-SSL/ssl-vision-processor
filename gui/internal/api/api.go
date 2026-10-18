@@ -144,6 +144,13 @@ func Route[In, Out any](a *API, pattern string, doc Doc, h func(*http.Request, I
 	a.declared[pattern] = doc.Errors
 
 	a.mux.Handle(pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if CheckDeclared != nil {
+			sniff := &sniffer{ResponseWriter: w}
+			w = sniff
+
+			defer func() { sniff.check(pattern, doc.Errors) }()
+		}
+
 		var req In
 
 		if !in.decode(w, r, reflect.ValueOf(&req).Elem()) {
@@ -159,6 +166,114 @@ func Route[In, Out any](a *API, pattern string, doc Doc, h func(*http.Request, I
 
 		writeOutput(w, resp)
 	}))
+}
+
+// CheckDeclared, when set (by tests), is called with each error code a
+// Route answers that its Doc doesn't declare.
+var CheckDeclared func(pattern, code string)
+
+// sniffer keeps an error response's body for CheckDeclared.
+type sniffer struct {
+	http.ResponseWriter
+	status int
+	body   []byte
+}
+
+func (s *sniffer) WriteHeader(status int) {
+	s.status = status
+	s.ResponseWriter.WriteHeader(status)
+}
+
+func (s *sniffer) Write(b []byte) (int, error) {
+	if s.status >= 400 {
+		s.body = append(s.body, b...)
+	}
+
+	return s.ResponseWriter.Write(b)
+}
+
+func (s *sniffer) check(pattern string, declared []string) {
+	var body httpjson.ErrorBody
+	if s.status < 400 || json.Unmarshal(s.body, &body) != nil {
+		return
+	}
+
+	if body.Error != httpjson.CodeInternal && !slices.Contains(declared, body.Error) {
+		CheckDeclared(pattern, body.Error)
+	}
+}
+
+// RawResponse is a response a Raw route writes itself.
+type RawResponse struct {
+	Status      int
+	ContentType string // empty for none
+	Description string
+}
+
+// Raw registers h for a route whose responses aren't one JSON value (an
+// image, a WebSocket upgrade) and documents it: In's parameters as for Route,
+// which h reads itself, and responses. Errors are JSON as usual.
+func Raw[In any](a *API, pattern string, doc Doc, h http.Handler, responses ...RawResponse) {
+	method, path, ok := strings.Cut(pattern, " ")
+	if !ok {
+		panic("api: pattern needs a method: " + pattern)
+	}
+
+	in, err := inputOf(reflect.TypeFor[In]())
+	if err != nil {
+		panic(fmt.Sprintf("api: %s: %v", pattern, err))
+	}
+
+	if err := a.documentRaw(method, path, doc, in, responses); err != nil {
+		panic(fmt.Sprintf("api: %s: %v", pattern, err))
+	}
+
+	a.declared[pattern] = doc.Errors
+	a.mux.Handle(pattern, h)
+}
+
+func (a *API) documentRaw(method, path string, doc Doc, in input, responses []RawResponse) error {
+	oc, err := a.r.NewOperationContext(method, path)
+	if err != nil {
+		return err
+	}
+
+	oc.SetSummary(doc.Summary)
+	oc.SetDescription(doc.Description)
+	oc.SetTags(doc.Tags...)
+
+	if in.params != nil {
+		oc.AddReqStructure(reflect.New(in.params).Interface())
+	}
+
+	for _, resp := range responses {
+		oc.AddRespStructure(nil, openapi.WithHTTPStatus(resp.Status), openapi.WithCustomize(func(cor openapi.ContentOrReference) {
+			r, ok := cor.(*openapi31.ResponseOrReference)
+			if !ok {
+				return
+			}
+
+			if r.Response == nil {
+				r.Response = &openapi31.Response{}
+			}
+
+			r.Response.Description = resp.Description
+			if resp.ContentType != "" {
+				r.Response.Content = map[string]openapi31.MediaType{
+					resp.ContentType: {Schema: map[string]any{"type": "string", "format": "binary"}},
+				}
+			}
+		}))
+	}
+
+	for status, codes := range errorsByStatus(doc.Errors) {
+		oc.AddRespStructure(new(httpjson.ErrorBody),
+			openapi.WithHTTPStatus(status),
+			func(cu *openapi.ContentUnit) { cu.Description = "error: " + strings.Join(codes, ", ") },
+		)
+	}
+
+	return a.r.AddOperation(oc)
 }
 
 // Declared is the error codes each route documents, by pattern, for tests
@@ -185,7 +300,7 @@ func (a *API) document(method, path string, doc Doc, in input, out reflect.Type)
 		oc.AddReqStructure(reflect.New(in.params).Interface())
 	}
 
-	if in.body >= 0 {
+	if in.body >= 0 || in.whole {
 		types, bodyDoc := in.bodyTypes, in.bodyDoc
 		// Reflected as JSON, then filed under the body's own media types.
 		oc.AddReqStructure(reflect.New(in.bodyType).Interface(),

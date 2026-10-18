@@ -32,23 +32,9 @@ type Entry struct {
 	View     string `json:"view"`
 }
 
-// HandleList lists the debug images vision_processor has written to dir
-// (-imgDir), by camera and view.
-func HandleList(dir string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		entries, err := list(dir)
-		if err != nil {
-			slog.Error("listing snapshots", "dir", dir, "err", err)
-			httpjson.Error(w, http.StatusInternalServerError, httpjson.CodeInternal, "internal error")
-
-			return
-		}
-
-		httpjson.Write(w, http.StatusOK, entries)
-	}
-}
-
-func list(dir string) ([]Entry, error) {
+// List is the debug images vision_processor has written to dir (-imgDir),
+// one entry per camera and view, sorted. A missing dir has none.
+func List(dir string) ([]Entry, error) {
 	files, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
 		return []Entry{}, nil

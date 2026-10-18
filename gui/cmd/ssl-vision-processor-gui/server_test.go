@@ -426,7 +426,7 @@ func TestReloadAcceptsTheFileOnDisk(t *testing.T) {
 	}
 
 	var reloaded revisionResponse
-	if err := json.NewDecoder(rec.Body).Decode(&reloaded); err != nil || rec.Header().Get("ETag") != revisionETag(reloaded.Revision) {
+	if err := json.NewDecoder(rec.Body).Decode(&reloaded); err != nil || rec.Header().Get("ETag") != revision(reloaded.Revision).String() {
 		t.Errorf("reload body %+v (%v), ETag %q: want the new revision in both", reloaded, err, rec.Header().Get("ETag"))
 	}
 

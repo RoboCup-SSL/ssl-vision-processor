@@ -52,6 +52,21 @@ func StatusOf(code string) int {
 	return http.StatusInternalServerError
 }
 
+// Problem is an error a handler returns to answer with a specific code, e.g.
+// Errorf(CodeInvalid, "path: required"). Its status is StatusOf(Code).
+type Problem struct {
+	Code    string
+	Message string
+	Issues  []string
+}
+
+func (p *Problem) Error() string { return p.Message }
+
+// Errorf is a Problem with code and a formatted message.
+func Errorf(code, format string, args ...any) *Problem {
+	return &Problem{Code: code, Message: fmt.Sprintf(format, args...)}
+}
+
 // ErrorBody is the body of every non-2xx API response.
 type ErrorBody struct {
 	Error   string `json:"error"`

@@ -23,6 +23,9 @@ type input struct {
 	bodyTypes []string
 	// bodyDoc is the body field's doc comment.
 	bodyDoc string
+	// whole is an input with only JSON fields: the struct itself is the
+	// body.
+	whole bool
 }
 
 type param struct {
@@ -92,6 +95,17 @@ func inputOf(t reflect.Type) (input, error) {
 		in.params = reflect.StructOf(paramFields)
 	}
 
+	if in.body < 0 && len(paramFields) == 0 {
+		for i := range t.NumField() {
+			if name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ","); name != "" && name != "-" {
+				in.whole, in.bodyType, in.bodyTypes = true, t, []string{"application/json"}
+				in.bodyDoc = comments[canonical(t.PkgPath())+"."+t.Name()]
+
+				break
+			}
+		}
+	}
+
 	return in, nil
 }
 
@@ -134,7 +148,10 @@ func (in input) decode(w http.ResponseWriter, r *http.Request, v reflect.Value) 
 		}
 	}
 
-	if in.body >= 0 {
+	switch {
+	case in.whole:
+		return httpjson.Decode(w, r, v.Addr().Interface(), in.bodyTypes...)
+	case in.body >= 0:
 		return httpjson.Decode(w, r, v.Field(in.body).Addr().Interface(), in.bodyTypes...)
 	}
 

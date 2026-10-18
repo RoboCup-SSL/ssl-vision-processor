@@ -186,7 +186,8 @@ func TestSchemaForReplacesAType(t *testing.T) {
 	a := New(mux, Info{Title: "test", Version: "1"}, nil)
 
 	var s jsonschema.Schema
-	s.WithType(jsonschema.Object.Type()).WithDescription("from elsewhere")
+	s.WithType(jsonschema.Object.Type()).WithDescription("from elsewhere").
+		WithPropertiesItem("k", jsonschema.String.ToSchemaOrBool())
 	a.SchemaFor(reflect.TypeFor[custom](), s)
 
 	Route(a, "GET /custom", Doc{}, func(*http.Request, struct{}) (custom, error) { return custom{}, nil })
@@ -196,8 +197,20 @@ func TestSchemaForReplacesAType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(string(data), "from elsewhere") {
-		t.Errorf("spec doesn't use the replacement schema:\n%s", data)
+	var spec struct {
+		Paths map[string]map[string]struct {
+			Responses map[string]struct {
+				Content map[string]struct{ Schema map[string]any }
+			}
+		}
+	}
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatal(err)
+	}
+
+	// The response itself must keep its body, not just mention the schema.
+	if _, ok := spec.Paths["/custom"]["get"].Responses["200"].Content["application/json"]; !ok || !strings.Contains(string(data), "from elsewhere") {
+		t.Errorf("200 doesn't carry the replacement schema:\n%s", data)
 	}
 }
 
