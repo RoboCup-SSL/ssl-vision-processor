@@ -245,6 +245,12 @@
             <DropdownGroup>
               <DropdownItem
                 class={ITEM_CLASS}
+                href={links.apiDocs}
+                target="_blank"
+                rel="noopener noreferrer">API Reference ↗︎</DropdownItem
+              >
+              <DropdownItem
+                class={ITEM_CLASS}
                 href={links.repository}
                 target="_blank"
                 rel="noopener noreferrer">GitHub Repository ↗︎</DropdownItem

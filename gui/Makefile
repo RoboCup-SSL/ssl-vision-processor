@@ -11,7 +11,7 @@ FRONTEND_SOURCES = $(shell find frontend -type f \
 
 PROTO_SOURCES = $(shell find ../proto/proto -type f 2>/dev/null)
 
-.PHONY: all frontend install test go-test frontend-test e2e vet build run proto clean
+.PHONY: all frontend install test go-test frontend-test e2e generate redoc vet build run proto clean
 
 all: install
 
@@ -67,6 +67,23 @@ E2E_BIN := $(shell mktemp -u -t vision-gui-e2e-bin.XXXXXX)
 e2e: frontend
 	go build -o $(E2E_BIN) ./cmd/$(BINARY)
 	cd frontend && GUI_BIN=$(E2E_BIN) npx playwright test; status=$$?; rm -f $(E2E_BIN); exit $$status
+
+# Regenerates every committed file derived from the code: the doc comments the
+# OpenAPI spec uses, the spec itself (openapi.json), and the alert codes the
+# frontend's tests check. CI runs this and fails on any diff.
+generate: frontend
+	cd internal/api && go run ./gen
+	go test ./cmd/$(BINARY) -run OpenAPISpecIsCurrent -update
+	go test ./internal/alerts -run CodesFileIsCurrent -update
+
+# Refreshes the embedded API docs viewer (Redoc's standalone bundle, MIT).
+REDOC_VERSION = 2.5.1
+
+redoc:
+	cd $$(mktemp -d) && npm pack redoc@$(REDOC_VERSION) --silent && \
+		tar -xzf redoc-$(REDOC_VERSION).tgz package/LICENSE package/bundles/redoc.standalone.js package/bundles/redoc.standalone.js.LICENSE.txt && \
+		cp package/bundles/redoc.standalone.js package/bundles/redoc.standalone.js.LICENSE.txt $(CURDIR)/internal/api/viewer/ && \
+		cp package/LICENSE $(CURDIR)/internal/api/viewer/REDOC-LICENSE
 
 # CI runs go-test and frontend-test as separate parallel jobs (see
 # .github/workflows/ci.yml) -- this is the single "everything before you

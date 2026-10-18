@@ -64,6 +64,10 @@ jobs:
             make vet
             make build
             make go-test
+            # Committed generated files (doc comments, openapi.json, alert
+            # codes) must match the code.
+            make generate
+            git diff --exit-code
           '
 
   frontend:

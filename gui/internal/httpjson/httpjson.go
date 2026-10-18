@@ -27,6 +27,31 @@ const (
 	CodeInternal          = "internal"            // the host's fault, logged
 )
 
+// statuses is each code's HTTP status.
+var statuses = map[string]int{
+	CodeBadRequest:        http.StatusBadRequest,
+	CodeInvalid:           http.StatusBadRequest,
+	CodeNotFound:          http.StatusNotFound,
+	CodeStale:             http.StatusConflict,
+	CodeDiskChanged:       http.StatusConflict,
+	CodeNoLiveCalibration: http.StatusConflict,
+	CodePrecondition:      http.StatusPreconditionRequired,
+	CodeCrossOrigin:       http.StatusForbidden,
+	CodeUnknownHost:       http.StatusMisdirectedRequest,
+	CodeUnsupportedMedia:  http.StatusUnsupportedMediaType,
+	CodeInternal:          http.StatusInternalServerError,
+}
+
+// StatusOf is the HTTP status a code is answered with; 500 for one it doesn't
+// know.
+func StatusOf(code string) int {
+	if s, ok := statuses[code]; ok {
+		return s
+	}
+
+	return http.StatusInternalServerError
+}
+
 // ErrorBody is the body of every non-2xx API response.
 type ErrorBody struct {
 	Error   string `json:"error"`

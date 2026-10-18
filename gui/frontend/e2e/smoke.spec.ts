@@ -282,3 +282,23 @@ test("debug snapshots reach the page", async ({ page }) => {
 
   await expect(page.getByText("cam 0 / raw")).toBeVisible();
 });
+
+test("the settings menu opens the API reference", async ({ page, context }) => {
+  await page.goto("/#0/field");
+
+  await page.getByRole("button", { name: "Settings" }).click();
+  const link = page.getByRole("link", { name: /API Reference/ });
+  await expect(link).toHaveAttribute("href", "/api/docs");
+
+  const [docs] = await Promise.all([
+    context.waitForEvent("page"),
+    link.click(),
+  ]);
+
+  await docs.waitForLoadState();
+  expect(docs.url()).toMatch(/\/api\/docs$/);
+  await expect(
+    docs.getByText("vision_processor GUI host").first(),
+  ).toBeVisible();
+  await docs.close();
+});

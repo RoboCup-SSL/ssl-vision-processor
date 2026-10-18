@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/alerts"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/httpjson"
@@ -31,7 +32,9 @@ func NewVisionServer(geom *geometry.Geometry, store *config.Store, status Status
 	s := &VisionServer{geometry: geom, store: store, status: status, origins: policy, hub: wsHub, video: videos, imgDir: imgDir}
 
 	mux := http.NewServeMux()
-	s.addRoutes(mux)
+	a := newAPI(mux)
+	s.addRoutes(mux, a)
+	a.ServeDocs()
 
 	// A browser page from an untrusted origin can't change state; a trusted
 	// one also gets CORS headers. A request must name this host by one of its
@@ -73,12 +76,10 @@ func (s *VisionServer) handleGetNetwork() http.HandlerFunc {
 	}
 }
 
-// handleGetAlerts is alerts.state on demand: every current problem, most
-// serious first.
-func (s *VisionServer) handleGetAlerts() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		httpjson.Write(w, http.StatusOK, s.status.Alerts())
-	}
+// getAlerts lists every problem the host sees right now, most serious first:
+// alerts.state on demand.
+func (s *VisionServer) getAlerts(_ *http.Request, _ struct{}) ([]alerts.Alert, error) {
+	return s.status.Alerts(), nil
 }
 
 // handleHealth reports that the host is up and serving.
@@ -118,20 +119,36 @@ func (s *VisionServer) handleGetSchema() http.HandlerFunc {
 
 // configResponse is the working document plus the store's state.
 type configResponse struct {
+	// ETag is the document's revision, for PATCH's If-Match.
+	ETag     revision        `header:"ETag" json:"-"`
 	Document config.Document `json:"document"`
 	State    config.State    `json:"state"`
 }
 
-// handleGetConfig serves the working document. Its revision is also the
-// ETag, for PATCH's If-Match.
-func (s *VisionServer) handleGetConfig() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		doc, _ := s.store.Working()
-		state := s.store.State()
-		w.Header().Set("ETag", revisionETag(state.Revision))
-		httpjson.Write(w, http.StatusOK, configResponse{Document: doc, State: state})
-	}
+// getConfig serves the working document and the store's state. Its revision
+// is also the ETag, for PATCH's If-Match.
+func (s *VisionServer) getConfig(_ *http.Request, _ struct{}) (configResponse, error) {
+	doc, _ := s.store.Working()
+	state := s.store.State()
+
+	return configResponse{ETag: revision(state.Revision), Document: doc, State: state}, nil
 }
+
+// revision is a document revision as an ETag or If-Match value: "12".
+type revision int64
+
+func (r *revision) UnmarshalText(text []byte) error {
+	n, err := strconv.ParseInt(strings.Trim(string(text), `"`), 10, 64)
+	if err != nil {
+		return errors.New(`want a revision such as "12"`)
+	}
+
+	*r = revision(n)
+
+	return nil
+}
+
+func (r revision) String() string { return revisionETag(int64(r)) }
 
 func revisionETag(rev int64) string {
 	return `"` + strconv.FormatInt(rev, 10) + `"`
@@ -144,8 +161,11 @@ func writeRevision(w http.ResponseWriter, rev int64) {
 	httpjson.Write(w, http.StatusOK, revisionResponse{Revision: rev})
 }
 
+// revisionResponse answers a config write with the revision it left the
+// working document at.
 type revisionResponse struct {
-	Revision int64 `json:"revision"`
+	ETag     revision `header:"ETag" json:"-"`
+	Revision int64    `json:"revision"`
 }
 
 type putConfigRequest struct {
@@ -173,54 +193,37 @@ func (s *VisionServer) handlePutConfig() http.HandlerFunc {
 	}
 }
 
-// handlePatchConfig applies a JSON Merge Patch (RFC 7396) to the working
-// document, for clients that change a few keys rather than resending the
-// whole document. If-Match carries the revision the patch is based on, as
-// GET /api/config's ETag gives it; a stale one is a 409 like PUT's.
-func (s *VisionServer) handlePatchConfig() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		match := r.Header.Get("If-Match")
-		if match == "" {
-			httpjson.Error(w, http.StatusPreconditionRequired, httpjson.CodePrecondition, "If-Match: required, the revision from GET /api/config's ETag")
+// patchConfigRequest is a merge patch and the revision it's based on.
+type patchConfigRequest struct {
+	// IfMatch is the revision the patch is based on, as GET /api/config's ETag
+	// gives it.
+	IfMatch revision `header:"If-Match" required:"true"`
+	// Patch is merged into the working document's JSON: objects merge, null
+	// removes a key, arrays (cameras) are replaced whole.
+	Patch map[string]any `body:"application/merge-patch+json,application/json"`
+}
 
-			return
-		}
-
-		rev, err := strconv.ParseInt(strings.Trim(match, `"`), 10, 64)
-		if err != nil {
-			httpjson.Error(w, http.StatusBadRequest, httpjson.CodeBadRequest, "If-Match: want a revision such as \"12\"")
-
-			return
-		}
-
-		var patch any
-		if !httpjson.Decode(w, r, &patch, "application/merge-patch+json", "application/json") {
-			return
-		}
-
-		doc, current := s.store.Working()
-		if rev != current {
-			respondConfigErr(w, config.ErrStale, "patching config")
-
-			return
-		}
-
-		doc, err = config.MergePatch(doc, patch)
-		if err != nil {
-			respondConfigErr(w, err, "patching config")
-
-			return
-		}
-
-		next, err := s.store.Update(rev, doc)
-		if err != nil {
-			respondConfigErr(w, err, "patching config")
-
-			return
-		}
-
-		writeRevision(w, next)
+// patchConfig applies a JSON Merge Patch (RFC 7396) to the working document
+// and applies it live, for clients that change a few keys rather than
+// resending the whole document. A stale If-Match is a 409, like PUT's stale
+// revision.
+func (s *VisionServer) patchConfig(_ *http.Request, in patchConfigRequest) (revisionResponse, error) {
+	doc, current := s.store.Working()
+	if int64(in.IfMatch) != current {
+		return revisionResponse{}, config.ErrStale
 	}
+
+	doc, err := config.MergePatch(doc, in.Patch)
+	if err != nil {
+		return revisionResponse{}, err
+	}
+
+	next, err := s.store.Update(current, doc)
+	if err != nil {
+		return revisionResponse{}, err
+	}
+
+	return revisionResponse{ETag: revision(next), Revision: next}, nil
 }
 
 // handleConfigFiles lists the YAML files beside the current vision.yml, for

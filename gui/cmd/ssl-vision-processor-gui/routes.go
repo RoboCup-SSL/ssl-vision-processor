@@ -4,23 +4,29 @@ import (
 	"net/http"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/frontend"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/api"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/httpjson"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/snapshot"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 )
 
-func (s *VisionServer) addRoutes(mux *http.ServeMux) {
+// addRoutes registers every route. Those through api.Route are in the OpenAPI
+// spec at /api/openapi.json; the rest are being converted.
+func (s *VisionServer) addRoutes(mux *http.ServeMux, a *api.API) {
 	mux.Handle("GET /api/health", s.handleHealth())
 	mux.Handle("GET /api/topics", s.handleGetTopics())
 	mux.Handle("GET /api/network", s.handleGetNetwork())
-	mux.Handle("GET /api/alerts", s.handleGetAlerts())
+	api.Route(a, "GET /api/alerts", api.Doc{Tags: []string{"Status"}}, s.getAlerts)
 	mux.Handle("GET /api/geometry", s.handleGetGeometry())
 	mux.Handle("GET /api/geometry/presets", s.handleGetFieldPresets())
 	mux.Handle("GET /api/schema", s.handleGetSchema())
-	mux.Handle("GET /api/config", s.handleGetConfig())
+	api.Route(a, "GET /api/config", api.Doc{Tags: []string{"Configuration"}}, s.getConfig)
 	mux.Handle("PUT /api/config", s.handlePutConfig())
-	mux.Handle("PATCH /api/config", s.handlePatchConfig())
+	api.Route(a, "PATCH /api/config", api.Doc{
+		Tags:   []string{"Configuration"},
+		Errors: []string{httpjson.CodeBadRequest, httpjson.CodeInvalid, httpjson.CodePrecondition, httpjson.CodeStale, httpjson.CodeUnsupportedMedia},
+	}, s.patchConfig)
 	mux.Handle("GET /api/config/files", s.handleConfigFiles())
 	mux.Handle("POST /api/config/save", s.handleSave())
 	mux.Handle("POST /api/config/save-as", s.handleSaveAs())

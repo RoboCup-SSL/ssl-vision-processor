@@ -40,8 +40,8 @@ type Document struct {
 	Models map[string]any `yaml:"models,omitempty" json:"models,omitempty"`
 	// Defaults uses vision_processor's own config.yml layout (camera:,
 	// geometry:, color:, thresholds:, ...) and applies to every camera.
-	Defaults map[string]any `yaml:"defaults,omitempty" json:"defaults,omitempty"`
-	Layout   *Layout        `yaml:"layout,omitempty" json:"layout,omitempty"`
+	Defaults Settings `yaml:"defaults,omitempty" json:"defaults,omitempty"`
+	Layout   *Layout  `yaml:"layout,omitempty" json:"layout,omitempty"`
 	// Teams overrides robot heights by team. Shown in the GUI only for now:
 	// vision_processor still looks heights up in bot_heights_file by game
 	// controller team name.
@@ -54,6 +54,10 @@ type Document struct {
 	// Host is settings for this GUI host alone; no vision_processor reads it.
 	Host *Host `yaml:"host,omitempty" json:"host,omitempty"`
 }
+
+// Settings is vision_processor's config.yml layout: blocks (camera,
+// thresholds, color, ...) of keys, as GET /api/schema describes them.
+type Settings map[string]any
 
 // Layout is how the field is split between cameras.
 type Layout struct {
@@ -161,9 +165,9 @@ type Camera struct {
 	// for a vision_processor on the same machine. Empty for remote instances.
 	ConfigPath string `yaml:"config_path,omitempty" json:"configPath,omitempty"`
 	// Config overrides Defaults, same config.yml layout, deep-merged.
-	Config      map[string]any `yaml:"config,omitempty" json:"config,omitempty"`
-	Seed        *Seed          `yaml:"seed,omitempty" json:"seed,omitempty"`
-	Calibration *Calibration   `yaml:"calibration,omitempty" json:"calibration,omitempty"`
+	Config      Settings     `yaml:"config,omitempty" json:"config,omitempty"`
+	Seed        *Seed        `yaml:"seed,omitempty" json:"seed,omitempty"`
+	Calibration *Calibration `yaml:"calibration,omitempty" json:"calibration,omitempty"`
 	// Display is how the GUI shows this camera's video. Never rendered.
 	Display *Display `yaml:"display,omitempty" json:"display,omitempty"`
 }
@@ -591,9 +595,12 @@ func normalizeMap(m map[string]any) map[string]any {
 }
 
 // normalize turns integral floats into ints and every number type into int
-// or float64, recursively.
+// or float64, recursively. Nested blocks become plain maps: yaml.v3 decodes
+// a mapping inside a Settings as another Settings.
 func normalize(v any) any {
 	switch t := v.(type) {
+	case Settings:
+		return normalize(map[string]any(t))
 	case map[string]any:
 		out := make(map[string]any, len(t))
 		for k, val := range t {
@@ -650,6 +657,8 @@ func deepMerge(base, over map[string]any) map[string]any {
 
 func deepCopy(v any) any {
 	switch t := v.(type) {
+	case Settings:
+		return deepMerge(t, nil)
 	case map[string]any:
 		return deepMerge(t, nil)
 	case []any:
