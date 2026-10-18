@@ -42,7 +42,7 @@ type Alert struct {
 	// ID is stable while the problem lasts, for keyed lists.
 	ID       string `json:"id"`
 	Code     string `json:"code"`
-	Severity string `json:"severity"`
+	Severity string `json:"severity" enum:"error,warning,caution"`
 	CameraID *int   `json:"cameraId,omitempty"`
 	// Params are the facts the alert is about, named per code.
 	Params  map[string]any `json:"params,omitempty"`

@@ -1282,10 +1282,7 @@
         "description": "One problem.",
         "properties": {
           "cameraId": {
-            "type": [
-              "null",
-              "integer"
-            ]
+            "type": "integer"
           },
           "code": {
             "type": "string"
@@ -1303,9 +1300,20 @@
             "type": "object"
           },
           "severity": {
+            "enum": [
+              "error",
+              "warning",
+              "caution"
+            ],
             "type": "string"
           }
         },
+        "required": [
+          "id",
+          "code",
+          "severity",
+          "message"
+        ],
         "type": "object"
       },
       "ConfigCalibration": {
@@ -1314,10 +1322,7 @@
           "camera": {
             "additionalProperties": {},
             "description": "SSL_GeometryCameraCalibration in protojson (proto field names).",
-            "type": [
-              "object",
-              "null"
-            ]
+            "type": "object"
           },
           "fieldHash": {
             "description": "Identifies the field dimensions the calibration was solved against; a mismatch means the field changed since locking.",
@@ -1328,6 +1333,11 @@
             "type": "string"
           }
         },
+        "required": [
+          "lockedAt",
+          "fieldHash",
+          "camera"
+        ],
         "type": "object"
       },
       "ConfigCamera": {
@@ -1358,12 +1368,20 @@
             "$ref": "#/components/schemas/ConfigSeed"
           }
         },
+        "required": [
+          "cameraId"
+        ],
         "type": "object"
       },
       "ConfigCameraStatus": {
         "description": "Everything about a camera derived from the document plus the live network state -- never stored.",
         "properties": {
           "calibration": {
+            "enum": [
+              "none",
+              "live",
+              "locked"
+            ],
             "type": "string"
           },
           "cameraId": {
@@ -1379,21 +1397,23 @@
             "items": {
               "type": "integer"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
           },
           "warnings": {
             "items": {
               "$ref": "#/components/schemas/ConfigWarning"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           }
         },
+        "required": [
+          "cameraId",
+          "calibration",
+          "liveResolution",
+          "warnings"
+        ],
         "type": "object"
       },
       "ConfigChange": {
@@ -1402,10 +1422,7 @@
           "after": {},
           "before": {},
           "cameraId": {
-            "type": [
-              "null",
-              "integer"
-            ]
+            "type": "integer"
           },
           "jsonPath": {
             "type": "string"
@@ -1415,9 +1432,27 @@
             "type": "string"
           },
           "section": {
+            "enum": [
+              "field",
+              "geometry",
+              "color",
+              "network",
+              "camera",
+              "layout",
+              "advanced",
+              "overview",
+              "other"
+            ],
             "type": "string"
           }
         },
+        "required": [
+          "path",
+          "jsonPath",
+          "before",
+          "after",
+          "section"
+        ],
         "type": "object"
       },
       "ConfigColorOverrides": {
@@ -1440,6 +1475,12 @@
           },
           "rotate": {
             "description": "degrees clockwise: 0, 90, 180, 270",
+            "enum": [
+              0,
+              90,
+              180,
+              270
+            ],
             "type": "integer"
           }
         },
@@ -1452,10 +1493,7 @@
             "items": {
               "$ref": "#/components/schemas/ConfigCamera"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "competitionField": {
             "description": "A match setup, with a game controller, rather than casual lab use. The GUI keys height choices by team and raises missing setup to errors; vision_processor doesn't read it.",
@@ -1491,6 +1529,12 @@
             "type": "integer"
           }
         },
+        "required": [
+          "version",
+          "field",
+          "optionalFieldLines",
+          "cameras"
+        ],
         "type": "object"
       },
       "ConfigDriver": {
@@ -1504,6 +1548,10 @@
           },
           "selectsBy": {
             "description": "How the block picks a device: \"id\", an index in the SDK's camera list, or \"path\", a device or file path.",
+            "enum": [
+              "id",
+              "path"
+            ],
             "type": "string"
           },
           "whiteBalanceProfiles": {
@@ -1511,6 +1559,12 @@
             "type": "boolean"
           }
         },
+        "required": [
+          "id",
+          "selectsBy",
+          "gamma",
+          "whiteBalanceProfiles"
+        ],
         "type": "object"
       },
       "ConfigEffectiveConfig": {
@@ -1524,12 +1578,13 @@
               "$ref": "#/components/schemas/ConfigEffectiveSetting"
             },
             "description": "By dotted config.yml path, as in Schema.",
-            "type": [
-              "object",
-              "null"
-            ]
+            "type": "object"
           }
         },
+        "required": [
+          "cameraId",
+          "settings"
+        ],
         "type": "object"
       },
       "ConfigEffectiveSetting": {
@@ -1540,10 +1595,21 @@
             "type": "boolean"
           },
           "source": {
+            "enum": [
+              "camera",
+              "defaults",
+              "derived",
+              "fallback"
+            ],
             "type": "string"
           },
           "value": {}
         },
+        "required": [
+          "value",
+          "source",
+          "known"
+        ],
         "type": "object"
       },
       "ConfigExternalState": {
@@ -1553,15 +1619,15 @@
             "items": {
               "$ref": "#/components/schemas/ConfigChange"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "error": {
             "type": "string"
           }
         },
+        "required": [
+          "changes"
+        ],
         "type": "object"
       },
       "ConfigFile": {
@@ -1579,6 +1645,11 @@
             "type": "boolean"
           }
         },
+        "required": [
+          "path",
+          "current",
+          "readOnly"
+        ],
         "type": "object"
       },
       "ConfigHost": {
@@ -1595,10 +1666,7 @@
         "properties": {
           "auto": {
             "description": "(the default when unset) lets the host pick. Skip is then kept only so switching back to manual restores it.",
-            "type": [
-              "null",
-              "boolean"
-            ]
+            "type": "boolean"
           },
           "skip": {
             "description": "Names interfaces not to use when choosing manually.",
@@ -1618,6 +1686,9 @@
             "type": "integer"
           }
         },
+        "required": [
+          "cameraCount"
+        ],
         "type": "object"
       },
       "ConfigRange": {
@@ -1636,6 +1707,11 @@
             "type": "number"
           }
         },
+        "required": [
+          "min",
+          "max",
+          "step"
+        ],
         "type": "object"
       },
       "ConfigResponse": {
@@ -1648,6 +1724,10 @@
             "$ref": "#/components/schemas/ConfigState"
           }
         },
+        "required": [
+          "document",
+          "state"
+        ],
         "type": "object"
       },
       "ConfigSchema": {
@@ -1658,31 +1738,27 @@
             "items": {
               "type": "integer"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "drivers": {
             "items": {
               "$ref": "#/components/schemas/ConfigDriver"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "settings": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ConfigSetting"
             },
             "description": "By dotted config.yml path, e.g. \"thresholds.blobs\".",
-            "type": [
-              "object",
-              "null"
-            ]
+            "type": "object"
           }
         },
+        "required": [
+          "settings",
+          "drivers",
+          "cameraCounts"
+        ],
         "type": "object"
       },
       "ConfigSeed": {
@@ -1697,33 +1773,41 @@
               "items": {
                 "type": "integer"
               },
+              "maxItems": 2,
+              "minItems": 2,
               "type": "array"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "resolution": {
             "items": {
               "type": "integer"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
           },
           "slot": {
             "$ref": "#/components/schemas/ConfigSlot",
             "description": "The slot the corners were picked for. Moving the camera to another slot makes them stale. Nil for corners saved before slots were recorded."
           }
         },
+        "required": [
+          "resolution",
+          "lineCorners"
+        ],
         "type": "object"
       },
       "ConfigSetting": {
         "description": "One key of vision_processor's config.yml layout, as the defaults block and each camera's config hold it.",
         "properties": {
           "apply": {
+            "enum": [
+              "live",
+              "restart",
+              "derived",
+              "host"
+            ],
             "type": "string"
           },
           "default": {
@@ -1739,29 +1823,37 @@
             "type": "boolean"
           },
           "maximum": {
-            "type": [
-              "null",
-              "number"
-            ]
+            "type": "number"
           },
           "minimum": {
             "description": "Bounds the host enforces, inclusive unless Exclusive.",
-            "type": [
-              "null",
-              "number"
-            ]
+            "type": "number"
           },
           "range": {
             "$ref": "#/components/schemas/ConfigRange",
             "description": "A sensible span for a control, narrower than the bounds. The value itself may be anything within the bounds."
           },
           "type": {
+            "enum": [
+              "integer",
+              "number",
+              "boolean",
+              "string",
+              "rgb",
+              "whiteBalance",
+              "points"
+            ],
             "type": "string"
           },
           "unit": {
             "type": "string"
           }
         },
+        "required": [
+          "type",
+          "default",
+          "apply"
+        ],
         "type": "object"
       },
       "ConfigSettings": {
@@ -2210,6 +2302,10 @@
             "type": "integer"
           }
         },
+        "required": [
+          "cameraId",
+          "cameraCount"
+        ],
         "type": "object"
       },
       "ConfigState": {
@@ -2219,20 +2315,14 @@
             "items": {
               "$ref": "#/components/schemas/ConfigCameraStatus"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "changes": {
             "description": "What saving would write: disk -\u003e working.",
             "items": {
               "$ref": "#/components/schemas/ConfigChange"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "external": {
             "$ref": "#/components/schemas/ConfigExternalState",
@@ -2252,16 +2342,19 @@
             "type": "integer"
           }
         },
+        "required": [
+          "path",
+          "revision",
+          "changes",
+          "cameras"
+        ],
         "type": "object"
       },
       "ConfigTeamOverride": {
         "description": "A team's robot height when it isn't (rightly) in the height table: another table entry's (Name), or a custom Height. Neither set means a custom height not entered yet.",
         "properties": {
           "height": {
-            "type": [
-              "null",
-              "number"
-            ]
+            "type": "number"
           },
           "name": {
             "type": "string"
@@ -2295,6 +2388,10 @@
             "type": "string"
           }
         },
+        "required": [
+          "code",
+          "message"
+        ],
         "type": "object"
       },
       "DetectionsSource": {
@@ -2318,6 +2415,13 @@
             "type": "boolean"
           }
         },
+        "required": [
+          "cameraId",
+          "address",
+          "fps",
+          "lastHeard",
+          "receiving"
+        ],
         "type": "object"
       },
       "FieldPresetResponse": {
@@ -2334,6 +2438,11 @@
             "$ref": "#/components/schemas/GeometryOptionalLinesConfig"
           }
         },
+        "required": [
+          "name",
+          "field",
+          "optionalFieldLines"
+        ],
         "type": "object"
       },
       "GeometryFieldConfig": {
@@ -2400,6 +2509,23 @@
             "type": "integer"
           }
         },
+        "required": [
+          "fieldLength",
+          "fieldWidth",
+          "goalWidth",
+          "goalDepth",
+          "goalHeight",
+          "penaltyAreaDepth",
+          "penaltyAreaWidth",
+          "goalCenterToPenaltyMark",
+          "boundaryWidth",
+          "boundaryWidthGoalLine",
+          "centerCircleRadius",
+          "lineThickness",
+          "ballRadius",
+          "maxRobotRadius",
+          "goalSubstitutionAreaWidth"
+        ],
         "type": "object"
       },
       "GeometryOptionalLinesConfig": {
@@ -2418,6 +2544,12 @@
             "type": "boolean"
           }
         },
+        "required": [
+          "goal2Goal",
+          "halfway",
+          "centerCircle",
+          "penalty"
+        ],
         "type": "object"
       },
       "HealthResponse": {
@@ -2428,12 +2560,28 @@
             "type": "string"
           }
         },
+        "required": [
+          "status"
+        ],
         "type": "object"
       },
       "HttpjsonErrorBody": {
         "description": "The body of every non-2xx API response.",
         "properties": {
           "error": {
+            "enum": [
+              "bad_request",
+              "invalid",
+              "not_found",
+              "stale",
+              "disk_changed",
+              "no_live_calibration",
+              "precondition",
+              "cross_origin",
+              "unknown_host",
+              "unsupported_media",
+              "internal"
+            ],
             "type": "string"
           },
           "issues": {
@@ -2447,6 +2595,10 @@
             "type": "string"
           }
         },
+        "required": [
+          "error",
+          "message"
+        ],
         "type": "object"
       },
       "LoadRequest": {
@@ -2457,6 +2609,9 @@
             "type": "string"
           }
         },
+        "required": [
+          "path"
+        ],
         "type": "object"
       },
       "MulticastInterface": {
@@ -2488,6 +2643,12 @@
             "type": "boolean"
           }
         },
+        "required": [
+          "name",
+          "usable",
+          "autoUse",
+          "used"
+        ],
         "type": "object"
       },
       "MulticastStatus": {
@@ -2502,13 +2663,14 @@
           },
           "lastHeard": {
             "format": "date-time",
-            "type": [
-              "null",
-              "string"
-            ]
+            "type": "string"
           },
           "mode": {
             "description": "How the receiver was opened: \"multicast\" joined the group, \"port\" listens on the port for anything sent there (broadcast, or unicast to this host).",
+            "enum": [
+              "multicast",
+              "port"
+            ],
             "type": "string"
           },
           "problem": {
@@ -2522,6 +2684,12 @@
             "type": "string"
           }
         },
+        "required": [
+          "address",
+          "mode",
+          "heard",
+          "receiving"
+        ],
         "type": "object"
       },
       "NetworkState": {
@@ -2534,10 +2702,7 @@
             "items": {
               "$ref": "#/components/schemas/DetectionsSource"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "gc": {
             "$ref": "#/components/schemas/MulticastStatus"
@@ -2546,10 +2711,7 @@
             "items": {
               "$ref": "#/components/schemas/MulticastInterface"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "loopback": {
             "type": "string"
@@ -2570,6 +2732,18 @@
             "$ref": "#/components/schemas/MulticastStatus"
           }
         },
+        "required": [
+          "vision",
+          "gc",
+          "cameras",
+          "referee",
+          "autoInterfaces",
+          "interfaces",
+          "loopback",
+          "loopbackMulticast",
+          "unprivilegedPortStart",
+          "root"
+        ],
         "type": "object"
       },
       "PutConfigRequest": {
@@ -2584,6 +2758,10 @@
             "type": "integer"
           }
         },
+        "required": [
+          "revision",
+          "document"
+        ],
         "type": "object"
       },
       "RefereeState": {
@@ -2595,10 +2773,7 @@
           "heard": {
             "description": "When the last referee message arrived, nil if none has.",
             "format": "date-time",
-            "type": [
-              "null",
-              "string"
-            ]
+            "type": "string"
           },
           "heights": {
             "additionalProperties": {
@@ -2628,6 +2803,11 @@
             "$ref": "#/components/schemas/RefereeTeam"
           }
         },
+        "required": [
+          "yellow",
+          "blue",
+          "heightsFile"
+        ],
         "type": "object"
       },
       "RefereeTeam": {
@@ -2635,15 +2815,15 @@
         "properties": {
           "height": {
             "description": "The team's robot height from the table, nil when the team isn't in it.",
-            "type": [
-              "null",
-              "number"
-            ]
+            "type": "number"
           },
           "name": {
             "type": "string"
           }
         },
+        "required": [
+          "name"
+        ],
         "type": "object"
       },
       "RevisionResponse": {
@@ -2654,6 +2834,9 @@
             "type": "integer"
           }
         },
+        "required": [
+          "revision"
+        ],
         "type": "object"
       },
       "SaveAsRequest": {
@@ -2669,6 +2852,10 @@
             "type": "integer"
           }
         },
+        "required": [
+          "revision",
+          "path"
+        ],
         "type": "object"
       },
       "SaveRequest": {
@@ -2684,6 +2871,10 @@
             "type": "integer"
           }
         },
+        "required": [
+          "revision",
+          "force"
+        ],
         "type": "object"
       },
       "SnapshotEntry": {
@@ -2696,6 +2887,10 @@
             "type": "string"
           }
         },
+        "required": [
+          "cameraId",
+          "view"
+        ],
         "type": "object"
       },
       "V4LDevice": {
@@ -2703,6 +2898,11 @@
         "properties": {
           "kind": {
             "description": "\"by-id\" (follows the camera), \"by-path\" (follows the USB port), or \"node\" (/dev/videoN, which can change when devices re-enumerate).",
+            "enum": [
+              "by-id",
+              "by-path",
+              "node"
+            ],
             "type": "string"
           },
           "name": {
@@ -2718,6 +2918,12 @@
             "type": "string"
           }
         },
+        "required": [
+          "path",
+          "node",
+          "name",
+          "kind"
+        ],
         "type": "object"
       },
       "WrapperPacket": {

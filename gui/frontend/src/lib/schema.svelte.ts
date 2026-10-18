@@ -4,45 +4,16 @@
 // does with config.yml, so nothing here repeats it. loadConfig loads it before
 // the document, so anything rendered from the document can rely on it.
 import { requestJSON } from "./api";
+import type { Setting, SettingsSchema as Schema } from "./apiTypes";
 
-// When a change takes effect: live (reloaded within a second), at the next
-// restart, written by the host itself (derived), or read only by the host.
-export type Apply = "live" | "restart" | "derived" | "host";
-
-export interface Setting {
-  type:
-    | "integer"
-    | "number"
-    | "boolean"
-    | "string"
-    | "rgb"
-    | "whiteBalance"
-    | "points";
-  // vision_processor's fallback; null when there is none or it depends on
-  // other keys.
-  default: unknown;
-  apply: Apply;
-  unit?: string;
-  minimum?: number;
-  maximum?: number;
-  exclusiveMinimum?: boolean;
-  enum?: string[];
-  // A sensible span for a control, narrower than the bounds.
-  range?: { min: number; max: number; step: number };
-}
-
-export interface DriverCapabilities {
-  id: string;
-  selectsBy: "id" | "path";
-  gamma: boolean;
-  whiteBalanceProfiles: boolean;
-}
-
-export interface Schema {
-  settings: Record<string, Setting>;
-  drivers: DriverCapabilities[];
-  cameraCounts: number[];
-}
+// Each setting's type, fallback, bounds and when a change takes effect: the
+// host's spec of GET /api/schema.
+export type {
+  Apply,
+  DriverCapabilities,
+  Setting,
+  SettingsSchema as Schema,
+} from "./apiTypes";
 
 export const schema = $state<{ value: Schema | null }>({ value: null });
 

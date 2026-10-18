@@ -3,141 +3,42 @@
 // file. Components bind straight into config.doc -- a root effect below
 // notices any change and debounces a PUT, so no component needs to call a
 // setter or remember to save.
-import { errorMessage, requestJSON, type ApiError } from "./api";
+import { errorMessage, requestJSON } from "./api";
+import type {
+  ApiError,
+  CameraDoc,
+  CameraStatus,
+  Change,
+  ConfigDocument,
+  ConfigResponse,
+  ConfigState,
+  Section,
+} from "./apiTypes";
 import { topic } from "./wrapper-bus";
-import {
-  refreshFieldMarkings,
-  type FieldConfig,
-  type OptionalFieldLines,
-} from "./geometry.svelte";
+import { refreshFieldMarkings } from "./geometry.svelte";
 
 import { app } from "./text/app";
 import { loadSchema } from "./schema.svelte";
 
-export type Section =
-  | "field"
-  | "camera"
-  | "geometry"
-  | "color"
-  | "network"
-  | "layout"
-  | "advanced"
-  | "overview"
-  | "other";
+// The API's types (apiTypes.ts, generated from the host's spec), re-exported
+// so components import the document's shapes from where they edit it.
+export type {
+  CameraDoc,
+  CameraStatus,
+  Calibration,
+  Change,
+  ConfigDocument,
+  ConfigState,
+  Display,
+  Section,
+  Seed,
+  Slot,
+  TeamOverride,
+  Warning,
+} from "./apiTypes";
 
-// Mirrors gui/internal/config's Change: one leaf difference between two
-// documents, keyed by its vision.yml path (and the same path in the JSON
-// document's spelling).
-export interface Change {
-  path: string;
-  jsonPath: string;
-  before: unknown;
-  after: unknown;
-  section: Section;
-  cameraId?: number;
-}
-
-export interface Warning {
-  code: string;
-  message: string;
-}
-
-export interface CameraStatus {
-  cameraId: number;
-  calibration: "none" | "live" | "locked";
-  live?: Record<string, unknown>;
-  liveResolution: [number, number];
-  warnings: Warning[];
-}
-
-export interface ConfigState {
-  path: string;
-  revision: number;
-  // What saving would write: disk -> working.
-  changes: Change[];
-  // Set while vision.yml on disk differs from what was loaded or saved.
-  external?: { error?: string; changes: Change[] };
-  cameras: CameraStatus[];
-  renderErrors?: Record<string, string>;
-}
-
-export interface Seed {
-  // [width, height] the corners were picked at; [0, 0] if unknown.
-  resolution: [number, number];
-  lineCorners: [number, number][];
-  goalSideMarker?: number;
-  // The slot the corners were picked for; unset for older seeds.
-  slot?: Slot;
-}
-
-// A team's robot height: another height table entry's (name), or a custom
-// height in mm. Neither set: a custom height not entered yet.
-export interface TeamOverride {
-  name?: string;
-  height?: number;
-}
-
-// A camera's place in the layout: its id out of the camera count.
-export interface Slot {
-  cameraId: number;
-  cameraCount: number;
-}
-
-// How the GUI orients a camera's video. Never sent to vision_processor.
-export interface Display {
-  rotate?: 0 | 90 | 180 | 270;
-  mirror?: boolean;
-}
-
-export interface Calibration {
-  lockedAt: string;
-  fieldHash: string;
-  camera: Record<string, unknown>;
-}
-
-export interface CameraDoc {
-  cameraId: number;
-  instance?: string;
-  configPath?: string;
-  config?: Record<string, unknown>;
-  seed?: Seed;
-  calibration?: Calibration;
-  display?: Display;
-}
-
-export interface ConfigDocument {
-  version: number;
-  field: FieldConfig;
-  optionalFieldLines: OptionalFieldLines;
-  models?: Record<string, unknown>;
-  defaults?: Record<string, unknown>;
-  // Unset: the camera count rounded up to a power of 2 (cameraCount()).
-  layout?: { cameraCount: number };
-  // Robot height overrides by game controller team name; see
-  // gui/internal/config's Teams.
-  teams?: {
-    overrides?: Record<string, TeamOverride>;
-    // Per color, off a competition field.
-    byColor?: { yellow?: TeamOverride; blue?: TeamOverride };
-  };
-  // A match setup with a game controller, rather than lab use; see
-  // gui/internal/config's Document.CompetitionField.
-  competitionField?: boolean;
-  cameras: CameraDoc[];
-  // Settings for the GUI host alone; see gui/internal/config's Host.
-  host?: {
-    interfaces?: { auto?: boolean; skip?: string[] };
-  };
-}
-
-interface ConfigResponse {
-  document: ConfigDocument;
-  state: ConfigState;
-}
-
-interface ConflictResponse extends ApiError {
-  error: "stale" | "disk_changed" | "no_live_calibration";
-}
+// A 409's body: "stale", "disk_changed" or "no_live_calibration" in error.
+type ConflictResponse = ApiError;
 
 export const config = $state<{
   doc: ConfigDocument | null;

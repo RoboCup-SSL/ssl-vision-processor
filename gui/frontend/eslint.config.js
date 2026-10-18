@@ -54,6 +54,8 @@ export default ts.config(
       // rules need.
       "scripts/",
       "e2e/*.mjs",
+      // Generated from ../openapi.json by npm run gen:api.
+      "src/lib/generated/",
     ],
   },
 );

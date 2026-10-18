@@ -24,14 +24,9 @@ export async function withLoadingState(
   }
 }
 
-// The body of every non-2xx API response; see gui/internal/httpjson.
-export interface ApiError {
-  // A stable code to branch on, e.g. "stale" or "invalid".
-  error: string;
-  message: string;
-  // Each problem separately, for "invalid".
-  issues?: string[];
-}
+import type { ApiError } from "./apiTypes";
+
+export type { ApiError };
 
 // The host's error for a non-2xx response, as text for a banner: each issue
 // on its own line when there are several.

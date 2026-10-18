@@ -69,7 +69,7 @@ func Errorf(code, format string, args ...any) *Problem {
 
 // ErrorBody is the body of every non-2xx API response.
 type ErrorBody struct {
-	Error   string `json:"error"`
+	Error   string `json:"error" enum:"bad_request,invalid,not_found,stale,disk_changed,no_live_calibration,precondition,cross_origin,unknown_host,unsupported_media,internal"`
 	Message string `json:"message"`
 	// Issues lists each problem separately for CodeInvalid.
 	Issues []string `json:"issues,omitempty"`

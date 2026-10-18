@@ -31,7 +31,7 @@ type Change struct {
 	JSONPath string `json:"jsonPath"`
 	Before   any    `json:"before"`
 	After    any    `json:"after"`
-	Section  string `json:"section"`
+	Section  string `json:"section" enum:"field,geometry,color,network,camera,layout,advanced,overview,other"`
 	CameraID *int   `json:"cameraId,omitempty"`
 }
 

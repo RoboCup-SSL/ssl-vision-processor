@@ -198,8 +198,9 @@ Every route is registered in `cmd/ssl-vision-processor-gui/routes.go` through `i
 OpenAPI 3.1 spec from each handler's request and response types, and its summary, descriptions and field docs
 from their Go doc comments. The host serves the spec at `GET /api/openapi.json` and a reference for it at
 `GET /api/docs` (Redoc, embedded, so it works offline), linked from the GUI's settings menu. `gui/openapi.json`
-is the committed copy; `make generate` rewrites it, and CI fails when it, `internal/api/comments_gen.go` or the
-alert codes are stale.
+is the committed copy; `make generate` rewrites it, and CI fails when it, `internal/api/comments_gen.go`, the
+frontend's generated API types (`frontend/src/lib/generated/api.ts`, from the spec by openapi-typescript) or the
+alert codes are stale. The frontend imports its API types from `frontend/src/lib/apiTypes.ts`, never a hand copy.
 
 A handler takes one input struct and returns one output. Input fields tagged `path:`, `query:` or `header:` are
 parameters, and a field tagged `body:"<content types>"` is the body; an input with only JSON fields is itself the

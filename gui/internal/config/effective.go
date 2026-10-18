@@ -16,7 +16,7 @@ const (
 // EffectiveSetting is one setting as camera's vision_processor runs it.
 type EffectiveSetting struct {
 	Value  any    `json:"value"`
-	Source string `json:"source"`
+	Source string `json:"source" enum:"camera,defaults,derived,fallback"`
 	// Known is false for a key the schema doesn't describe: it's written to
 	// config.yml, but nothing the host knows of reads it.
 	Known bool `json:"known"`

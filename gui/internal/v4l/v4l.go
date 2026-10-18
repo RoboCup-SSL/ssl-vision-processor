@@ -21,7 +21,7 @@ type Device struct {
 	// Kind is "by-id" (follows the camera), "by-path" (follows the USB
 	// port), or "node" (/dev/videoN, which can change when devices
 	// re-enumerate).
-	Kind string `json:"kind"`
+	Kind string `json:"kind" enum:"by-id,by-path,node"`
 }
 
 // Roots are where List looks; tests point them at a fake tree.

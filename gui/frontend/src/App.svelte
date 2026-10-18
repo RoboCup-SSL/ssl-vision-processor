@@ -5,6 +5,7 @@
   import Shell from "./lib/layout/Shell.svelte";
   import { nav, selectedCategory } from "./lib/layout/nav.svelte";
   import { requestJSON } from "./lib/api";
+  import type { SnapshotEntry } from "./lib/apiTypes";
   import SetupWizard from "./lib/wizard/SetupWizard.svelte";
   import { loadConfig } from "./lib/config.svelte";
 
@@ -39,11 +40,7 @@
   });
 
   // Same-origin: the Go host serves /api itself, alongside /ws and the frontend.
-  interface Snapshot {
-    cameraId: number;
-    view: string;
-  }
-  let snapshots = $state<Snapshot[]>([]);
+  let snapshots = $state<SnapshotEntry[]>([]);
   let cacheBuster = $state(0);
 
   // flat/gradient/blob are ball-detection debug views (see src/main.cpp) --
@@ -59,7 +56,7 @@
   async function refreshSnapshotList(): Promise<void> {
     try {
       const response = await requestJSON("/api/snapshots");
-      snapshots = (await response.json()) as Snapshot[];
+      snapshots = (await response.json()) as SnapshotEntry[];
     } catch {
       // ignore: next tick will retry
     }

@@ -128,6 +128,16 @@ func TestTheHostHearsDetectionsAndTheReferee(t *testing.T) {
 		t.Errorf("blue = %+v, want Nobody FC, not in the table", n.Referee.Blue)
 	}
 
+	// With real sockets and real traffic, the responses still match the spec.
+	for _, path := range []string{"/api/network", "/api/alerts"} {
+		body, err := io.ReadAll(mustGetBody(t, srv.URL+path))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		checkResponse(t, path, body)
+	}
+
 	var list []alerts.Alert
 	if err := json.NewDecoder(mustGetBody(t, srv.URL+"/api/alerts")).Decode(&list); err != nil {
 		t.Fatal(err)

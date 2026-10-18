@@ -35,9 +35,7 @@
   // People measure a half field with a tape measure, not a full one -- there
   // is no full-field number to enter directly, so ask for the half and double
   // it, the same way FieldEditor's half/full toggle does.
-  let halfLength = $derived(
-    Math.round((wizard.draft.field.fieldLength ?? 0) / 2),
-  );
+  let halfLength = $derived(Math.round(wizard.draft.field.fieldLength / 2));
 
   function setHalfLength(value: number): void {
     wizard.draft.field.fieldLength = value * 2;
@@ -52,7 +50,7 @@
   {#if wizard.fieldLayout === "half"}
     <div class="flex items-center justify-between gap-2">
       <Label for="wizard-half-length" class="font-normal"
-        >Half length (full: {wizard.draft.field.fieldLength ?? 0}mm)</Label
+        >Half length (full: {wizard.draft.field.fieldLength}mm)</Label
       >
       <div class="w-28 shrink-0">
         <Input

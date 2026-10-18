@@ -18,7 +18,7 @@ const (
 // the live network state -- never stored.
 type CameraStatus struct {
 	CameraID    int    `json:"cameraId"`
-	Calibration string `json:"calibration"`
+	Calibration string `json:"calibration" enum:"none,live,locked"`
 	// Live is the latest calibration received from the network (proto field
 	// names), whether or not one is locked -- what "Lock" would store.
 	Live map[string]any `json:"live,omitempty"`

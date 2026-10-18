@@ -30,11 +30,11 @@ const (
 // Setting is one key of vision_processor's config.yml layout, as the
 // defaults block and each camera's config hold it.
 type Setting struct {
-	Type string `json:"type"`
+	Type string `json:"type" enum:"integer,number,boolean,string,rgb,whiteBalance,points"`
 	// Default is vision_processor's own fallback for an unset key, nil when
 	// there is none (derived) or it depends on other keys (camera.path).
 	Default any    `json:"default"`
-	Apply   string `json:"apply"`
+	Apply   string `json:"apply" enum:"live,restart,derived,host"`
 	Unit    string `json:"unit,omitempty"`
 	// Bounds the host enforces, inclusive unless Exclusive.
 	Minimum          *float64 `json:"minimum,omitempty"`
@@ -59,7 +59,7 @@ type Driver struct {
 	ID string `json:"id"`
 	// SelectsBy is how the block picks a device: "id", an index in the SDK's
 	// camera list, or "path", a device or file path.
-	SelectsBy string `json:"selectsBy"`
+	SelectsBy string `json:"selectsBy" enum:"id,path"`
 	Gamma     bool   `json:"gamma"`
 	// WhiteBalanceProfiles is separate OUTDOOR and INDOOR auto profiles.
 	WhiteBalanceProfiles bool `json:"whiteBalanceProfiles"`

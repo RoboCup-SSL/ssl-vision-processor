@@ -74,6 +74,7 @@ e2e: frontend
 generate: frontend
 	cd internal/api && go run ./gen
 	go test ./cmd/$(BINARY) -run OpenAPISpecIsCurrent -update
+	cd frontend && npm run gen:api
 	go test ./internal/alerts -run CodesFileIsCurrent -update
 
 # Refreshes the embedded API docs viewer (Redoc's standalone bundle, MIT).

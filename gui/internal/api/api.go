@@ -50,6 +50,13 @@ func New(mux *http.ServeMux, info Info, onError func(http.ResponseWriter, error)
 	r.Spec.Info.WithTitle(info.Title).WithVersion(info.Version).WithDescription(info.Description)
 	r.JSONSchemaReflector().DefaultOptions = append(r.JSONSchemaReflector().DefaultOptions,
 		jsonschema.InterceptSchema(describe),
+		// A slice or map the host sends is [] or {}, never null: Go's nil
+		// isn't part of the API (the cmd tests check responses for it).
+		jsonschema.InterceptNullability(func(p jsonschema.InterceptNullabilityParams) {
+			if p.NullAdded && (p.Type.Kind() == reflect.Slice || p.Type.Kind() == reflect.Map) {
+				*p.Schema = p.OrigSchema
+			}
+		}),
 		// Types in package main get their bare name, not the module path's.
 		jsonschema.InterceptDefName(func(t reflect.Type, name string) string {
 			if canonical(t.PkgPath()) == mainPackage && t.Name() != "" {
@@ -420,9 +427,14 @@ func describe(p jsonschema.InterceptSchemaParams) (bool, error) {
 	for i := range t.NumField() {
 		f := t.Field(i)
 
-		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		name, opts, _ := strings.Cut(f.Tag.Get("json"), ",")
 		if name == "" || name == "-" {
 			continue
+		}
+
+		// Without omitempty a field is always sent: required.
+		if !strings.Contains(opts, "omitempty") && !slices.Contains(p.Schema.Required, name) {
+			p.Schema.Required = append(p.Schema.Required, name)
 		}
 
 		prop, ok := p.Schema.Properties[name]
@@ -430,13 +442,56 @@ func describe(p jsonschema.InterceptSchemaParams) (bool, error) {
 			continue
 		}
 
+		exact(prop.TypeObject, f.Type)
+
+		// An omitempty field is left out rather than sent as null.
+		if strings.Contains(opts, "omitempty") {
+			stripNull(prop.TypeObject)
+		}
+
 		if doc := comments[key+"."+f.Name]; doc != "" && prop.TypeObject.Description == nil {
 			prop.TypeObject.WithDescription(doc)
-			p.Schema.Properties[name] = prop
 		}
+
+		p.Schema.Properties[name] = prop
 	}
 
 	return false, nil
+}
+
+// stripNull removes null from s's types.
+func stripNull(s *jsonschema.Schema) {
+	if s.Type == nil || len(s.Type.SliceOfSimpleTypeValues) == 0 {
+		return
+	}
+
+	types := slices.DeleteFunc(slices.Clone(s.Type.SliceOfSimpleTypeValues), func(v jsonschema.SimpleType) bool { return v == jsonschema.Null })
+	if len(types) == 1 {
+		s.Type = &jsonschema.Type{SimpleTypes: &types[0]}
+	} else {
+		s.Type.SliceOfSimpleTypeValues = types
+	}
+}
+
+// exact tightens a value's schema to what the host sends for Go type t: a
+// slice, array or map is never null (nil ones are normalized away), and an
+// array has its fixed length, so it becomes a tuple in generated types.
+func exact(s *jsonschema.Schema, t reflect.Type) {
+	switch t.Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map:
+	default:
+		return
+	}
+
+	stripNull(s)
+
+	if t.Kind() == reflect.Array {
+		s.WithMinItems(int64(t.Len())).WithMaxItems(int64(t.Len()))
+	}
+
+	if t.Kind() != reflect.Map && s.Items != nil && s.Items.SchemaOrBool != nil && s.Items.SchemaOrBool.TypeObject != nil {
+		exact(s.Items.SchemaOrBool.TypeObject, t.Elem())
+	}
 }
 
 // canonical spells a package path, or a name starting with one, the way

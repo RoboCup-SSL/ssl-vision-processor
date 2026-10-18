@@ -13,8 +13,10 @@ import (
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/alerts"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/httpjson"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/origins"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 )
@@ -51,7 +53,15 @@ func testServer(t *testing.T) (http.Handler, string) {
 // stubStatus is a host whose sockets have heard nothing yet.
 type stubStatus struct{}
 
-func (stubStatus) Network() NetworkState { return NetworkState{LoopbackMulticast: true} }
+func (stubStatus) Network() NetworkState {
+	return NetworkState{
+		Vision:            multicast.Status{Address: "224.5.23.2:10006", Mode: "multicast"},
+		GC:                multicast.Status{Address: "224.5.23.1:10003", Mode: "multicast"},
+		Cameras:           []detections.Source{},
+		Interfaces:        []multicast.Interface{},
+		LoopbackMulticast: true,
+	}
+}
 
 func (stubStatus) Alerts() []alerts.Alert {
 	return []alerts.Alert{{ID: "silent-vision", Code: alerts.CodeSocketSilent, Severity: alerts.Warning}}

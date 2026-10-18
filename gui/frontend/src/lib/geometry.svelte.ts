@@ -3,34 +3,38 @@
 // module holds what's derived from it on the host -- the generated lines and
 // arcs -- plus the rulebook presets.
 import type {
-  SSL_GeometryFieldSizeJson,
   SSL_FieldLineSegmentJson,
   SSL_FieldCircularArcJson,
 } from "../proto/vision/ssl_vision_geometry_pb";
 import { requestJSON } from "./api";
+import type { FieldConfig, FieldPreset } from "./apiTypes";
 
-// The editable dimensions: everything the generated field size carries except
-// fieldLines/fieldArcs, which are derived server-side and never hand-edited.
-export type FieldConfig = Omit<
-  SSL_GeometryFieldSizeJson,
-  "fieldLines" | "fieldArcs"
->;
+// The editable field (dimensions, optional lines) and a rulebook preset
+// (GET /api/geometry/presets, read live from geometry-divA.yml and
+// geometry-divB.yml on the host), from the host's spec. See the setup
+// wizard's WizardStart.svelte for what's done with a preset once loaded.
+export type { FieldConfig, FieldPreset, OptionalFieldLines } from "./apiTypes";
 
-export interface OptionalFieldLines {
-  goal2Goal: boolean;
-  halfway: boolean;
-  centerCircle: boolean;
-  penalty: boolean;
-}
-
-// A rulebook preset, as served by GET /api/geometry/presets -- read live
-// from geometry-divA.yml/geometry-divB.yml on the Go host, not duplicated
-// here. See the setup wizard's WizardStart.svelte for what's done with one
-// once loaded.
-export interface FieldPreset {
-  name: string;
-  field: FieldConfig;
-  optionalFieldLines: OptionalFieldLines;
+// A field with every dimension 0: a placeholder until a real one (the
+// document's, or a preset's) replaces it.
+export function blankField(): FieldConfig {
+  return {
+    ballRadius: 0,
+    boundaryWidth: 0,
+    boundaryWidthGoalLine: 0,
+    centerCircleRadius: 0,
+    fieldLength: 0,
+    fieldWidth: 0,
+    goalCenterToPenaltyMark: 0,
+    goalDepth: 0,
+    goalHeight: 0,
+    goalSubstitutionAreaWidth: 0,
+    goalWidth: 0,
+    lineThickness: 0,
+    maxRobotRadius: 0,
+    penaltyAreaDepth: 0,
+    penaltyAreaWidth: 0,
+  };
 }
 
 // Just enough of the full /api/geometry response to render the sketch -- not

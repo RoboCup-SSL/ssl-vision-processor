@@ -9,6 +9,7 @@
 // effect until it restarts.
 import { config, cameraDoc } from "./config.svelte";
 import { fallback, schema } from "./schema.svelte";
+import type { VideoDevice } from "./apiTypes";
 
 export type Driver = "SPINNAKER" | "MVIMPACT" | "OPENCV";
 
@@ -153,12 +154,7 @@ function writeBlock(cameraId: number, block: Block): void {
 }
 
 // A capture device on the host, from GET /api/camera/devices.
-export interface VideoDevice {
-  path: string;
-  node: string;
-  name: string;
-  kind: "by-id" | "by-path" | "node";
-}
+export type { VideoDevice } from "./apiTypes";
 
 export async function loadVideoDevices(): Promise<VideoDevice[]> {
   try {

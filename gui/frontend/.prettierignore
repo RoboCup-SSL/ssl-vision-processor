@@ -8,3 +8,6 @@ src/proto/
 # Playwright output.
 test-results/
 playwright-report/
+
+# Generated from ../openapi.json by npm run gen:api (make generate).
+src/lib/generated/

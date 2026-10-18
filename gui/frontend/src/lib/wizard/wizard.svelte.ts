@@ -7,10 +7,11 @@
 // confirming there is what copies `draft` into the host's working document
 // (see finishWizard below), where it applies live -- persisting it to disk is
 // the normal Save in the settings menu.
-import type {
-  FieldConfig,
-  OptionalFieldLines,
-  FieldPreset,
+import {
+  blankField,
+  type FieldConfig,
+  type OptionalFieldLines,
+  type FieldPreset,
 } from "../geometry.svelte";
 import { config } from "../config.svelte";
 import { applyPlan, cameraCount, planCount } from "../cameraLayout";
@@ -43,7 +44,7 @@ export const wizard = $state<{
   fieldLayout: "full",
   cameraCount: 1,
   draft: {
-    field: {},
+    field: blankField(),
     optionalFieldLines: {
       goal2Goal: false,
       halfway: false,

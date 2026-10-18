@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { blankField } from "./geometry.svelte";
 import { config, type ConfigDocument, type Change } from "./config.svelte";
 import { network, type NetworkState } from "./network.svelte";
 import { hostAlerts } from "./alerts/hostAlerts.svelte";
@@ -15,7 +16,7 @@ import {
 function emptyDoc(): ConfigDocument {
   return {
     version: 1,
-    field: {},
+    field: blankField(),
     optionalFieldLines: {
       goal2Goal: true,
       halfway: true,

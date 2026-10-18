@@ -175,7 +175,7 @@ type Camera struct {
 // Display orients a camera's video in the GUI to match the field, since a
 // camera can be mounted at any angle.
 type Display struct {
-	Rotate int  `yaml:"rotate,omitempty" json:"rotate,omitempty"` // degrees clockwise: 0, 90, 180, 270
+	Rotate int  `yaml:"rotate,omitempty" json:"rotate,omitempty" enum:"0,90,180,270"` // degrees clockwise: 0, 90, 180, 270
 	Mirror bool `yaml:"mirror,omitempty" json:"mirror,omitempty"`
 }
 
@@ -574,9 +574,18 @@ func (d *Document) normalize() {
 	d.Models = normalizeMap(d.Models)
 	d.Defaults = normalizeMap(d.Defaults)
 
+	// Never null on the wire, whether the file had cameras: or not.
+	if d.Cameras == nil {
+		d.Cameras = []Camera{}
+	}
+
 	for i := range d.Cameras {
 		c := &d.Cameras[i]
 		c.Config = normalizeMap(c.Config)
+
+		if c.Seed != nil && c.Seed.LineCorners == nil {
+			c.Seed.LineCorners = [][2]int{}
+		}
 
 		if c.Calibration != nil {
 			c.Calibration.Camera = normalizeMap(c.Calibration.Camera)

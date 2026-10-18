@@ -27,7 +27,7 @@ func New(topics ...string) *Hub {
 
 // Topics lists the topics clients may subscribe to.
 func (h *Hub) Topics() []string {
-	return slices.Clone(h.topics)
+	return append([]string{}, h.topics...)
 }
 
 // Known reports whether topic is one of the hub's.
