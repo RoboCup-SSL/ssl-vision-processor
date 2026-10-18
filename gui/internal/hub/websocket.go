@@ -2,6 +2,7 @@ package hub
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -16,12 +17,18 @@ const (
 	writeWait  = 10 * time.Second
 )
 
-var upgrader = websocket.Upgrader{}
-
 // clientMessage is what a browser sends: {"action": "subscribe"|"unsubscribe", "topic": "..."}.
 type clientMessage struct {
 	Action string `json:"action"`
 	Topic  string `json:"topic"`
+}
+
+// errorMessage answers a client message the server can't act on, in the same
+// shape as the HTTP API's errors.
+type errorMessage struct {
+	Error   string `json:"error"`
+	Message string `json:"message"`
+	Topic   string `json:"topic,omitempty"`
 }
 
 // serverMessage is what a browser receives: {"topic": "...", "data": <value>}.
@@ -33,8 +40,11 @@ type serverMessage struct {
 }
 
 // HandleWebSocket upgrades the request and lets the client subscribe to and
-// unsubscribe from hub topics for the life of the connection.
-func HandleWebSocket(h *Hub) http.HandlerFunc {
+// unsubscribe from hub topics for the life of the connection. checkOrigin
+// decides which pages may connect; nil allows only the host's own.
+func HandleWebSocket(h *Hub, checkOrigin func(*http.Request) bool) http.HandlerFunc {
+	upgrader := websocket.Upgrader{CheckOrigin: checkOrigin}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -80,14 +90,34 @@ func serveConnection(h *Hub, conn *websocket.Conn) {
 		return conn.SetReadDeadline(time.Now().Add(pongWait))
 	})
 
+	reject := func(code, message, topic string) {
+		data, err := json.Marshal(errorMessage{Error: code, Message: message, Topic: topic})
+		if err == nil {
+			sendLatest(outbound, data)
+		}
+	}
+
 	for {
-		var msg clientMessage
-		if err := conn.ReadJSON(&msg); err != nil {
+		_, raw, err := conn.ReadMessage()
+		if err != nil {
 			return
+		}
+
+		var msg clientMessage
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			reject("bad_request", "malformed message: "+err.Error(), "")
+
+			continue
 		}
 
 		switch msg.Action {
 		case "subscribe":
+			if !h.Known(msg.Topic) {
+				reject("unknown_topic", fmt.Sprintf("no such topic; want one of %v", h.Topics()), msg.Topic)
+
+				continue
+			}
+
 			if _, already := unsubscribers[msg.Topic]; already {
 				continue
 			}
@@ -107,7 +137,7 @@ func serveConnection(h *Hub, conn *websocket.Conn) {
 				delete(unsubscribers, msg.Topic)
 			}
 		default:
-			slog.Warn("unknown websocket action", "action", msg.Action)
+			reject("unknown_action", fmt.Sprintf("action: want subscribe or unsubscribe, got %q", msg.Action), msg.Topic)
 		}
 	}
 }

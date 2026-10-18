@@ -8,6 +8,7 @@
 import { without } from "./util";
 import { config, type TeamOverride } from "./config.svelte";
 import { network } from "./network.svelte";
+import { hostAlerts } from "./alerts/hostAlerts.svelte";
 
 export type Color = "yellow" | "blue";
 
@@ -112,49 +113,12 @@ export type HeightIssue =
   | "customMissing"
   | "unsaved";
 
+// Decided by the host (gui/internal/alerts' HeightIssue), which raises a
+// team_default_height alert per affected color.
 export function heightIssue(color: Color): HeightIssue | null {
-  const ref = network.state?.referee;
-  if (!ref || ref.heightsError) return null;
+  const alert = hostAlerts.list.find(
+    (a) => a.code === "team_default_height" && a.params?.["color"] === color,
+  );
 
-  const team = teamName(color);
-  const slot = slotFor(color);
-
-  // On a competition field nothing is playing until the game controller
-  // names a team; the game controller alert covers that.
-  if (!slot) return null;
-
-  const own = choice(slot);
-
-  if (!own) {
-    if (!team) return "noHeight";
-
-    return ref.heights?.[team] === undefined ? "notInTable" : null;
-  }
-
-  if (own.name === undefined && own.height === undefined) {
-    return "customMissing";
-  }
-
-  return unsaved(slot) ? "unsaved" : null;
-}
-
-// Whether the saved file lacks this slot's choice as it is now: an unsaved
-// change to it, its fields, or a block above it. Paths are compared whole,
-// since team names can contain dots ("N.R.G"): a prefix match would tie a
-// team called "N" to N.R.G's changes.
-function unsaved(slot: Slot): boolean {
-  const key =
-    "team" in slot
-      ? `teams.overrides.${slot.team}`
-      : `teams.by_color.${slot.color}`;
-  const paths = new Set([
-    "teams",
-    "teams.overrides",
-    "teams.by_color",
-    key,
-    `${key}.name`,
-    `${key}.height`,
-  ]);
-
-  return (config.state?.changes ?? []).some((c) => paths.has(c.path));
+  return (alert?.params?.["issue"] as HeightIssue | undefined) ?? null;
 }

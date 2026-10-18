@@ -40,7 +40,7 @@
 
   // Same-origin: the Go host serves /api itself, alongside /ws and the frontend.
   interface Snapshot {
-    cam_id: string;
+    cameraId: number;
     view: string;
   }
   let snapshots = $state<Snapshot[]>([]);
@@ -105,13 +105,13 @@
           <p class="hint">No images in img/ yet.</p>
         {:else}
           <div class="grid">
-            {#each visibleSnapshots as snap (`${snap.cam_id}.${snap.view}`)}
+            {#each visibleSnapshots as snap (`${String(snap.cameraId)}.${snap.view}`)}
               <figure>
                 <img
-                  src={`/api/snapshot/${snap.cam_id}/${snap.view}?t=${String(cacheBuster)}`}
-                  alt={`cam ${snap.cam_id} ${snap.view}`}
+                  src={`/api/snapshot/${String(snap.cameraId)}/${snap.view}?t=${String(cacheBuster)}`}
+                  alt={`cam ${String(snap.cameraId)} ${snap.view}`}
                 />
-                <figcaption>cam {snap.cam_id} / {snap.view}</figcaption>
+                <figcaption>cam {snap.cameraId} / {snap.view}</figcaption>
               </figure>
             {/each}
           </div>

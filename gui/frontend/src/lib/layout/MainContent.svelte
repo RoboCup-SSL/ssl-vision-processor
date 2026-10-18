@@ -12,6 +12,7 @@
   import OverviewPanel from "../config/OverviewPanel.svelte";
   import AlertsPanel from "../alerts/AlertsPanel.svelte";
   import ConfigCategoryPlaceholder from "../config/ConfigCategoryPlaceholder.svelte";
+  import { schema } from "../schema.svelte";
 
   let category = $derived(selectedCategory());
   let instance = $derived(selectedInstance());
@@ -20,7 +21,11 @@
 <div class="main-content">
   <TabBar />
 
-  {#if nav.selectedCategoryId === "alerts"}
+  <!-- Panels read fallbacks from the schema, which arrives with the first
+       config load. -->
+  {#if !schema.value}
+    <!-- loading -->
+  {:else if nav.selectedCategoryId === "alerts"}
     <AlertsPanel />
   {:else if nav.selectedCategoryId === "overview"}
     <OverviewPanel />

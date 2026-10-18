@@ -3,6 +3,7 @@
 // selected camera's color: block in the host's working document (see
 // colorFromDoc/writeColorToDoc below), where edits go live.
 import { config, cameraDoc } from "./config.svelte";
+import { fallback } from "./schema.svelte";
 
 export interface RGB {
   r: number;
@@ -153,25 +154,39 @@ export interface ColorConfigData {
   pink: RGB;
 }
 
-// Matches vision_processor's own Resources.cpp fallbacks (see
-// colorReferenceDefaults in internal/config/color.go) -- what a camera runs
-// for anything neither it nor the shared defaults set.
+// vision_processor's own fallbacks, from the host's schema -- what a camera
+// runs for anything neither it nor the shared defaults set.
 export function defaultColorConfig(): ColorConfigData {
+  const rgb = (cls: ColorClass): RGB => {
+    const [r, g, b] = fallback(`color.${cls}`) as [number, number, number];
+
+    return { r, g, b };
+  };
+
   return {
-    referenceForce: 0.1,
-    historyForce: 0.7,
-    minReferenceForce: 0.05,
-    orange: { r: 192, g: 128, b: 64 },
-    field: { r: 128, g: 128, b: 128 },
-    yellow: { r: 255, g: 128, b: 0 },
-    blue: { r: 0, g: 128, b: 255 },
-    green: { r: 0, g: 255, b: 128 },
-    pink: { r: 255, g: 0, b: 128 },
+    referenceForce: fallback("color.reference_force") as number,
+    historyForce: fallback("color.history_force") as number,
+    minReferenceForce: fallback("color.min_reference_force") as number,
+    ...(Object.fromEntries(
+      COLOR_CLASSES.map((cls) => [cls, rgb(cls)]),
+    ) as Record<ColorClass, RGB>),
   };
 }
 
+// The Color tab's editing buffer. ColorPanel fills it from the document when
+// it mounts, so the placeholder here (built before the schema has loaded) is
+// never shown.
+const black: RGB = { r: 0, g: 0, b: 0 };
+
 export const colorConfig = $state<{ config: ColorConfigData }>({
-  config: defaultColorConfig(),
+  config: {
+    referenceForce: 0,
+    historyForce: 0,
+    minReferenceForce: 0,
+    ...(Object.fromEntries(
+      COLOR_CLASSES.map((cls) => [cls, { ...black }]),
+    ) as Record<ColorClass, RGB>),
+  },
 });
 
 // Whether the minimum-reference-weight floor has been unlocked for editing

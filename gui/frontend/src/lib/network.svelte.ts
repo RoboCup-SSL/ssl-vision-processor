@@ -5,6 +5,7 @@
 // Socket status arrives separately, once a second, on the network.state topic.
 import { config } from "./config.svelte";
 import { topic } from "./wrapper-bus";
+import { fallback } from "./schema.svelte";
 import { network as text } from "./text/network";
 
 // Mirrors gui/internal/multicast's Status.
@@ -91,14 +92,6 @@ export interface NetworkConfig {
 
 export type NetworkKey = keyof NetworkConfig;
 
-// vision_processor's fallbacks (Resources.cpp) for keys the block leaves out.
-export const NETWORK_DEFAULTS: NetworkConfig = {
-  vision_ip: "224.5.23.2",
-  vision_port: 10006,
-  gc_ip: "224.5.23.1",
-  gc_port: 10003,
-};
-
 export const network = $state<{ state: NetworkState | null }>({
   state: null,
 });
@@ -121,9 +114,13 @@ function block(): Record<string, unknown> | undefined {
 export function networkFromDoc(): NetworkConfig {
   const b = block() ?? {};
   const str = (key: NetworkKey): string =>
-    typeof b[key] === "string" ? b[key] : String(NETWORK_DEFAULTS[key]);
+    typeof b[key] === "string"
+      ? b[key]
+      : (fallback(`network.${key}`) as string);
   const num = (key: NetworkKey): number =>
-    typeof b[key] === "number" ? b[key] : Number(NETWORK_DEFAULTS[key]);
+    typeof b[key] === "number"
+      ? b[key]
+      : (fallback(`network.${key}`) as number);
 
   return {
     vision_ip: str("vision_ip"),

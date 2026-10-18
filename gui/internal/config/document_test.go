@@ -340,3 +340,45 @@ func TestRenderAllOnlyWritesChangedFiles(t *testing.T) {
 func (c Camera) clone() Camera {
 	return Document{Version: Version, Cameras: []Camera{c}}.clone().Cameras[0]
 }
+
+func TestValidatePrefixesEveryIssue(t *testing.T) {
+	doc := loadFixture(t)
+	doc.Field.FieldLength = 0
+	doc.Field.GoalWidth = 0
+
+	err := doc.Validate()
+	if err == nil {
+		t.Fatal("Validate: want an error")
+	}
+
+	issues := Issues(err)
+	if len(issues) != 2 {
+		t.Fatalf("Issues = %q, want 2", issues)
+	}
+
+	for _, issue := range issues {
+		if !strings.HasPrefix(issue, "field: ") {
+			t.Errorf("issue %q: want the field: prefix", issue)
+		}
+	}
+}
+
+func TestJSONPath(t *testing.T) {
+	for yamlPath, want := range map[string]string{
+		"field.field_width":                "field.fieldWidth",
+		"optional_field_lines.goal2goal":   "optionalFieldLines.goal2Goal",
+		"competition_field":                "competitionField",
+		"teams.by_color.yellow.height":     "teams.byColor.yellow.height",
+		"teams.overrides.N.R.G":            "teams.overrides.N.R.G",
+		"cameras[2].config_path":           "cameras[2].configPath",
+		"cameras[2].seed.line_corners":     "cameras[2].seed.lineCorners",
+		"cameras[2].config.color.orange":   "cameras[2].config.color.orange",
+		"defaults.thresholds.blobs":        "defaults.thresholds.blobs",
+		"host.interfaces.auto":             "host.interfaces.auto",
+		"cameras[0].calibration.locked_at": "cameras[0].calibration.lockedAt",
+	} {
+		if got := strings.Join(jsonPath(strings.Split(yamlPath, ".")), "."); got != want {
+			t.Errorf("jsonPath(%s) = %s, want %s", yamlPath, got, want)
+		}
+	}
+}

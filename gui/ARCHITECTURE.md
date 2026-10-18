@@ -198,25 +198,61 @@ All routes are registered in `cmd/ssl-vision-processor-gui/routes.go`.
 | Method | Path                                   | Purpose                                                                             |
 | ------ | -------------------------------------- | ----------------------------------------------------------------------------------- |
 | GET    | `/api/health`                          | Liveness check.                                                                     |
+| GET    | `/api/topics`                          | The WebSocket topics `/ws` accepts.                                                 |
+| GET    | `/api/network`                         | `network.state` on demand.                                                          |
+| GET    | `/api/alerts`                          | `alerts.state` on demand: every current problem, most serious first.                |
 | GET    | `/api/geometry`                        | The full wrapper packet, as canonical protojson.                                    |
 | GET    | `/api/geometry/presets`                | The rulebook presets, read live from `config/legacy/geometry-div{A,B}.yml`.         |
+| GET    | `/api/schema`                          | Every vision_processor setting: type, C++ fallback, bounds, live or restart.        |
 | GET    | `/api/config`                          | The working document and the store's state.                                         |
 | PUT    | `/api/config`                          | Replace the working document and apply it live. 409 on a stale revision.            |
+| PATCH  | `/api/config`                          | JSON Merge Patch the working document. `If-Match` carries the revision (the ETag).  |
+| GET    | `/api/config/files`                    | The `.yml` files beside the current one, for load and save-as.                      |
 | POST   | `/api/config/save`                     | Write the working document to disk. 409 if the file changed on disk, unless forced. |
 | POST   | `/api/config/save-as`                  | Write to a new path and edit that file from then on.                                |
 | POST   | `/api/config/load`                     | Load another file, discarding unsaved changes.                                      |
 | POST   | `/api/config/reload`                   | Accept the file as it is on disk, discarding unsaved changes.                       |
+| GET    | `/api/config/cameras/{id}/effective`   | Every setting as the camera runs it, and its source: camera, defaults, fallback.    |
 | POST   | `/api/config/cameras/{id}/calibration` | Lock the camera's latest live calibration.                                          |
 | DELETE | `/api/config/cameras/{id}/calibration` | Unlock it and stop publishing any calibration for the camera.                       |
-| GET    | `/api/camera/devices`                  | This host's capture devices: stable by-id and by-path links, then raw nodes.        |
-| GET    | `/api/snapshots`                       | List of debug images currently on disk.                                             |
-| GET    | `/api/snapshot/{camID}/{view}`         | One debug image.                                                                    |
+| GET    | `/api/camera/devices`                  | Host-local. This host's capture devices: by-id and by-path links, then raw nodes.   |
+| GET    | `/api/snapshots`                       | Host-local. Debug images in `-imgDir`.                                              |
+| GET    | `/api/snapshot/{camID}/{view}`         | Host-local. One debug image.                                                        |
 | GET    | `/ws`                                  | WebSocket, see below.                                                               |
 | GET    | `/ws/video/{id}?mode=full\|keyframes`  | One camera's live video, see Live video below.                                      |
 
 An unrouted `/api/*` path returns 404 rather than falling through to the frontend, so a typo'd endpoint fails
 with a clear status instead of returning HTML to a caller expecting JSON. Every other path serves the embedded
 frontend, with a fallback to `index.html` for client side routes.
+
+Every error is JSON, `{"error": code, "message": text, "issues": [...]}` (`internal/httpjson`). Clients branch
+on `error`: `bad_request`, `invalid` (with one `issues` entry per problem), `not_found`, `stale`,
+`disk_changed`, `no_live_calibration`, `precondition`, `unsupported_media`, `cross_origin`, `internal`.
+Request bodies must be `Content-Type: application/json` (PATCH also takes `application/merge-patch+json`), and
+unknown keys are rejected, so a misspelled key fails instead of silently resetting the value it named.
+
+`GET /api/config` returns the revision as its `ETag`, and every config write (PUT, PATCH, save, save-as, load,
+reload, lock, unlock) answers `{"revision": n}` with the new revision as its `ETag`. PATCH follows RFC 7396: objects
+merge, `null` removes a key, and arrays (`cameras`) are replaced whole. PATCH is the safer write for a client that
+doesn't model the whole document: PUT replaces it, so a key the client dropped is removed.
+
+Some document keys only matter to this GUI and no vision_processor reads them: a camera's `display` (video
+orientation) and `seed.goalSideMarker` (which corner marker was picked). Other clients should leave them as they
+are. `teams` and `competitionField` are read by the host's alerts. Each `Change` in `config.state` has both `path`
+(vision.yml's spelling, `field.field_width`) and `jsonPath` (the JSON document's, `field.fieldWidth`); in both,
+`cameras[N]` is the camera with camera_id N, not a list index. `section` is the GUI page the change belongs to. Protobuf messages appear in two spellings: `/api/geometry` and
+`wrapper_packet.out` use canonical protojson (`pixelImageWidth`), while the document's `models` and
+`calibration.camera` keep proto field names (`pixel_image_width`), matching how they're stored in vision.yml.
+
+"Host-local" endpoints describe the machine running the host, and only describe a camera when its
+vision_processor runs on the same machine: device paths and debug images aren't available for remote instances.
+
+Browser pages from other origins are refused (`internal/origins`): state-changing requests via
+`http.CrossOriginProtection` (`Sec-Fetch-Site`, else `Origin` against `Host`), and `/ws` and `/ws/video` upgrades
+by `Origin`. `-allowOrigin http://host:port,...` trusts other origins, such as a separately served UI or a dev
+server: they pass both checks and get CORS headers (preflights answered, `ETag` exposed). Non-browser clients send
+no `Origin` and are unaffected. There is no authentication: anyone who can reach the port can administer the
+host.
 
 ## WebSocket protocol
 
@@ -228,7 +264,12 @@ frontend, with a fallback to `index.html` for client side routes.
 { "action": "unsubscribe", "topic": "wrapper_packet.out" }
 // server -> client
 { "topic": "wrapper_packet.out", "data": { /* protojson */ } }
+{ "error": "unknown_topic", "message": "...", "topic": "wrapper_pakcet.out" }
 ```
+
+`GET /api/topics` lists the topics. A new subscriber gets the topic's latest value at once, then every later one.
+A message the server can't act on is answered with an error (`bad_request`, `unknown_topic`, `unknown_action`)
+and the connection stays open.
 
 `wrapper_packet.out` carries the current `SSL_WrapperPacket` as canonical protojson, published once per second.
 `config.state` carries `config.Store`'s state: the revision, unsaved changes, any change made to the file on disk,
@@ -237,6 +278,10 @@ status comes from the network rather than the store.
 `network.state` carries each multicast socket's address and what it has heard there: vision detection packets
 (the host's own looped back geometry doesn't count) and game controller referee messages. It is published once per
 second and on every config change.
+`alerts.state` carries every problem the host can see (`internal/alerts`), on the same schedule: a stable `id`,
+a `code`, a `severity` (`error`, `warning`, `caution`), an optional `cameraId`, the facts behind it as `params`,
+and a plain English `message`. The host decides which alerts exist and how serious they are; a client words and
+links them by `code`, falling back to `message` for codes it doesn't know.
 
 Every channel in this path, from a topic's own subscriber channel to a connection's shared outbound channel, is
 size limited and drops the oldest queued value in favor of the newest one. A slow client sees only the latest

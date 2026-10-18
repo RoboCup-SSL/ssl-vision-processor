@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/vision"
 )
@@ -62,6 +63,22 @@ func cameraStatus(doc Document, c Camera, live *vision.SSL_GeometryCameraCalibra
 			if lockedRes[0] > 0 && lockedRes[1] > 0 && !sameAspect(lockedRes, liveRes) {
 				warn("calibration_aspect_mismatch", "Locked calibration was solved at %dx%d but the camera now reports %dx%d, a different aspect ratio. vision_processor can't rescale across aspect ratios; unlock and recalibrate.", lockedRes[0], lockedRes[1], liveRes[0], liveRes[1])
 			}
+		}
+	}
+
+	if eff, err := doc.EffectiveConfig(c.CameraID); err == nil {
+		var unknown []string
+
+		for path, setting := range eff.Settings {
+			if !setting.Known {
+				unknown = append(unknown, path)
+			}
+		}
+
+		slices.Sort(unknown)
+
+		for _, path := range unknown {
+			warn("unknown_setting", "%s isn't a setting vision_processor reads, so it has no effect. Check the spelling.", path)
 		}
 	}
 

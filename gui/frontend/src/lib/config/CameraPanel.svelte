@@ -9,7 +9,7 @@
   import type { VisionInstance } from "../layout/nav.svelte";
   import { config, cameraDoc } from "../config.svelte";
   import {
-    DRIVERS,
+    drivers,
     cameraSettings,
     setCameraKey,
     loadVideoDevices,
@@ -32,7 +32,8 @@
 
   let cameraId = $derived(instance?.cameraId ?? 0);
   let settings = $derived(cameraSettings(cameraId));
-  let driver = $derived(DRIVERS[settings.driver]);
+  let driverInfo = $derived(drivers());
+  let driver = $derived(driverInfo[settings.driver]);
   // Placeholder slider ranges; see cameraRanges.ts.
   let ranges = $derived(CAMERA_RANGES[settings.driver]);
   let configPath = $derived(cameraDoc(cameraId)?.configPath);
@@ -254,7 +255,7 @@
                   );
                 }}
               >
-                {#each Object.entries(DRIVERS) as [key, info] (key)}
+                {#each Object.entries(driverInfo) as [key, info] (key)}
                   <option value={key}>{info.label}</option>
                 {/each}
               </Select>

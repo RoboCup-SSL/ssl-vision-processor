@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
@@ -272,13 +273,14 @@ func (d Document) Validate() error {
 	var errs error
 
 	add := func(err error) { errs = errors.Join(errs, err) }
+	addIn := func(prefix string, err error) { add(prefixed(prefix, err)) }
 
 	if d.Version != Version {
 		add(fmt.Errorf("version: want %d, got %d", Version, d.Version))
 	}
 
 	if err := d.Field.Validate(); err != nil {
-		add(fmt.Errorf("field: %w", err))
+		addIn("field", err)
 	}
 
 	if _, err := d.ModelsProto(); err != nil {
@@ -286,9 +288,9 @@ func (d Document) Validate() error {
 	}
 
 	if n, err := d.Network(); err != nil {
-		add(fmt.Errorf("defaults: %w", err))
+		addIn("defaults", err)
 	} else if err := n.Validate(); err != nil {
-		add(fmt.Errorf("defaults: %w", err))
+		addIn("defaults", err)
 	}
 
 	if d.Teams != nil {
@@ -356,7 +358,7 @@ func (d Document) Validate() error {
 			p, err := c.Calibration.Proto()
 			switch {
 			case err != nil:
-				add(fmt.Errorf("%s.calibration: %w", prefix, err))
+				addIn(prefix+".calibration", err)
 			case int(p.GetCameraId()) != c.CameraID:
 				add(fmt.Errorf("%s.calibration.camera.camera_id: want %d, got %d", prefix, c.CameraID, p.GetCameraId()))
 			}
@@ -366,25 +368,25 @@ func (d Document) Validate() error {
 		// add a new problem here.
 		if c.Config["network"] != nil {
 			if n, err := networkFromBlock(d.Effective(c)["network"]); err != nil {
-				add(fmt.Errorf("%s: %w", prefix, err))
+				addIn(prefix, err)
 			} else if err := n.Validate(); err != nil {
-				add(fmt.Errorf("%s: %w", prefix, err))
+				addIn(prefix, err)
 			}
 		}
 
 		if err := validateCamera(d.Effective(c)["camera"]); err != nil {
-			add(fmt.Errorf("%s: %w", prefix, err))
+			addIn(prefix, err)
 		}
 
-		if err := validateAdvanced(d.Effective(c)); err != nil {
-			add(fmt.Errorf("%s: %w", prefix, err))
+		if err := validateSettings(d.Effective(c)); err != nil {
+			addIn(prefix, err)
 		}
 
 		color, err := colorFromBlock(d.Effective(c)["color"])
 		if err != nil {
-			add(fmt.Errorf("%s: %w", prefix, err))
+			addIn(prefix, err)
 		} else if err := color.Validate(); err != nil {
-			add(fmt.Errorf("%s: %w", prefix, err))
+			addIn(prefix, err)
 		}
 	}
 
@@ -393,6 +395,30 @@ func (d Document) Validate() error {
 	}
 
 	return nil
+}
+
+// prefixed puts prefix on every line of err, not just the first as
+// fmt.Errorf("%s: %w") would on a joined error, so each line names its own
+// key. Nil stays nil.
+func prefixed(prefix string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	lines := strings.Split(err.Error(), "\n")
+	errs := make([]error, len(lines))
+
+	for i, line := range lines {
+		errs[i] = errors.New(prefix + ": " + line)
+	}
+
+	return errors.Join(errs...)
+}
+
+// Issues is err split into its separate problems, one per line, as Validate
+// reports them.
+func Issues(err error) []string {
+	return strings.Split(err.Error(), "\n")
 }
 
 func (s Seed) validate(prefix string) error {

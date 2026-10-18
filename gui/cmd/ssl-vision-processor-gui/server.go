@@ -1,15 +1,17 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/httpjson"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/origins"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/v4l"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -18,18 +20,24 @@ import (
 type VisionServer struct {
 	geometry *geometry.Geometry
 	store    *config.Store
+	status   StatusSource
+	origins  *origins.Policy
 	hub      *hub.Hub
 	video    *video.Manager
 	imgDir   string
 }
 
-func NewVisionServer(geom *geometry.Geometry, store *config.Store, wsHub *hub.Hub, videos *video.Manager, imgDir string) http.Handler {
-	s := &VisionServer{geometry: geom, store: store, hub: wsHub, video: videos, imgDir: imgDir}
+func NewVisionServer(geom *geometry.Geometry, store *config.Store, status StatusSource, policy *origins.Policy, wsHub *hub.Hub, videos *video.Manager, imgDir string) http.Handler {
+	s := &VisionServer{geometry: geom, store: store, status: status, origins: policy, hub: wsHub, video: videos, imgDir: imgDir}
 
 	mux := http.NewServeMux()
 	s.addRoutes(mux)
 
-	return mux
+	// A browser page from an origin that isn't the host's own or trusted
+	// can't change state; a trusted one also gets CORS headers.
+	return policy.Handler(mux, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpjson.Error(w, http.StatusForbidden, httpjson.CodeCrossOrigin, "cross-origin request refused; see -allowOrigin")
+	}))
 }
 
 // handleCameraDevices lists this host's capture devices for the camera path
@@ -41,13 +49,35 @@ func (s *VisionServer) handleCameraDevices() http.HandlerFunc {
 			devices = []v4l.Device{}
 		}
 
-		writeJSON(w, devices)
+		httpjson.Write(w, http.StatusOK, devices)
+	}
+}
+
+// handleGetTopics lists the WebSocket topics /ws accepts.
+func (s *VisionServer) handleGetTopics() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		httpjson.Write(w, http.StatusOK, s.hub.Topics())
+	}
+}
+
+// handleGetNetwork is network.state on demand: what each socket hears.
+func (s *VisionServer) handleGetNetwork() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		httpjson.Write(w, http.StatusOK, s.status.Network())
+	}
+}
+
+// handleGetAlerts is alerts.state on demand: every current problem, most
+// serious first.
+func (s *VisionServer) handleGetAlerts() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		httpjson.Write(w, http.StatusOK, s.status.Alerts())
 	}
 }
 
 func (s *VisionServer) handleHealth() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]string{"status": "ok"})
+		httpjson.Write(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
@@ -58,7 +88,7 @@ func (s *VisionServer) handleGetGeometry() http.HandlerFunc {
 		data, err := protojson.Marshal(s.geometry.Snapshot())
 		if err != nil {
 			slog.Error("marshalling geometry", "err", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httpjson.Error(w, http.StatusInternalServerError, httpjson.CodeInternal, "internal error")
 
 			return
 		}
@@ -71,17 +101,40 @@ func (s *VisionServer) handleGetGeometry() http.HandlerFunc {
 	}
 }
 
+// handleGetSchema describes every vision_processor setting: type, fallback,
+// bounds, and when a change takes effect.
+func (s *VisionServer) handleGetSchema() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		httpjson.Write(w, http.StatusOK, config.CurrentSchema())
+	}
+}
+
 // configResponse is the working document plus the store's state.
 type configResponse struct {
 	Document config.Document `json:"document"`
 	State    config.State    `json:"state"`
 }
 
+// handleGetConfig serves the working document. Its revision is also the
+// ETag, for PATCH's If-Match.
 func (s *VisionServer) handleGetConfig() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		doc, _ := s.store.Working()
-		writeJSON(w, configResponse{Document: doc, State: s.store.State()})
+		state := s.store.State()
+		w.Header().Set("ETag", revisionETag(state.Revision))
+		httpjson.Write(w, http.StatusOK, configResponse{Document: doc, State: state})
 	}
+}
+
+func revisionETag(rev int64) string {
+	return `"` + strconv.FormatInt(rev, 10) + `"`
+}
+
+// writeRevision answers a config write with the revision it left the working
+// document at, in the body and as the ETag.
+func writeRevision(w http.ResponseWriter, rev int64) {
+	w.Header().Set("ETag", revisionETag(rev))
+	httpjson.Write(w, http.StatusOK, revisionResponse{Revision: rev})
 }
 
 type revisionResponse struct {
@@ -98,7 +151,7 @@ type putConfigRequest struct {
 func (s *VisionServer) handlePutConfig() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req putConfigRequest
-		if !decodeJSON(w, r, &req) {
+		if !httpjson.Decode(w, r, &req) {
 			return
 		}
 
@@ -109,7 +162,72 @@ func (s *VisionServer) handlePutConfig() http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, revisionResponse{Revision: rev})
+		writeRevision(w, rev)
+	}
+}
+
+// handlePatchConfig applies a JSON Merge Patch (RFC 7396) to the working
+// document, for clients that change a few keys rather than resending the
+// whole document. If-Match carries the revision the patch is based on, as
+// GET /api/config's ETag gives it; a stale one is a 409 like PUT's.
+func (s *VisionServer) handlePatchConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		match := r.Header.Get("If-Match")
+		if match == "" {
+			httpjson.Error(w, http.StatusPreconditionRequired, httpjson.CodePrecondition, "If-Match: required, the revision from GET /api/config's ETag")
+
+			return
+		}
+
+		rev, err := strconv.ParseInt(strings.Trim(match, `"`), 10, 64)
+		if err != nil {
+			httpjson.Error(w, http.StatusBadRequest, httpjson.CodeBadRequest, "If-Match: want a revision such as \"12\"")
+
+			return
+		}
+
+		var patch any
+		if !httpjson.Decode(w, r, &patch, "application/merge-patch+json", "application/json") {
+			return
+		}
+
+		doc, current := s.store.Working()
+		if rev != current {
+			respondConfigErr(w, config.ErrStale, "patching config")
+
+			return
+		}
+
+		doc, err = config.MergePatch(doc, patch)
+		if err != nil {
+			respondConfigErr(w, err, "patching config")
+
+			return
+		}
+
+		next, err := s.store.Update(rev, doc)
+		if err != nil {
+			respondConfigErr(w, err, "patching config")
+
+			return
+		}
+
+		writeRevision(w, next)
+	}
+}
+
+// handleConfigFiles lists the YAML files beside the current vision.yml, for
+// load and save-as.
+func (s *VisionServer) handleConfigFiles() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		files, err := s.store.Files()
+		if err != nil {
+			respondConfigErr(w, err, "listing config files")
+
+			return
+		}
+
+		httpjson.Write(w, http.StatusOK, files)
 	}
 }
 
@@ -123,7 +241,7 @@ type saveRequest struct {
 func (s *VisionServer) handleSave() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req saveRequest
-		if !decodeJSON(w, r, &req) {
+		if !httpjson.Decode(w, r, &req) {
 			return
 		}
 
@@ -133,7 +251,7 @@ func (s *VisionServer) handleSave() http.HandlerFunc {
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		writeRevision(w, s.store.Revision())
 	}
 }
 
@@ -145,12 +263,12 @@ type saveAsRequest struct {
 func (s *VisionServer) handleSaveAs() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req saveAsRequest
-		if !decodeJSON(w, r, &req) {
+		if !httpjson.Decode(w, r, &req) {
 			return
 		}
 
 		if req.Path == "" {
-			http.Error(w, "path: required", http.StatusBadRequest)
+			httpjson.Error(w, http.StatusBadRequest, httpjson.CodeInvalid, "path: required", "path: required")
 
 			return
 		}
@@ -161,7 +279,7 @@ func (s *VisionServer) handleSaveAs() http.HandlerFunc {
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		writeRevision(w, s.store.Revision())
 	}
 }
 
@@ -174,12 +292,12 @@ type loadRequest struct {
 func (s *VisionServer) handleLoad() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req loadRequest
-		if !decodeJSON(w, r, &req) {
+		if !httpjson.Decode(w, r, &req) {
 			return
 		}
 
 		if req.Path == "" {
-			http.Error(w, "path: required", http.StatusBadRequest)
+			httpjson.Error(w, http.StatusBadRequest, httpjson.CodeInvalid, "path: required", "path: required")
 
 			return
 		}
@@ -190,7 +308,7 @@ func (s *VisionServer) handleLoad() http.HandlerFunc {
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		writeRevision(w, s.store.Revision())
 	}
 }
 
@@ -205,7 +323,31 @@ func (s *VisionServer) handleReload() http.HandlerFunc {
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		writeRevision(w, s.store.Revision())
+	}
+}
+
+// handleEffectiveConfig is every setting of one camera as its
+// vision_processor runs it, and where each value comes from.
+func (s *VisionServer) handleEffectiveConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil {
+			httpjson.Error(w, http.StatusBadRequest, httpjson.CodeBadRequest, "id: want a camera_id")
+
+			return
+		}
+
+		doc, _ := s.store.Working()
+
+		eff, err := doc.EffectiveConfig(id)
+		if err != nil {
+			respondConfigErr(w, err, "resolving effective config", "cam", id)
+
+			return
+		}
+
+		httpjson.Write(w, http.StatusOK, eff)
 	}
 }
 
@@ -221,7 +363,7 @@ func (s *VisionServer) calibrationHandler(action func(int) (int64, error), logMs
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(r.PathValue("id"))
 		if err != nil {
-			http.Error(w, "id: want a camera_id", http.StatusBadRequest)
+			httpjson.Error(w, http.StatusBadRequest, httpjson.CodeBadRequest, "id: want a camera_id")
 
 			return
 		}
@@ -233,44 +375,32 @@ func (s *VisionServer) calibrationHandler(action func(int) (int64, error), logMs
 			return
 		}
 
-		writeJSON(w, revisionResponse{Revision: rev})
+		writeRevision(w, rev)
 	}
 }
 
-// conflictResponse is the body of a 409, so the frontend can tell a stale
-// edit (refetch) from a file changed on disk (prompt the user).
-type conflictResponse struct {
-	Error   string `json:"error"`
-	Message string `json:"message"`
-}
-
-// respondConfigErr maps a config.Store error to an HTTP response: caller
-// mistakes are 400 with the error's own message, conflicts 409 with a code,
+// respondConfigErr maps a config.Store error to an httpjson error: caller
+// mistakes are 400 with each problem listed, conflicts 409 with a code,
 // anything else a logged 500.
 func respondConfigErr(w http.ResponseWriter, err error, logMsg string, logArgs ...any) {
 	conflict := func(code string) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-
-		if err := json.NewEncoder(w).Encode(conflictResponse{Error: code, Message: err.Error()}); err != nil {
-			slog.Error("writing conflict response", "err", err)
-		}
+		httpjson.Error(w, http.StatusConflict, code, err.Error())
 	}
 
 	switch {
 	case config.IsValidation(err):
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpjson.Error(w, http.StatusBadRequest, httpjson.CodeInvalid, err.Error(), config.Issues(err)...)
 	case errors.Is(err, config.ErrStale):
-		conflict("stale")
+		conflict(httpjson.CodeStale)
 	case errors.Is(err, config.ErrDiskChanged):
-		conflict("disk_changed")
+		conflict(httpjson.CodeDiskChanged)
 	case errors.Is(err, config.ErrNoLiveCalibration):
-		conflict("no_live_calibration")
+		conflict(httpjson.CodeNoLiveCalibration)
 	case errors.Is(err, config.ErrUnknownCamera):
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpjson.Error(w, http.StatusNotFound, httpjson.CodeNotFound, err.Error())
 	default:
 		slog.Error(logMsg, append(logArgs, "err", err)...)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		httpjson.Error(w, http.StatusInternalServerError, httpjson.CodeInternal, "internal error")
 	}
 }
 
@@ -309,24 +439,6 @@ func (s *VisionServer) handleGetFieldPresets() http.HandlerFunc {
 			presets = append(presets, fieldPresetResponse{Name: p.Name, Field: field, OptionalFieldLines: optional})
 		}
 
-		writeJSON(w, presets)
-	}
-}
-
-func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
-	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
-		http.Error(w, "malformed request body: "+err.Error(), http.StatusBadRequest)
-
-		return false
-	}
-
-	return true
-}
-
-func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		slog.Error("writing response", "err", err)
+		httpjson.Write(w, http.StatusOK, presets)
 	}
 }

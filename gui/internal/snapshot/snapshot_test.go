@@ -41,7 +41,7 @@ func TestListFindsMatchingFilesAndSkipsOthers(t *testing.T) {
 		t.Fatalf("list: %v", err)
 	}
 
-	want := []Entry{{CamID: "0", View: "raw"}, {CamID: "1", View: "calib"}}
+	want := []Entry{{CameraID: 0, View: "raw"}, {CameraID: 1, View: "calib"}}
 	if len(entries) != len(want) {
 		t.Fatalf("entries = %v, want %v", entries, want)
 	}
@@ -64,7 +64,7 @@ func TestListHandlesADottedViewName(t *testing.T) {
 		t.Fatalf("list: %v", err)
 	}
 
-	want := Entry{CamID: "0", View: "pixels.corner"}
+	want := Entry{CameraID: 0, View: "pixels.corner"}
 	if len(entries) != 1 || entries[0] != want {
 		t.Fatalf("entries = %v, want [%v]", entries, want)
 	}
@@ -101,7 +101,7 @@ func TestHandleListServesJSON(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if len(got) != 1 || got[0] != (Entry{CamID: "0", View: "raw"}) {
+	if len(got) != 1 || got[0] != (Entry{CameraID: 0, View: "raw"}) {
 		t.Errorf("got %v", got)
 	}
 }

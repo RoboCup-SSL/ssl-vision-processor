@@ -3,7 +3,7 @@
 // file. Components bind straight into config.doc -- a root effect below
 // notices any change and debounces a PUT, so no component needs to call a
 // setter or remember to save.
-import { requestJSON } from "./api";
+import { errorMessage, requestJSON, type ApiError } from "./api";
 import { topic } from "./wrapper-bus";
 import {
   refreshFieldMarkings,
@@ -12,6 +12,7 @@ import {
 } from "./geometry.svelte";
 
 import { app } from "./text/app";
+import { loadSchema } from "./schema.svelte";
 
 export type Section =
   | "field"
@@ -25,9 +26,11 @@ export type Section =
   | "other";
 
 // Mirrors gui/internal/config's Change: one leaf difference between two
-// documents, keyed by its vision.yml path.
+// documents, keyed by its vision.yml path (and the same path in the JSON
+// document's spelling).
 export interface Change {
   path: string;
+  jsonPath: string;
   before: unknown;
   after: unknown;
   section: Section;
@@ -132,9 +135,8 @@ interface ConfigResponse {
   state: ConfigState;
 }
 
-interface ConflictResponse {
+interface ConflictResponse extends ApiError {
   error: "stale" | "disk_changed" | "no_live_calibration";
-  message: string;
 }
 
 export const config = $state<{
@@ -182,6 +184,8 @@ export function changesFor(section: Section, cameraId?: number): Change[] {
 
 export async function loadConfig(): Promise<void> {
   try {
+    // Before the document, so everything rendered from it has the schema.
+    await loadSchema();
     const response = await requestJSON("/api/config");
     const data = (await response.json()) as ConfigResponse;
     lastSynced = JSON.stringify(data.document);
@@ -262,7 +266,7 @@ async function putDoc(json: string): Promise<void> {
     return;
   }
 
-  config.error = await response.text();
+  config.error = await errorMessage(response);
 }
 
 $effect.root(() => {
@@ -307,7 +311,7 @@ async function action(
     }
 
     if (!response.ok) {
-      throw new Error(await response.text());
+      throw new Error(await errorMessage(response));
     }
 
     config.error = null;
