@@ -14,6 +14,8 @@ camera:
 
   # Spinnaker, mvIMPACT or OpenCV(v4l2) camera id
   #id: 0
+  # Spinnaker camera serial number (if set id is ignored). Recommended with multiple cameras, as id order is not stable.
+  #serial: "12345678"
   # OpenCV camera device, image or video file path (if unset id is used instead)
   #path: /dev/video0
 

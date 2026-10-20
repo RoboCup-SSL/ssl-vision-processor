@@ -27,7 +27,13 @@ public:
 	}
 
 	~SpinnakerImage() override {
-		pImage->Release();
+		// borrow() already releases images it had to copy out of a non-pooled buffer
+		try {
+			if(pImage->IsInUse())
+				pImage->Release();
+		} catch (Spinnaker::Exception &e) {
+			WARN("Could not release image: " << e.GetFullErrorMessage());
+		}
 		source.restore(*this);
 	}
 
@@ -41,23 +47,32 @@ SpinnakerDriver::SpinnakerDriver(const CameraConfig& config) {
 
 	while(true) {
 		Spinnaker::CameraList camList = pSystem->GetCameras();
-		if (camList.GetSize() > config.hardwareId) {
+		const unsigned int camCount = camList.GetSize();
+		// Enumeration order is not stable (especially across GigE interfaces), prefer the serial number
+		if(!config.serial.empty())
+			pCam = camList.GetBySerial(config.serial);
+		else if(config.hardwareId >= 0 && camCount > (unsigned int)config.hardwareId)
 			pCam = camList.GetByIndex(config.hardwareId);
+		camList.Clear();
+
+		if(pCam.IsValid()) {
 			pCam->Init();
 			VP_LOG("Opened " << pCam->DeviceModelName.GetValue() << " - " << pCam->DeviceSerialNumber.GetValue().c_str());
-			camList.Clear();
 			break;
 		}
 
-		WARN("Waiting for cam: " << camList.GetSize() << "/" << (config.hardwareId+1));
+		if(!config.serial.empty())
+			WARN("Waiting for cam with serial " << config.serial);
+		else
+			WARN("Waiting for cam: " << camCount << "/" << (config.hardwareId+1));
 
-		camList.Clear();
 		sleep(1);
 	}
 
-	// Reset camera parameters
-	CATCH_SPINNAKER(pCam->UserSetDefault.SetValue(Spinnaker::UserSetDefault_Default))
+	// Reset camera parameters. Only UserSetLoad changes the active settings; UserSetDefault just
+	// selects the power-on set and persists that choice on the camera, so leave it alone.
 	CATCH_SPINNAKER(pCam->UserSetSelector.SetValue(Spinnaker::UserSetSelector_Default))
+	CATCH_SPINNAKER(pCam->UserSetLoad.Execute())
 
 	CATCH_SPINNAKER(pCam->TriggerMode.SetValue(Spinnaker::TriggerMode_Off))
 	CATCH_SPINNAKER(pCam->AcquisitionMode.SetValue(Spinnaker::AcquisitionMode_Continuous))
@@ -67,12 +82,37 @@ SpinnakerDriver::SpinnakerDriver(const CameraConfig& config) {
 	pCam->TLStream.StreamBufferHandlingMode.SetValue(Spinnaker::StreamBufferHandlingMode_NewestOnly);
 	pCam->TLStream.StreamBufferCountManual.SetValue(pCam->TLStream.StreamBufferCountManual.GetMin());
 
+	configurePacketSize();
+}
+
+void SpinnakerDriver::configurePacketSize() {
+	if(!IsWritable(pCam->GevSCPSPacketSize))
+		return; // Not a GigE camera
+
+	try {
+		// The largest packet size the whole path (NIC MTU, switches) supports; 9000 only works with jumbo frames everywhere
+		int64_t packetSize = pCam->DiscoverMaxPacketSize();
+		const int64_t min = pCam->GevSCPSPacketSize.GetMin();
+		const int64_t inc = pCam->GevSCPSPacketSize.GetInc();
+		packetSize = std::min(packetSize, pCam->GevSCPSPacketSize.GetMax());
+		packetSize -= (packetSize - min) % inc;
+		pCam->GevSCPSPacketSize.SetValue(packetSize);
+		VP_LOG("GigE packet size: " << packetSize);
+	} catch (Spinnaker::Exception &e) {
+		WARN("Could not configure GigE packet size: " << e.GetFullErrorMessage());
+	}
+}
+
+void SpinnakerDriver::allocateBuffers() {
+	buffers.clear();
+
 	// Provide image buffers to achieve faster mapping with OpenCL
-	int width = pCam->WidthMax.GetValue();
-	int height = pCam->HeightMax.GetValue();
-	for(int i = 0; i < pCam->TLStream.StreamBufferCountManual.GetMin(); i++) {
-		// Spinnaker buffer sizes need to be 1024 byte aligned
-		std::shared_ptr<RawImage> buffer = std::make_shared<RawImage>(CLArray((width * height + 1023)/1024 * 1024), &PixelFormat::RGGB8, width/2, height/2, "spinnaker");
+	const int width = (int)pCam->Width.GetValue();
+	const int height = (int)pCam->Height.GetValue();
+	// Spinnaker buffer sizes need to be 1024 byte aligned
+	const size_t bufferSize = ((size_t)width * height + 1023)/1024 * 1024;
+	for(int64_t i = 0; i < pCam->TLStream.StreamBufferCountManual.GetValue(); i++) {
+		std::shared_ptr<RawImage> buffer = std::make_shared<RawImage>(CLArray(bufferSize), &PixelFormat::RGGB8, width/2, height/2, "spinnaker");
 		buffers[buffer] = std::make_unique<CLMap<uint8_t>>(buffer->write<uint8_t>());
 	}
 
@@ -81,17 +121,61 @@ SpinnakerDriver::SpinnakerDriver(const CameraConfig& config) {
 		bufferPtrs.push_back(**item.second);
 
 	pCam->SetBufferOwnership(Spinnaker::SPINNAKER_BUFFER_OWNERSHIP_USER);
-	pCam->SetUserBuffers(bufferPtrs.data(), buffers.size(), width*height);
-	//pCam->Timestamp.SetValue();
+	pCam->SetUserBuffers(bufferPtrs.data(), buffers.size(), bufferSize);
+}
 
-	if (IsWritable(pCam->GevSCPSPacketSize)) {
-		CATCH_SPINNAKER(pCam->GevSCPSPacketSize.SetValue(9000));
+bool SpinnakerDriver::buffersIdle() const {
+	for (auto& item : buffers) {
+		if(item.second == nullptr)
+			return false;
+	}
+	return true;
+}
+
+void SpinnakerDriver::startAcquisition() {
+	// Buffers are sized for the current resolution, so they are (re)created on every start
+	allocateBuffers();
+	pCam->BeginAcquisition();
+	acquiring = true;
+	refreshFrametime();
+}
+
+void SpinnakerDriver::stopAcquisition() {
+	pCam->EndAcquisition();
+	acquiring = false;
+}
+
+void SpinnakerDriver::refreshFrametime() {
+	frametimeUpdated = getRealTime();
+
+	// First generation cameras (e.g. Blackfly GigE) lack AcquisitionResultingFrameRate
+	try {
+		if(IsReadable(pCam->AcquisitionResultingFrameRate)) {
+			frametime = 1 / pCam->AcquisitionResultingFrameRate.GetValue();
+			return;
+		}
+
+		if(IsReadable(pCam->AcquisitionFrameRate)) {
+			frametime = 1 / pCam->AcquisitionFrameRate.GetValue();
+			return;
+		}
+	} catch (Spinnaker::Exception &e) {
+		WARN("Could not read frame rate: " << e.GetFullErrorMessage());
 	}
 
-	pCam->BeginAcquisition();
+	if(frametime == 0.0)
+		WARN("Camera reports no frame rate, frame time overruns will not be detected");
+	frametime = INFINITY;
 }
 
 std::shared_ptr<RawImage> SpinnakerDriver::readImage() {
+	if(!acquiring)
+		startAcquisition();
+
+	// The resulting frame rate changes with (auto) exposure, so poll it occasionally
+	if(getRealTime() - frametimeUpdated > 1.0)
+		refreshFrametime();
+
 	return std::make_shared<SpinnakerImage>(*this, pCam->GetNextImage());
 }
 
@@ -100,11 +184,26 @@ const PixelFormat SpinnakerDriver::format() {
 }
 
 double SpinnakerDriver::expectedFrametime() {
-	return 1 / pCam->AcquisitionResultingFrameRate.GetValue();
+	return frametime;
 }
 
 SpinnakerDriver::~SpinnakerDriver() {
-	pCam->EndAcquisition();
+	// Exceptions must not escape a destructor. DeInit also releases the GigE control channel,
+	// otherwise the camera stays claimed until its heartbeat times out.
+	try {
+		if(acquiring)
+			stopAcquisition();
+		pCam->DeInit();
+	} catch (Spinnaker::Exception &e) {
+		WARN("Could not close camera: " << e.GetFullErrorMessage());
+	}
+
+	pCam = nullptr;
+	try {
+		pSystem->ReleaseInstance();
+	} catch (Spinnaker::Exception &e) {
+		WARN("Could not release Spinnaker system: " << e.GetFullErrorMessage());
+	}
 }
 
 std::shared_ptr<RawImage> SpinnakerDriver::borrow(const Spinnaker::ImagePtr& pImage) {
@@ -145,8 +244,24 @@ void SpinnakerDriver::setResolution(uint32_t width, uint32_t height) {
 		height = pCam->HeightMax.GetValue();
 	}
 
+	if(width == getWidth() && height == getHeight())
+		return;
+
+	// The camera locks the image size while streaming and the buffers are sized for it
+	const bool restart = acquiring;
+	if(restart) {
+		if(!buffersIdle()) {
+			WARN("Cannot change resolution while images are in use");
+			return;
+		}
+		stopAcquisition();
+	}
+
 	CATCH_SPINNAKER(pCam->Width.SetValue(width));
 	CATCH_SPINNAKER(pCam->Height.SetValue(height));
+
+	if(restart)
+		startAcquisition();
 }
 
 float SpinnakerDriver::getExposure() {
@@ -165,6 +280,9 @@ void SpinnakerDriver::setExposure(float exposure) {
 		CATCH_SPINNAKER(pCam->ExposureAuto.SetValue(Spinnaker::ExposureAuto_Off))
 		CATCH_SPINNAKER(pCam->ExposureTime.SetValue(exposure * 1000.0f))
 	}
+
+	// Exposure can limit the frame rate
+	frametimeUpdated = 0.0;
 }
 
 float SpinnakerDriver::getGain() {

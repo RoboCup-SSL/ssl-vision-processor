@@ -52,8 +52,23 @@ public:
 	void setWhiteBalance(WhiteBalanceType type, float blue, float red) override;
 
 private:
+	void startAcquisition();
+	void stopAcquisition();
+	void allocateBuffers();
+	bool buffersIdle() const;
+	void configurePacketSize();
+	void refreshFrametime();
+
 	Spinnaker::SystemPtr pSystem;
 	Spinnaker::CameraPtr pCam;
+
+	// Acquisition starts on the first readImage(), so the settings applied after construction
+	// (resolution in particular) can still be written; the camera locks them while streaming.
+	bool acquiring = false;
+
+	// Cached so the frame loop doesn't do a register read (a network round trip on GigE) every frame
+	double frametime = 0.0;
+	double frametimeUpdated = 0.0;
 
 	std::map<std::shared_ptr<RawImage>, std::unique_ptr<CLMap<uint8_t>>> buffers; // Use own image buffers for page size alignment (OpenCL pinned memory and zero copy)
 };
