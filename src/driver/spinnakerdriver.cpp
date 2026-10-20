@@ -76,13 +76,149 @@ SpinnakerDriver::SpinnakerDriver(const CameraConfig& config) {
 
 	CATCH_SPINNAKER(pCam->TriggerMode.SetValue(Spinnaker::TriggerMode_Off))
 	CATCH_SPINNAKER(pCam->AcquisitionMode.SetValue(Spinnaker::AcquisitionMode_Continuous))
-	CATCH_SPINNAKER(pCam->PixelFormat.SetValue(Spinnaker::PixelFormat_BayerRG8))
-	CATCH_SPINNAKER(pCam->AcquisitionFrameRateEnable.SetValue(false))
+	selectPixelFormat();
+	// Free running at the maximum frame rate
+	setBool(SpinnakerFeatures::FrameRateControl, false);
 
 	pCam->TLStream.StreamBufferHandlingMode.SetValue(Spinnaker::StreamBufferHandlingMode_NewestOnly);
 	pCam->TLStream.StreamBufferCountManual.SetValue(pCam->TLStream.StreamBufferCountManual.GetMin());
 
 	configurePacketSize();
+}
+
+void SpinnakerDriver::reportOnce(const std::string& message) {
+	if(reported.insert(message).second)
+		WARN(message);
+}
+
+Spinnaker::GenApi::INode* SpinnakerDriver::findNode(const SpinnakerFeature& feature) {
+	Spinnaker::GenApi::INodeMap& nodeMap = pCam->GetNodeMap();
+
+	Spinnaker::GenApi::CNodePtr unavailable = nullptr;
+	for(const char* name : feature.nodes) {
+		Spinnaker::GenApi::CNodePtr node = nodeMap.GetNode(name);
+		if(SpinnakerFeatures::isAvailable(node))
+			return node;
+		if(node.IsValid() && !unavailable.IsValid())
+			unavailable = node;
+	}
+
+	if(unavailable.IsValid()) {
+		reportOnce(std::string("Camera feature ") + feature.label + " (" + unavailable->GetName().c_str() + ") is not available in the current camera mode");
+	} else {
+		std::string list;
+		for(const char* name : feature.nodes)
+			list += (list.empty() ? "" : ", ") + std::string(name);
+		reportOnce(std::string("Camera does not support ") + feature.label + " (" + list + ")");
+	}
+	return nullptr;
+}
+
+bool SpinnakerDriver::setBool(const SpinnakerFeature& feature, bool value) {
+	Spinnaker::GenApi::CBooleanPtr node = findNode(feature);
+	if(!node.IsValid())
+		return false;
+	if(!IsWritable(node)) {
+		reportOnce(std::string("Camera feature ") + feature.label + " is not writable");
+		return false;
+	}
+
+	try {
+		node->SetValue(value);
+		return true;
+	} catch (Spinnaker::Exception &e) {
+		WARN("Could not set " << feature.label << ": " << e.GetFullErrorMessage());
+		return false;
+	}
+}
+
+bool SpinnakerDriver::setFloat(const SpinnakerFeature& feature, double value) {
+	Spinnaker::GenApi::CFloatPtr node = findNode(feature);
+	if(!node.IsValid())
+		return false;
+	if(!IsWritable(node)) {
+		reportOnce(std::string("Camera feature ") + feature.label + " is not writable");
+		return false;
+	}
+
+	try {
+		node->SetValue(value);
+		return true;
+	} catch (Spinnaker::Exception &e) {
+		WARN("Could not set " << feature.label << ": " << e.GetFullErrorMessage());
+		return false;
+	}
+}
+
+bool SpinnakerDriver::setEnum(const SpinnakerFeature& feature, const char* entry) {
+	Spinnaker::GenApi::CEnumerationPtr node = findNode(feature);
+	if(!node.IsValid())
+		return false;
+	if(!IsWritable(node)) {
+		reportOnce(std::string("Camera feature ") + feature.label + " is not writable");
+		return false;
+	}
+
+	Spinnaker::GenApi::CEnumEntryPtr entryNode = node->GetEntryByName(entry);
+	if(!IsAvailable(entryNode)) {
+		reportOnce(std::string("Camera feature ") + feature.label + " does not offer " + entry);
+		return false;
+	}
+
+	try {
+		node->SetIntValue(entryNode->GetValue());
+		return true;
+	} catch (Spinnaker::Exception &e) {
+		WARN("Could not set " << feature.label << ": " << e.GetFullErrorMessage());
+		return false;
+	}
+}
+
+std::string SpinnakerDriver::getEnum(const SpinnakerFeature& feature) {
+	Spinnaker::GenApi::CEnumerationPtr node = findNode(feature);
+	if(!IsReadable(node))
+		return "";
+
+	try {
+		return node->GetCurrentEntry()->GetSymbolic().c_str();
+	} catch (Spinnaker::Exception &e) {
+		WARN("Could not read " << feature.label << ": " << e.GetFullErrorMessage());
+		return "";
+	}
+}
+
+void SpinnakerDriver::selectPixelFormat() {
+	static const std::pair<std::string, const PixelFormat*> bayerFormats[] = {
+			{"BayerRG", &PixelFormat::RGGB8},
+			{"BayerBG", &PixelFormat::BGGR8},
+			{"BayerGR", &PixelFormat::GRBG8},
+	};
+
+	// A color sensor offers the 8 bit Bayer format matching its color filter
+	const std::string entry = SpinnakerFeatures::findBayerFormat(pCam->GetNodeMap());
+	if(!entry.empty() && setEnum(SpinnakerFeatures::PixelFormatNode, entry.c_str())) {
+		// Raw8 cameras report the Bayer pattern separately, "BayerRG8" style entries name it
+		const std::string pattern = entry == "Raw8" ? getEnum(SpinnakerFeatures::PixelColorFilter) : entry.substr(0, entry.size() - 1);
+		for(const auto& [name, format] : bayerFormats) {
+			if(pattern == name) {
+				pixelFormat = format;
+				VP_LOG("Pixel format: " << entry << " (" << pattern << ")");
+				return;
+			}
+		}
+	}
+
+	std::string offered;
+	Spinnaker::GenApi::CEnumerationPtr formatNode = pCam->GetNodeMap().GetNode("PixelFormat");
+	if(IsReadable(formatNode)) {
+		Spinnaker::GenApi::NodeList_t entries;
+		formatNode->GetEntries(entries);
+		for(Spinnaker::GenApi::CEnumEntryPtr formatEntry : entries) {
+			if(IsAvailable(formatEntry))
+				offered += std::string(offered.empty() ? "" : ", ") + formatEntry->GetSymbolic().c_str();
+		}
+	}
+	FATAL("Camera offers no supported Bayer pixel format (BayerRG8, BayerBG8, BayerGR8 or Raw8 with one of these patterns), available: " << offered);
 }
 
 void SpinnakerDriver::configurePacketSize() {
@@ -112,7 +248,7 @@ void SpinnakerDriver::allocateBuffers() {
 	// Spinnaker buffer sizes need to be 1024 byte aligned
 	const size_t bufferSize = ((size_t)width * height + 1023)/1024 * 1024;
 	for(int64_t i = 0; i < pCam->TLStream.StreamBufferCountManual.GetValue(); i++) {
-		std::shared_ptr<RawImage> buffer = std::make_shared<RawImage>(CLArray(bufferSize), &PixelFormat::RGGB8, width/2, height/2, "spinnaker");
+		std::shared_ptr<RawImage> buffer = std::make_shared<RawImage>(CLArray(bufferSize), pixelFormat, width/2, height/2, "spinnaker");
 		buffers[buffer] = std::make_unique<CLMap<uint8_t>>(buffer->write<uint8_t>());
 	}
 
@@ -180,7 +316,7 @@ std::shared_ptr<RawImage> SpinnakerDriver::readImage() {
 }
 
 const PixelFormat SpinnakerDriver::format() {
-	return PixelFormat::RGGB8;
+	return *pixelFormat;
 }
 
 double SpinnakerDriver::expectedFrametime() {
@@ -216,7 +352,7 @@ std::shared_ptr<RawImage> SpinnakerDriver::borrow(const Spinnaker::ImagePtr& pIm
 	}
 
 	WARN("Did not get image with given buffer, creating new buffer; expect OpenCL performance degradation");
-	std::shared_ptr<RawImage> image = std::make_shared<RawImage>(&PixelFormat::RGGB8, (int)pImage->GetWidth() / 2, (int)pImage->GetHeight() / 2, (unsigned char*)pImage->GetData());
+	std::shared_ptr<RawImage> image = std::make_shared<RawImage>(pixelFormat, (int)pImage->GetWidth() / 2, (int)pImage->GetHeight() / 2, (unsigned char*)pImage->GetData());
 	pImage->Release();
 	return image;
 }
@@ -271,10 +407,10 @@ float SpinnakerDriver::getExposure() {
 void SpinnakerDriver::setExposure(float exposure) {
 	if(exposure == 0.0f) {
 		CATCH_SPINNAKER(pCam->ExposureAuto.SetValue(Spinnaker::ExposureAuto_Continuous));
-		CATCH_SPINNAKER(pCam->AutoExposureMeteringMode.SetValue(Spinnaker::AutoExposureMeteringMode_Average));
+		setEnum(SpinnakerFeatures::AutoExposureMetering, "Average");
 
 		if(pCam->GainAuto.GetValue() == Spinnaker::GainAuto_Continuous) {
-			CATCH_SPINNAKER(pCam->AutoExposureControlPriority.SetValue(Spinnaker::AutoExposureControlPriority_Gain));
+			setEnum(SpinnakerFeatures::AutoExposurePriority, "Gain");
 		}
 	} else {
 		CATCH_SPINNAKER(pCam->ExposureAuto.SetValue(Spinnaker::ExposureAuto_Off))
@@ -294,7 +430,7 @@ void SpinnakerDriver::setGain(float gain) {
 		CATCH_SPINNAKER(pCam->GainAuto.SetValue(Spinnaker::GainAuto_Continuous));
 
 		if(pCam->ExposureAuto.GetValue() == Spinnaker::ExposureAuto_Continuous) {
-			CATCH_SPINNAKER(pCam->AutoExposureControlPriority.SetValue(Spinnaker::AutoExposureControlPriority_Gain));
+			setEnum(SpinnakerFeatures::AutoExposurePriority, "Gain");
 		}
 	} else {
 		CATCH_SPINNAKER(pCam->GainAuto.SetValue(Spinnaker::GainAuto_Off));
@@ -303,15 +439,16 @@ void SpinnakerDriver::setGain(float gain) {
 }
 
 float SpinnakerDriver::getGamma() {
-    return pCam->Gamma.GetValue();
+	// First generation cameras apply no gamma to Raw/Bayer formats, the node is unavailable then
+	Spinnaker::GenApi::CFloatPtr gamma = pCam->GetNodeMap().GetNode("Gamma");
+	return IsReadable(gamma) ? (float)gamma->GetValue() : 1.0f;
 }
 
 void SpinnakerDriver::setGamma(float gamma) {
 	if(gamma == 1.0f) {
-		CATCH_SPINNAKER(pCam->GammaEnable.SetValue(false));
-	} else {
-		CATCH_SPINNAKER(pCam->GammaEnable.SetValue(true));
-		CATCH_SPINNAKER(pCam->Gamma.SetValue(gamma));
+		setBool(SpinnakerFeatures::GammaEnable, false);
+	} else if(setBool(SpinnakerFeatures::GammaEnable, true)) {
+		setFloat(SpinnakerFeatures::Gamma, gamma);
 	}
 }
 
@@ -319,9 +456,12 @@ WhiteBalanceType SpinnakerDriver::getWhiteBalanceType() {
 	if(pCam->BalanceWhiteAuto.GetValue() == Spinnaker::BalanceWhiteAuto_Off) {
 		return WhiteBalanceType::WhiteBalanceType_Manual;
 	} else {
-		return (pCam->BalanceWhiteAutoProfile.GetValue() == Spinnaker::BalanceWhiteAutoProfile_Outdoor)
-			? WhiteBalanceType::WhiteBalanceType_AutoOutdoor
-			: WhiteBalanceType::WhiteBalanceType_AutoIndoor;
+		const std::string profile = getEnum(SpinnakerFeatures::WhiteBalanceProfile);
+		if(profile == "Outdoor")
+			return WhiteBalanceType::WhiteBalanceType_AutoOutdoor;
+		if(profile == "Indoor")
+			return WhiteBalanceType::WhiteBalanceType_AutoIndoor;
+		return whiteBalanceType;
 	}
 }
 
@@ -337,12 +477,9 @@ float SpinnakerDriver::getWhiteBalanceRed() {
 
 void SpinnakerDriver::setWhiteBalance(WhiteBalanceType type, float blue, float red) {
 	if(type != WhiteBalanceType_Manual) {
+		whiteBalanceType = type;
 		CATCH_SPINNAKER(pCam->BalanceWhiteAuto.SetValue(Spinnaker::BalanceWhiteAuto_Continuous));
-		CATCH_SPINNAKER(pCam->BalanceWhiteAutoProfile.SetValue(
-				type == WhiteBalanceType_AutoOutdoor
-				? Spinnaker::BalanceWhiteAutoProfile_Outdoor
-				: Spinnaker::BalanceWhiteAutoProfile_Indoor
-		));
+		setEnum(SpinnakerFeatures::WhiteBalanceProfile, type == WhiteBalanceType_AutoOutdoor ? "Outdoor" : "Indoor");
 	} else {
 		CATCH_SPINNAKER(pCam->BalanceWhiteAuto.SetValue(Spinnaker::BalanceWhiteAuto_Off));
 		CATCH_SPINNAKER(pCam->BalanceRatioSelector.SetValue(Spinnaker::BalanceRatioSelector_Blue));

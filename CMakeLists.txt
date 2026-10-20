@@ -130,4 +130,9 @@ add_dependencies(${PROJECT_NAME} AUTOGENERATE)
 add_dependencies("geometry_benchmark" AUTOGENERATE)
 add_dependencies("blob_benchmark" AUTOGENERATE)
 
+# Read-only camera node map dump, see tools/spinnaker_probe.cpp
+if (SPINNAKER_LIBS)
+    add_executable("spinnaker_probe" "tools/spinnaker_probe.cpp")
+endif ()
+
 install(TARGETS ${PROJECT_NAME} DESTINATION /usr/local/bin)

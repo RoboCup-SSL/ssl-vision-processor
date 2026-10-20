@@ -109,6 +109,18 @@ The camera livestream cycles through 4 different views:
 4. **Blob circularity score**
    If the blob score of some undetected blobs is too faint consider reducing the `circularity` threshold.
 
+### Spinnaker camera probe
+
+With Spinnaker available the build also produces `build/spinnaker_probe`, a read-only dump of a camera's
+settings (GenICam node maps) as JSON, including which settings the driver will use on that camera.
+It never changes camera settings. Stop the `vision_processor` using the camera first.
+
+    build/spinnaker_probe --list                    # connected cameras
+    build/spinnaker_probe --serial <S> -o cam.json  # dump one camera
+    build/spinnaker_probe --interfaces              # host NICs/USB controllers, e.g. GigE subnet issues
+
+Attach the output when reporting a camera model the driver handles badly.
+
 ### No OpenCL platform/device found
 
 If no OpenCL platform can be found despite OpenCL driver installation, check the users groups and permission to compute

@@ -16,7 +16,11 @@
 #pragma once
 #ifdef SPINNAKER_AVAILABLE
 
+#include <set>
+#include <string>
+
 #include "cameradriver.h"
+#include "spinnakerfeatures.h"
 #include "Spinnaker.h"
 
 class SpinnakerDriver : public CameraDriver {
@@ -57,7 +61,24 @@ private:
 	void allocateBuffers();
 	bool buffersIdle() const;
 	void configurePacketSize();
+	void selectPixelFormat();
 	void refreshFrametime();
+
+	// Feature access by GenICam node name. Camera generations name some features differently
+	// (e.g. GammaEnable vs GammaEnabled), so the first available name is used. Features the camera
+	// lacks or does not allow in its current mode are reported once and then skipped.
+	Spinnaker::GenApi::INode* findNode(const SpinnakerFeature& feature);
+	bool setBool(const SpinnakerFeature& feature, bool value);
+	bool setFloat(const SpinnakerFeature& feature, double value);
+	bool setEnum(const SpinnakerFeature& feature, const char* entry);
+	std::string getEnum(const SpinnakerFeature& feature);
+	void reportOnce(const std::string& message);
+
+	std::set<std::string> reported;
+
+	const PixelFormat* pixelFormat = &PixelFormat::RGGB8;
+	// Last requested auto profile, reported back on cameras without BalanceWhiteAutoProfile
+	WhiteBalanceType whiteBalanceType = WhiteBalanceType_AutoOutdoor;
 
 	Spinnaker::SystemPtr pSystem;
 	Spinnaker::CameraPtr pCam;
