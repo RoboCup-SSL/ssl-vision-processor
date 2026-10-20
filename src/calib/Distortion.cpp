@@ -114,7 +114,7 @@ bool calibrateDistortion(const std::vector<std::vector<Eigen::Vector2f>>& linePo
 	lm.minimize(k);
 
 	if((k(1) < 0.0f || k(2) < 0.0f || k(1) >= model.size.x() || k(2) >= model.size.y())) {
-		LOG("Principal point outside of image, aborting calibration for this frame");
+		VP_LOG("Principal point outside of image, aborting calibration for this frame");
 		return false;
 	}
 

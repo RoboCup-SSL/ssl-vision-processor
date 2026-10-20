@@ -497,7 +497,7 @@ void geometryCalibration(const Resources& r, const CLImage& rgba) {
 
 	const int halfLineWidth = halfLineWidthEstimation(r, gray);
 	diag.half_line_width = halfLineWidth;
-	LOG("Half line width: " << halfLineWidth);
+	VP_LOG("Half line width: " << halfLineWidth);
 
 	cv::Mat thresholded(gray.rows, gray.cols, CV_8UC1, 0.0);
 	thresholdImage(r, gray, halfLineWidth, thresholded);
@@ -520,12 +520,12 @@ void geometryCalibration(const Resources& r, const CLImage& rgba) {
 			lines.emplace_back(a, b);
 	}
 	diag.raw_line_segments = (int)lines.size();
-	LOG("Line segments: " << lines.size());
+	VP_LOG("Line segments: " << lines.size());
 
 	const std::vector<CVLines> compoundLines = groupLineSegments(r, lines);
 	const CVLines mergedLines = mergeLineSegments(compoundLines);
 	diag.merged_line_count = (int)mergedLines.size();
-	LOG("Lines: " << mergedLines.size());
+	VP_LOG("Lines: " << mergedLines.size());
 
 	std::vector<std::vector<Eigen::Vector2f>> mergedPixels(mergedLines.size());
 	{
@@ -568,7 +568,7 @@ void geometryCalibration(const Resources& r, const CLImage& rgba) {
 
 	model.updateDerived();
 	int error = modelError(r, model, linePixels);
-	LOG("Best model: " << model << " error " << (error/(float)linePixels.size()));
+	VP_LOG("Best model: " << model << " error " << (error/(float)linePixels.size()));
 
 	diag.focal_length = model.focalLength;
 	diag.position = model.pos;

@@ -50,5 +50,14 @@ kernel void quad2rgba(read_only image2d_t channel0, read_only image2d_t channel1
 	);
 #endif
 
+#ifdef BGGR
+	uint4 color = (uint4)(
+			read_imageui(channel3, sampler, (float2)(pos.x - 0.25f, pos.y - 0.25f)).x,
+			read_imageui(channel1, sampler, (float2)(pos.x - 0.25f, pos.y + 0.25f)).x/2 + read_imageui(channel2, sampler, (float2)(pos.x + 0.25f, pos.y - 0.25f)).x/2,
+			read_imageui(channel0, sampler, (float2)(pos.x + 0.25f, pos.y + 0.25f)).x,
+			255
+	);
+#endif
+
 	write_imageui(out, pos, color);
 }

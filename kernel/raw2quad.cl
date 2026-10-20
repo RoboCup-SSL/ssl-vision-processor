@@ -27,7 +27,7 @@ kernel void raw2quad(global const uchar* img, write_only image2d_t channel0, wri
 	write_imageui(channel0, pos, img[imgpos]);
 	write_imageui(channel1, pos, img[imgpos+1]);
 	write_imageui(channel2, pos, img[imgpos+2]);
-#elif defined RGGB || defined GRBG
+#elif defined RGGB || defined GRBG || defined BGGR
 	const int row_size = 2*get_global_size(0);
 	const int imgpos = 2*pos.x + 2*pos.y*row_size;
 

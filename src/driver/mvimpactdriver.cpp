@@ -13,7 +13,7 @@
      See the License for the specific language governing permissions and
      limitations under the License.
  */
-#ifdef MVIMPACT
+#ifdef MVIMPACT_AVAILABLE
 
 #include "mvimpactdriver.h"
 #include <mvIMPACT_CPP/mvIMPACT_acquire_GenICam.h>
@@ -28,13 +28,14 @@ private:
 };
 
 
-MVImpactDriver::MVImpactDriver(const CameraConfig& config) {
-	while(devMgr.deviceCount() <= config.hardwareId) {
-		WARN("Waiting for cam: " << devMgr.deviceCount() << "/" << (config.hardwareId+1));
+static mvIMPACT::acquire::Device* getDevice(int hardwareId) {
+	mvIMPACT::acquire::DeviceManager devMgr;
+	while(devMgr.deviceCount() <= hardwareId) {
+		WARN("Waiting for cam: " << devMgr.deviceCount() << "/" << (hardwareId+1));
 		sleep(1);
 		devMgr.updateDeviceList();
 	}
-	device = devMgr[config.hardwareId];
+	auto* device = devMgr[hardwareId];
 	device->userControlledImageProcessingEnable.write(TBoolean::bFalse);
 
 	try {
@@ -43,43 +44,15 @@ MVImpactDriver::MVImpactDriver(const CameraConfig& config) {
 		FATAL("Error while opening the camera: " << e.getErrorCodeAsString() << " " << e.getErrorString());
 	}
 
-	SettingsBlueFOX settings(device);
+	return device;
+}
+
+MVImpactDriver::MVImpactDriver(const CameraConfig& config): device(getDevice(config.hardwareId)), settings(device) {
 	settings.cameraSetting.restoreDefault();
 	settings.imageProcessing.restoreDefault();
 	settings.imageDestination.restoreDefault();
 	settings.cameraSetting.pixelFormat.write(TImageBufferPixelFormat::ibpfMono8);
 	settings.imageDestination.pixelFormat.write(TImageDestinationPixelFormat::idpfRaw);
-
-	if(!config.autoResolution()) {
-		settings.imageDestination.imageWidth.write(config.width);
-		settings.imageDestination.imageHeight.write(config.height);
-	}
-
-	if(config.autoExposure()) {
-		settings.cameraSetting.autoExposeControl.write(TAutoExposureControl::aecOn);
-	} else {
-		settings.cameraSetting.autoExposeControl.write(TAutoExposureControl::aecOff);
-		settings.cameraSetting.expose_us.write((int)(config.exposure * 1000));
-	}
-
-	if(config.autoGain()) {
-		settings.cameraSetting.autoGainControl.write(TAutoGainControl::agcOn);
-	} else {
-		settings.cameraSetting.autoGainControl.write(TAutoGainControl::agcOff);
-		settings.cameraSetting.gain_dB.write(config.gain);
-	}
-
-	if(config.whiteBalanceType != WhiteBalanceType_Manual) {
-		settings.imageProcessing.whiteBalanceCalibration.write(TWhiteBalanceCalibrationMode::wbcmNextFrame);
-	} else {
-		settings.imageProcessing.whiteBalanceCalibration.write(TWhiteBalanceCalibrationMode::wbcmOff);
-		WhiteBalanceSettings& wb = settings.imageProcessing.getWBUserSetting(0);
-		wb.restoreDefault();
-		wb.blueGain.write(config.whiteBalanceBlue);
-		wb.redGain.write(config.whiteBalanceRed);
-		settings.imageProcessing.whiteBalance.write(TWhiteBalanceParameter::wbpUser1);
-	}
-
 
 	//TODO user supplied memory functionality to prevent copies https://wassets.balluff.com/documents/DRF_957352_AA_000/CaptureToUserMemory_8cpp-example.html
 
@@ -115,6 +88,88 @@ const PixelFormat MVImpactDriver::format() {
 
 double MVImpactDriver::expectedFrametime() {
 	return 1 / GenICam::AcquisitionControl(device).mvResultingFrameRate.read();
+}
+
+
+uint32_t MVImpactDriver::getWidth() {
+	return settings.imageDestination.imageWidth.read();
+}
+
+uint32_t MVImpactDriver::getHeight() {
+	return settings.imageDestination.imageHeight.read();
+}
+
+void MVImpactDriver::setResolution(uint32_t width, uint32_t height) {
+	if(width == 0 || height == 0) {
+		width = settings.imageDestination.imageWidth.getMaxValue();
+		height = settings.imageDestination.imageHeight.getMaxValue();
+	}
+
+	settings.imageDestination.imageWidth.write(width);
+	settings.imageDestination.imageHeight.write(height);
+}
+
+float MVImpactDriver::getExposure() {
+	return (float)settings.cameraSetting.expose_us.read() / 1000.0f;
+}
+
+void MVImpactDriver::setExposure(float exposure) {
+	if(exposure == 0.0f) {
+		settings.cameraSetting.autoExposeControl.write(TAutoExposureControl::aecOn);
+	} else {
+		settings.cameraSetting.autoExposeControl.write(TAutoExposureControl::aecOff);
+		settings.cameraSetting.expose_us.write((int)(exposure * 1000));
+	}
+}
+
+float MVImpactDriver::getGain() {
+    return settings.cameraSetting.gain_dB.read();
+}
+
+void MVImpactDriver::setGain(float gain) {
+	if(gain == 0.0f) {
+		settings.cameraSetting.autoGainControl.write(TAutoGainControl::agcOn);
+	} else {
+		settings.cameraSetting.autoGainControl.write(TAutoGainControl::agcOff);
+		settings.cameraSetting.gain_dB.write(gain);
+	}
+}
+
+float MVImpactDriver::getGamma() {
+    return 1.0f; // Unsupported? TODO
+}
+
+void MVImpactDriver::setGamma(float gamma) {
+	// Unsupported? TODO
+}
+
+WhiteBalanceType MVImpactDriver::getWhiteBalanceType() {
+	if(settings.imageProcessing.whiteBalanceCalibration.read() != TWhiteBalanceCalibrationMode::wbcmOff) {
+		return WhiteBalanceType::WhiteBalanceType_AutoOutdoor;
+	} else {
+    	return WhiteBalanceType::WhiteBalanceType_Manual;
+	}
+}
+
+float MVImpactDriver::getWhiteBalanceBlue() {
+    return settings.imageProcessing.getWBUserSetting(0).blueGain.read();
+}
+
+float MVImpactDriver::getWhiteBalanceRed() {
+    return settings.imageProcessing.getWBUserSetting(0).redGain.read();
+}
+
+void MVImpactDriver::setWhiteBalance(WhiteBalanceType type, float blue, float red) {
+	if(type != WhiteBalanceType_Manual) {
+		settings.imageProcessing.whiteBalanceCalibration.write(TWhiteBalanceCalibrationMode::wbcmContinuous);
+	} else {
+		settings.imageProcessing.whiteBalanceCalibration.write(TWhiteBalanceCalibrationMode::wbcmOff);
+		WhiteBalanceSettings& wb = settings.imageProcessing.getWBUserSetting(0);
+		wb.restoreDefault();
+		wb.blueGain.write(blue);
+		wb.redGain.write(red);
+		settings.imageProcessing.whiteBalance.write(TWhiteBalanceParameter::wbpUser1);
+	}
 }
 
 #endif

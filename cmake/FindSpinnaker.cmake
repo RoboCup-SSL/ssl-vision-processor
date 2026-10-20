@@ -34,7 +34,7 @@ if (WITH_SPINNAKER)
             SPINNAKER_LIBS STREQUAL "SPINNAKER_LIBS-NOTFOUND" OR
             SPINNAKER_INCLUDE_DIRS STREQUAL "SPINNAKER_INCLUDE_DIRS-NOTFOUND"
     ))
-        add_definitions( -DSPINNAKER )
+        add_definitions( -DSPINNAKER_AVAILABLE )
         message(STATUS "Spinnaker found, activating Spinnaker support.")
     else()
         set(SPINNAKER_INCLUDE_DIRS "")

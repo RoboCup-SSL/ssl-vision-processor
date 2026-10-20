@@ -14,7 +14,7 @@
      limitations under the License.
  */
 #pragma once
-#ifdef MVIMPACT
+#ifdef MVIMPACT_AVAILABLE
 
 #include "cameradriver.h"
 #include <mvIMPACT_CPP/mvIMPACT_acquire.h>
@@ -32,9 +32,27 @@ public:
 
 	double expectedFrametime() override;
 
+	uint32_t getWidth() override;
+	uint32_t getHeight() override;
+	void setResolution(uint32_t width, uint32_t height) override;
+
+	float getExposure() override;
+	void setExposure(float exposure) override;
+
+	float getGain() override;
+	void setGain(float gain) override;
+
+	float getGamma() override;
+	void setGamma(float gamma) override;
+
+	WhiteBalanceType getWhiteBalanceType() override;
+	float getWhiteBalanceBlue() override;
+	float getWhiteBalanceRed() override;
+	void setWhiteBalance(WhiteBalanceType type, float blue, float red) override;
+
 private:
-	mvIMPACT::acquire::DeviceManager devMgr;
 	mvIMPACT::acquire::Device* device;
+	SettingsBlueFOX settings;
 	std::unique_ptr<mvIMPACT::acquire::helper::RequestProvider> provider;
 };
 

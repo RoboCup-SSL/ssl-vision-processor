@@ -30,7 +30,7 @@ if (WITH_MVIMPACT)
             mvIMPACT_LIBS STREQUAL "mvIMPACT_LIBS-NOTFOUND" OR
             mvIMPACT_INCLUDE_DIRS STREQUAL "mvIMPACT_INCLUDE_DIRS-NOTFOUND"
     ))
-        add_definitions( -DMVIMPACT )
+        add_definitions( -DMVIMPACT_AVAILABLE )
         message(STATUS "mvIMPACT found, activating mvIMPACT support.")
     else()
         set(mvIMPACT_INCLUDE_DIRS "")

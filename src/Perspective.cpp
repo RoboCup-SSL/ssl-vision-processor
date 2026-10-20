@@ -89,7 +89,7 @@ void Perspective::geometryCheck(const int width, const int height, const double 
 		}
 	}
 	fieldScale = fieldScaleSum / (float)n * resamplingFactor;
-	LOG("Field scale: " << minFieldScale << "mm/px < " << fieldScale << "mm/px < " << maxFieldScale << "mm/px");
+	VP_LOG("Field scale: " << minFieldScale << "mm/px < " << fieldScale << "mm/px < " << maxFieldScale << "mm/px");
 
 	//update visibleFieldExtent
 	Eigen::Vector2f center = model.image2field({0.0f, 0.0f}, (float)maxBotHeight).head<2>();
@@ -121,7 +121,7 @@ void Perspective::geometryCheck(const int width, const int height, const double 
 	if(reprojectedFieldSize[1] % 2)
 		reprojectedFieldSize[1]++;
 
-	LOG("Visible field extent: " << visibleFieldExtent.transpose() << "mm (xmin,xmax,ymin,ymax) Field scale: " << fieldScale << "mm/px");
+	VP_LOG("Visible field extent: " << visibleFieldExtent.transpose() << "mm (xmin,xmax,ymin,ymax) Field scale: " << fieldScale << "mm/px");
 }
 
 Eigen::Vector2f Perspective::flat2field(const Eigen::Vector2f& pos) const {

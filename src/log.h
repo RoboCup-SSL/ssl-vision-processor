@@ -16,6 +16,6 @@
 #pragma once
 #include <iostream>
 
-#define LOG(data) std::cout << "[" << __FILE__ << ":" << __LINE__ << "] " << data << std::endl
+#define VP_LOG(data) std::cout << "[" << __FILE__ << ":" << __LINE__ << "] " << data << std::endl
 #define WARN(data) std::cerr << "[" << __FILE__ << ":" << __LINE__ << "] " << data << std::endl
 #define FATAL(data) { WARN(data); exit(1); }

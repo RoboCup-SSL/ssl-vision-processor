@@ -15,6 +15,8 @@
  */
 #include "opencl.h"
 
+#include <sys/mman.h>
+
 #include <utility>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -26,6 +28,7 @@ const PixelFormat PixelFormat::F32 = PixelFormat(4, 1, false, CV_32FC1, {CL_R, C
 const PixelFormat PixelFormat::NV12 = PixelFormat(1, 2, true, CV_8UC1, {CL_R, CL_UNSIGNED_INT8}); //Do not use as OpenCL image format or with OpenCV, intended for usage with RTPStreamer (TODO overallocated, actual necessary size is just 3/2)
 
 const PixelFormat PixelFormat::RGGB8 = PixelFormat(2, 2, true, CV_8UC1, {CL_R, CL_UNSIGNED_INT8}, "-DRGGB");
+const PixelFormat PixelFormat::BGGR8 = PixelFormat(2, 2, true, CV_8UC1, {CL_R, CL_UNSIGNED_INT8}, "-DBGGR");
 const PixelFormat PixelFormat::GRBG8 = PixelFormat(2, 2, true, CV_8UC1, {CL_R, CL_UNSIGNED_INT8}, "-DGRBG");
 const PixelFormat PixelFormat::BGR8 = PixelFormat(3, 1, true, CV_8UC3, {CL_RGB, CL_UNSIGNED_INT8}, "-DBGR"); //Do not use as OpenCL image format, CL_RGB seldomly supported by hardware
 
@@ -55,7 +58,7 @@ bool OpenCL::searchDevice(const std::vector<cl::Platform>& platforms, cl_device_
 
 		for(cl::Device& d : devices) {
 			device = d;
-			LOG("Using device: " << platform.getInfo<CL_PLATFORM_NAME>() << " » " << device.getInfo<CL_DEVICE_NAME>());
+			VP_LOG("Using device: " << platform.getInfo<CL_PLATFORM_NAME>() << " » " << device.getInfo<CL_DEVICE_NAME>());
 			return true;
 		}
 	}
@@ -134,6 +137,11 @@ std::shared_ptr<RawImage> OpenCL::acquireNV12(int width, int height) {
 }
 
 static inline cl::Buffer clAlloc(cl_mem_flags type, cl::size_type size, void* data) {
+	if(type &= CL_MEM_USE_HOST_PTR) {
+		if(!mlock(data, size)) // Some OpenCL drivers (nvidia, AMD) require pinned memory for zero copy operations
+			std:: cerr << "[OpenCL] Could not lock memory, potential performance degradation" << std::endl;
+	}
+
 	int error;
 	cl::Buffer buffer(type | CL_MEM_READ_WRITE, size, data, &error);
 	if(error != CL_SUCCESS) {
@@ -142,8 +150,21 @@ static inline cl::Buffer clAlloc(cl_mem_flags type, cl::size_type size, void* da
 	return buffer;
 }
 
-CLArray::CLArray(int size): buffer(clAlloc((cl_mem_flags) CL_MEM_ALLOC_HOST_PTR, (cl::size_type) size, nullptr)), size(size) {}
-CLArray::CLArray(void* data, const int size): buffer(clAlloc((cl_mem_flags) CL_MEM_COPY_HOST_PTR, (cl::size_type) size, data)), size(size) {}
+/* Manually align to 4KiB instead of using CL_MEM_ALLOC_HOST_PTR due to possible device constraints.
+- Spinnaker USB requires 1024 byte alignment
+- Nvidia, AMD, Intel require usually page boundary (4KiB on x86 and AMD64) alignment
+  https://www.intel.com/content/dam/develop/external/us/en/documents/opencl-zero-copy-in-opencl-1-2.pdf
+*/
+#define MINIMUM_ALIGNMENT 4096
+
+CLArray::CLArray(int size): ptr(aligned_alloc(MINIMUM_ALIGNMENT, size)), buffer(clAlloc((cl_mem_flags) CL_MEM_USE_HOST_PTR, (cl::size_type) size, (void*) ptr)), size(size) {}
+CLArray::CLArray(void* data, const int size): ptr(nullptr), buffer(clAlloc((cl_mem_flags) CL_MEM_COPY_HOST_PTR, (cl::size_type) size, data)), size(size) {}
+CLArray::~CLArray() {
+	if(ptr) {
+		munlock(ptr, size);
+		free((void*) ptr);
+	}
+}
 
 static inline cl::Image2D allocImage(int width, int height, const PixelFormat* format) {
 	int error;

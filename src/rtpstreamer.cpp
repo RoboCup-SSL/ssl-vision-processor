@@ -19,6 +19,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/log.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/opt.h>
 }
@@ -55,6 +56,8 @@ void RTPStreamer::sendFrame(std::shared_ptr<RawImage> image) {
 void RTPStreamer::allocResources() {
 	if(codecCtx != nullptr)
 		return;
+
+	av_log_set_level(AV_LOG_QUIET); // Suppress misleading log output due to not existing encoder hardware, we're doing our own error handling and logging
 
 	const AVCodec* codec;
 	std::vector<const char*> codecNames {"h264_nvenc", "h264_qsv", "h264_vaapi", "libx264"};
@@ -94,7 +97,7 @@ void RTPStreamer::allocResources() {
 		FATAL("Failed to find suitable encoder.");
 	}
 
-	LOG("Using codec: " << codec->long_name);
+	VP_LOG("Using codec: " << codec->long_name);
 
 	fmtCtx  = avformat_alloc_context();
 	auto* avFormat = (AVOutputFormat*)av_guess_format("rtp", nullptr, nullptr);
