@@ -2,7 +2,7 @@
 
 This is a short introduction to the algorithms, configuration and setup of VisionProcessor.
 More details about the approaches and algorithms can be found in the corresponding [master thesis](https://download.tigers-mannheim.de/papers/2024-Vision-based-Understanding-of-the-RoboCup-Small-Size-League-field-Weinmann.pdf).
-Additional descriptions to configuration options and default values can be found in the [config itself](config.yml).
+Additional descriptions to configuration options and default values can be found in the [reference config](config/legacy/config.yml).
 Additional information for the setup can be found in the [README](README.md).
 
 
@@ -41,7 +41,7 @@ Field shape and size are important informations for every participant in the fie
 For some applications field lines, [ball model](https://ssl.robocup.org/wp-content/uploads/2026/04/2026_ETDP_TIGERs-Mannheim.pdf) and camera model information is required as well.
 This information is broadcasted with the vision protocol in so called geometry packets.
 In VisionProcessor the `python/geom_publisher.py` script uses a geometry.yml file to publish this information.
-For setup ideally start by copying one of `geometry-divA.yml` or `geometry-divB.yml` to `geometry.yml` (the name the systemd service expects) and modify as necessary.
+For setup ideally start by copying one of `config/legacy/geometry-divA.yml` or `config/legacy/geometry-divB.yml` to `geometry.yml` (the name the systemd service expects) and modify as necessary.
 
 
 ## Camera model calibration
