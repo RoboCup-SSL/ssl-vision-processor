@@ -137,8 +137,8 @@ std::shared_ptr<RawImage> OpenCL::acquireNV12(int width, int height) {
 }
 
 static inline cl::Buffer clAlloc(cl_mem_flags type, cl::size_type size, void* data) {
-	if(type &= CL_MEM_USE_HOST_PTR) {
-		if(!mlock(data, size)) // Some OpenCL drivers (nvidia, AMD) require pinned memory for zero copy operations
+	if(type & CL_MEM_USE_HOST_PTR) {
+		if(mlock(data, size)) // Some OpenCL drivers (nvidia, AMD) require pinned memory for zero copy operations
 			std:: cerr << "[OpenCL] Could not lock memory, potential performance degradation" << std::endl;
 	}
 
@@ -157,14 +157,15 @@ static inline cl::Buffer clAlloc(cl_mem_flags type, cl::size_type size, void* da
 */
 #define MINIMUM_ALIGNMENT 4096
 
-CLArray::CLArray(int size): ptr(aligned_alloc(MINIMUM_ALIGNMENT, size)), buffer(clAlloc((cl_mem_flags) CL_MEM_USE_HOST_PTR, (cl::size_type) size, (void*) ptr)), size(size) {}
-CLArray::CLArray(void* data, const int size): ptr(nullptr), buffer(clAlloc((cl_mem_flags) CL_MEM_COPY_HOST_PTR, (cl::size_type) size, data)), size(size) {}
-CLArray::~CLArray() {
-	if(ptr) {
+static std::shared_ptr<void> hostAlloc(int size) {
+	return {aligned_alloc(MINIMUM_ALIGNMENT, size), [size](void* ptr) {
 		munlock(ptr, size);
-		free((void*) ptr);
-	}
+		free(ptr);
+	}};
 }
+
+CLArray::CLArray(int size): ptr(hostAlloc(size)), buffer(clAlloc((cl_mem_flags) CL_MEM_USE_HOST_PTR, (cl::size_type) size, ptr.get())), size(size) {}
+CLArray::CLArray(void* data, const int size): buffer(clAlloc((cl_mem_flags) CL_MEM_COPY_HOST_PTR, (cl::size_type) size, data)), size(size) {}
 
 static inline cl::Image2D allocImage(int width, int height, const PixelFormat* format) {
 	int error;
