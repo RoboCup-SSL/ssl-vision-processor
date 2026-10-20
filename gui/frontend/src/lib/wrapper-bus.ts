@@ -13,9 +13,11 @@ interface ClientMessage {
   topic: string;
 }
 
+// An error answers a message the host couldn't act on (an unknown topic, for
+// one), in the same shape as the HTTP API's errors.
 type ServerMessage =
   | { topic: string; data: unknown }
-  | { error: string; topic?: string };
+  | { error: string; message: string; topic?: string };
 
 class WrapperBus {
   private socket: WebSocket | null = null;

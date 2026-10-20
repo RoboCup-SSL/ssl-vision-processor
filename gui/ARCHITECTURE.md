@@ -84,6 +84,7 @@ before returning.
 | `internal/config`                            | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files.             |
 | `internal/geometry`                          | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state.                                         |
 | `internal/multicast`                         | The vision, game controller, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
+| `internal/api`                               | Typed route registration and the OpenAPI 3.1 spec reflected from the handlers' own types and doc comments.                              |
 | `internal/hub`                               | In-process topic pub/sub and the `/ws` WebSocket handler.                                                                               |
 | `internal/detections`                        | Which camera_ids the vision socket hears, from which address, at what rate. Feeds the Camera Layout page.                               |
 | `internal/referee`                           | The current match's teams, from the game controller, and their robot heights from `bot_heights_file`.                                   |
@@ -193,30 +194,67 @@ JSON float and YAML decodes integers as ints, so without this every edit would s
 
 ## HTTP API
 
-All routes are registered in `cmd/ssl-vision-processor-gui/routes.go`.
+Every route is registered in `cmd/ssl-vision-processor-gui/routes.go` through `internal/api`, which builds an
+OpenAPI 3.1 spec from each handler's request and response types, and its summary, descriptions and field docs
+from their Go doc comments. The host serves the spec at `GET /api/openapi.json` and a reference for it at
+`GET /api/docs` (Redoc, embedded, so it works offline), linked from the GUI's settings menu.
 
-| Method | Path                                   | Purpose                                                                             |
-| ------ | -------------------------------------- | ----------------------------------------------------------------------------------- |
-| GET    | `/api/health`                          | Liveness check.                                                                     |
-| GET    | `/api/geometry`                        | The full wrapper packet, as canonical protojson.                                    |
-| GET    | `/api/geometry/presets`                | The rulebook presets, read live from `config/legacy/geometry-div{A,B}.yml`.         |
-| GET    | `/api/config`                          | The working document and the store's state.                                         |
-| PUT    | `/api/config`                          | Replace the working document and apply it live. 409 on a stale revision.            |
-| POST   | `/api/config/save`                     | Write the working document to disk. 409 if the file changed on disk, unless forced. |
-| POST   | `/api/config/save-as`                  | Write to a new path and edit that file from then on.                                |
-| POST   | `/api/config/load`                     | Load another file, discarding unsaved changes.                                      |
-| POST   | `/api/config/reload`                   | Accept the file as it is on disk, discarding unsaved changes.                       |
-| POST   | `/api/config/cameras/{id}/calibration` | Lock the camera's latest live calibration.                                          |
-| DELETE | `/api/config/cameras/{id}/calibration` | Unlock it and stop publishing any calibration for the camera.                       |
-| GET    | `/api/camera/devices`                  | This host's capture devices: stable by-id and by-path links, then raw nodes.        |
-| GET    | `/api/snapshots`                       | List of debug images currently on disk.                                             |
-| GET    | `/api/snapshot/{camID}/{view}`         | One debug image.                                                                    |
-| GET    | `/ws`                                  | WebSocket, see below.                                                               |
-| GET    | `/ws/video/{id}?mode=full\|keyframes`  | One camera's live video, see Live video below.                                      |
+None of the spec's outputs are committed; `make` builds them. `gui/openapi.json` comes from the host itself
+(`-openapi <path>`, which writes the spec and exits), the frontend's API types
+(`frontend/src/lib/generated/api.ts`) from that by openapi-typescript, and the viewer (`internal/api/viewer/`) is
+Redoc's bundle fetched at a pinned version and checked against its SHA-256. The frontend imports its API types from
+`frontend/src/lib/apiTypes.ts`, never a hand copy. `internal/api/comments_gen.go` is committed: `make generate`
+rewrites it, and CI fails when it or the alert codes are stale.
+
+A handler takes one input struct and returns one output. Input fields tagged `path:`, `query:` or `header:` are
+parameters, and a field tagged `body:"<content types>"` is the body; an input with only JSON fields is itself the
+body. Output fields tagged `header:` are response headers. Each route lists the error codes it can return, which
+the spec shows per status; the `cmd` tests fail if any route answers a code it doesn't list. Routes whose
+responses aren't one JSON value (the snapshot image, the two WebSocket upgrades) use `api.Raw` and are
+documented the same way.
 
 An unrouted `/api/*` path returns 404 rather than falling through to the frontend, so a typo'd endpoint fails
 with a clear status instead of returning HTML to a caller expecting JSON. Every other path serves the embedded
 frontend, with a fallback to `index.html` for client side routes.
+
+Every error is JSON, `{"error": code, "message": text, "issues": [...]}` (`internal/httpjson`). Clients branch
+on `error`: `bad_request`, `invalid` (with one `issues` entry per problem), `not_found`, `stale`,
+`disk_changed`, `no_live_calibration`, `precondition`, `unsupported_media`, `cross_origin`, `internal`.
+Request bodies must be `Content-Type: application/json` (PATCH also takes `application/merge-patch+json`), and
+unknown keys are rejected, so a misspelled key fails instead of silently resetting the value it named.
+
+`GET /api/config` returns the revision as its `ETag`, and every config write (PUT, PATCH, save, save-as, load,
+reload, lock, unlock) answers `{"revision": n}` with the new revision as its `ETag`. PATCH follows RFC 7396: objects
+merge, `null` removes a key, and arrays (`cameras`) are replaced whole. PATCH is the safer write for a client that
+doesn't model the whole document: PUT replaces it, so a key the client dropped is removed.
+
+Some document keys only matter to this GUI and no vision_processor reads them: a camera's `display` (video
+orientation) and `seed.goalSideMarker` (which corner marker was picked). Other clients should leave them as they
+are. `teams` and `competitionField` are read by the host's alerts. Each `Change` in `config.state` has both `path`
+(vision.yml's spelling, `field.field_width`) and `jsonPath` (the JSON document's, `field.fieldWidth`); in both,
+`cameras[N]` is the camera with camera_id N, not a list index. `section` is the GUI page the change belongs to. Protobuf messages appear in two spellings: `/api/geometry` and
+`wrapper_packet.out` use canonical protojson (`pixelImageWidth`), while the document's `models` and
+`calibration.camera` keep proto field names (`pixel_image_width`), matching how they're stored in vision.yml.
+
+"Host-local" endpoints describe the machine running the host, and only describe a camera when its
+vision_processor runs on the same machine: device paths and debug images aren't available for remote instances.
+
+Browser pages from other origins are handled by `internal/origins`. The host's own pages are always allowed. In a
+lab, so is any page served from this network: `localhost`, a loopback, private or link-local IP, a `.local` name, or
+a single-label name such as `laptop`. No public website can have such an origin, because the browser sets `Origin`
+from the page's real address. On a competition field (`competitionField`, switched live) only the host's own pages
+and the `-allowOrigin http://host:port,...` list are allowed; `*` allows any. A page that isn't allowed can't change
+state (the `http.CrossOriginProtection` test: `Sec-Fetch-Site`, else `Origin` against `Host`) or open `/ws` and
+`/ws/video`. An allowed page from another origin gets CORS headers (preflights answered, `ETag` exposed). Clients
+outside a browser send no `Origin` and are unaffected.
+
+Every request must also name the host by something it is: any IP literal, `localhost`, a `.local` or single-label
+name, its hostname, the names its addresses reverse-resolve to, or a `-allowHost` alias (`*` turns the check off).
+Anything else gets 421 `unknown_host`. This stops DNS rebinding, where an attacker points their own domain at this
+host so the browser treats their page as same-origin.
+
+There is no authentication: anyone who can reach the port, including another team on a venue network using this
+UI, can administer the host.
 
 ## WebSocket protocol
 
@@ -228,7 +266,12 @@ frontend, with a fallback to `index.html` for client side routes.
 { "action": "unsubscribe", "topic": "wrapper_packet.out" }
 // server -> client
 { "topic": "wrapper_packet.out", "data": { /* protojson */ } }
+{ "error": "unknown_topic", "message": "...", "topic": "wrapper_pakcet.out" }
 ```
+
+`GET /api/topics` lists the topics. A new subscriber gets the topic's latest value at once, then every later one.
+A message the server can't act on is answered with an error (`bad_request`, `unknown_topic`, `unknown_action`)
+and the connection stays open.
 
 `wrapper_packet.out` carries the current `SSL_WrapperPacket` as canonical protojson, published once per second.
 `config.state` carries `config.Store`'s state: the revision, unsaved changes, any change made to the file on disk,
@@ -237,6 +280,10 @@ status comes from the network rather than the store.
 `network.state` carries each multicast socket's address and what it has heard there: vision detection packets
 (the host's own looped back geometry doesn't count) and game controller referee messages. It is published once per
 second and on every config change.
+`alerts.state` carries every problem the host can see (`internal/alerts`), on the same schedule: a stable `id`,
+a `code`, a `severity` (`error`, `warning`, `caution`), an optional `cameraId`, the facts behind it as `params`,
+and a plain English `message`. The host decides which alerts exist and how serious they are; a client words and
+links them by `code`, falling back to `message` for codes it doesn't know.
 
 Every channel in this path, from a topic's own subscriber channel to a connection's shared outbound channel, is
 size limited and drops the oldest queued value in favor of the newest one. A slow client sees only the latest

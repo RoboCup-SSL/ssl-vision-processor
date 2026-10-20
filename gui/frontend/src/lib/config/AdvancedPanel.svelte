@@ -7,6 +7,7 @@
   import {
     ADVANCED,
     advancedOverrides,
+    advancedSpec,
     advancedValue,
     setAdvanced,
     type AdvancedSetting,
@@ -43,16 +44,17 @@
       {#each ADVANCED[card.id] as setting (setting.key)}
         {@const own = advancedValue(setting)}
         {@const label = fieldText(setting)}
+        {@const spec = advancedSpec(setting)}
         <SliderField
           id={`advanced-${setting.key}`}
           label={label.label}
-          value={own ?? setting.fallback}
-          min={setting.min}
-          max={setting.max}
-          step={setting.step}
-          unit={setting.unit}
-          notes={[...label.notes, text.defaultIs(String(setting.fallback))]}
-          hints={setting.restart ? [text.restart] : []}
+          value={own ?? spec.fallback}
+          min={spec.min}
+          max={spec.max}
+          step={spec.step}
+          unit={spec.unit}
+          notes={[...label.notes, text.defaultIs(String(spec.fallback))]}
+          hints={spec.restart ? [text.restart] : []}
           reset={{
             label: text.reset,
             disabled: own === undefined,

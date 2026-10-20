@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -133,6 +134,59 @@ func (s *Store) Working() (Document, int64) {
 	defer s.mu.Unlock()
 
 	return s.working.clone(), s.revision
+}
+
+// File is a YAML file beside the one the store edits.
+type File struct {
+	Path string `json:"path"`
+	// Current is the file the store loads from and saves to.
+	Current bool `json:"current"`
+	// ReadOnly files (rulebook presets, no write permission) can't be saved
+	// over.
+	ReadOnly bool `json:"readOnly"`
+}
+
+// Files lists the .yml and .yaml files in the current file's directory:
+// candidates for Load and SaveAs. Generated config.yml files are listed
+// too; they don't parse as a vision.yml, so Load refuses them.
+func (s *Store) Files() ([]File, error) {
+	s.mu.Lock()
+	current := s.path
+	s.mu.Unlock()
+
+	dir := filepath.Dir(current)
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	files := []File{}
+
+	for _, e := range entries {
+		if e.IsDir() || !slices.Contains([]string{".yml", ".yaml"}, filepath.Ext(e.Name())) {
+			continue
+		}
+
+		path := filepath.Join(dir, e.Name())
+		readOnly := readOnlyFiles[e.Name()]
+
+		if info, err := e.Info(); err == nil && info.Mode().Perm()&0o222 == 0 {
+			readOnly = true
+		}
+
+		files = append(files, File{Path: path, Current: path == current, ReadOnly: readOnly})
+	}
+
+	return files, nil
+}
+
+// Revision is the working document's current revision.
+func (s *Store) Revision() int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.revision
 }
 
 // Update replaces the working document and applies it live. rev must be the
@@ -331,9 +385,10 @@ func (s *Store) loadLocked(path string) error {
 		return &ValidationError{fmt.Errorf("read %s: %w", path, err)}
 	}
 
+	// Parse only fails on content, so this stays a ValidationError.
 	doc, err := Parse(data)
 	if err != nil {
-		return fmt.Errorf("%s: %w", path, err)
+		return &ValidationError{prefixed(path, err)}
 	}
 
 	previousPath := s.path

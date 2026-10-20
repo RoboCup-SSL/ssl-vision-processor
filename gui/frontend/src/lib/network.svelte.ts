@@ -5,82 +5,19 @@
 // Socket status arrives separately, once a second, on the network.state topic.
 import { config } from "./config.svelte";
 import { topic } from "./wrapper-bus";
+import { fallback } from "./schema.svelte";
 import { network as text } from "./text/network";
+import type { HostInterface, NetworkState } from "./apiTypes";
 
-// Mirrors gui/internal/multicast's Status.
-export interface SocketStatus {
-  address: string;
-  heard: number;
-  lastHeard?: string;
-  source?: string;
-  receiving: boolean;
-  // Why the socket isn't fully open (e.g. "no usable network interface");
-  // the host retries until it is.
-  problem?: string;
-  // "port": no group to join, listening on the port (broadcast or unicast).
-  mode: "multicast" | "port";
-}
-
-// A local network interface, from gui/internal/multicast's Interface.
-export interface HostInterface {
-  name: string;
-  address?: string;
-  broadcast?: string;
-  // Up, multicast capable, with an IPv4 address.
-  usable: boolean;
-  // Automatic selection's verdict, and why not.
-  autoUse: boolean;
-  autoReason?: string;
-  // Used by the host's sockets right now.
-  used: boolean;
-}
-
-// One camera_id heard on the vision socket from one address, from
-// gui/internal/detections' Source.
-export interface DetectionSource {
-  cameraId: number;
-  address: string;
-  fps: number;
-  lastHeard: string;
-  receiving: boolean;
-}
-
-// The current match's teams and their robot heights, from
-// gui/internal/referee's State.
-export interface RefereeTeam {
-  name: string;
-  // From the height table; unset when the team isn't in it.
-  height?: number;
-}
-
-export interface RefereeState {
-  // When the last referee message arrived; unset if none has.
-  heard?: string;
-  yellow: RefereeTeam;
-  blue: RefereeTeam;
-  heightsFile: string;
-  heightsError?: string;
-  meanHeight?: number;
-  maxHeight?: number;
-  // The whole table, team name to height in mm.
-  heights?: Record<string, number>;
-}
-
-export interface NetworkState {
-  vision: SocketStatus;
-  gc: SocketStatus;
-  // Every camera_id heard in the last 30 s, by camera_id then address.
-  cameras: DetectionSource[] | null;
-  referee: RefereeState;
-  autoInterfaces: boolean;
-  interfaces: HostInterface[] | null;
-  // The loopback interface, and whether multicast is enabled on it.
-  loopback: string;
-  loopbackMulticast: boolean;
-  // Lowest port an unprivileged process may bind on the host.
-  unprivilegedPortStart: number;
-  root: boolean;
-}
+// What the host's sockets hear (network.state), from the host's spec.
+export type {
+  DetectionSource,
+  HostInterface,
+  NetworkState,
+  RefereeState,
+  RefereeTeam,
+  SocketStatus,
+} from "./apiTypes";
 
 export interface NetworkConfig {
   vision_ip: string;
@@ -90,14 +27,6 @@ export interface NetworkConfig {
 }
 
 export type NetworkKey = keyof NetworkConfig;
-
-// vision_processor's fallbacks (Resources.cpp) for keys the block leaves out.
-export const NETWORK_DEFAULTS: NetworkConfig = {
-  vision_ip: "224.5.23.2",
-  vision_port: 10006,
-  gc_ip: "224.5.23.1",
-  gc_port: 10003,
-};
 
 export const network = $state<{ state: NetworkState | null }>({
   state: null,
@@ -121,9 +50,13 @@ function block(): Record<string, unknown> | undefined {
 export function networkFromDoc(): NetworkConfig {
   const b = block() ?? {};
   const str = (key: NetworkKey): string =>
-    typeof b[key] === "string" ? b[key] : String(NETWORK_DEFAULTS[key]);
+    typeof b[key] === "string"
+      ? b[key]
+      : (fallback(`network.${key}`) as string);
   const num = (key: NetworkKey): number =>
-    typeof b[key] === "number" ? b[key] : Number(NETWORK_DEFAULTS[key]);
+    typeof b[key] === "number"
+      ? b[key]
+      : (fallback(`network.${key}`) as number);
 
   return {
     vision_ip: str("vision_ip"),
@@ -293,7 +226,7 @@ export function addressAdvice(
       }
     }
   } else {
-    const iface = state?.interfaces?.find((i) => i.broadcast === ip);
+    const iface = state?.interfaces.find((i) => i.broadcast === ip);
 
     if (ip === "255.255.255.255") {
       advice.notes.push(text.address.broadcastAll);

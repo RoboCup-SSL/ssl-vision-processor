@@ -16,6 +16,13 @@ type Stream struct {
 	Address string
 }
 
+// defaultStream is vision_processor's fallbacks (Resources.cpp) for keys the
+// stream block leaves out.
+var defaultStream = struct {
+	prefix    string
+	end, port int
+}{prefix: "224.5.23.", end: 100, port: 10100}
+
 // streamBlock is the YAML shape of a stream: block. Pointers tell a missing
 // key (use vision_processor's fallback) from a zero one.
 type streamBlock struct {
@@ -46,7 +53,7 @@ func (d Document) Stream(id int) (s Stream, ok bool, err error) {
 		}
 	}
 
-	prefix, end, port := "224.5.23.", 100, 10100
+	prefix, end, port := defaultStream.prefix, defaultStream.end, defaultStream.port
 
 	if parsed.IPBasePrefix != nil {
 		prefix = *parsed.IPBasePrefix

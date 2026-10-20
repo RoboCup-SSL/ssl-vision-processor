@@ -7,13 +7,15 @@
 package snapshot
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
+
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/httpjson"
 )
 
 // filename matches "<cam_id>.<view>.<ext>", e.g. "0.raw.jpg" or
@@ -24,33 +26,15 @@ import (
 // validSegment below for the regex that actually guards a filepath.Glob call.
 var filename = regexp.MustCompile(`^(\d+)\.(.+)\.(?:jpg|jpeg|png)$`)
 
-// Entry identifies one available snapshot. Field names match what the
-// frontend already expects.
+// Entry identifies one available snapshot.
 type Entry struct {
-	CamID string `json:"cam_id"`
-	View  string `json:"view"`
+	CameraID int    `json:"cameraId"`
+	View     string `json:"view"`
 }
 
-// HandleList serves the set of snapshots currently on disk in dir.
-func HandleList(dir string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		entries, err := list(dir)
-		if err != nil {
-			slog.Error("listing snapshots", "dir", dir, "err", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		if err := json.NewEncoder(w).Encode(entries); err != nil {
-			slog.Error("writing snapshot list response", "err", err)
-		}
-	}
-}
-
-func list(dir string) ([]Entry, error) {
+// List is the debug images vision_processor has written to dir (-imgDir),
+// one entry per camera and view, sorted. A missing dir has none.
+func List(dir string) ([]Entry, error) {
 	files, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
 		return []Entry{}, nil
@@ -68,7 +52,12 @@ func list(dir string) ([]Entry, error) {
 			continue
 		}
 
-		seen[Entry{CamID: m[1], View: m[2]}] = struct{}{}
+		id, err := strconv.Atoi(m[1])
+		if err != nil {
+			continue // too many digits for an int
+		}
+
+		seen[Entry{CameraID: id, View: m[2]}] = struct{}{}
 	}
 
 	entries := make([]Entry, 0, len(seen))
@@ -80,8 +69,8 @@ func list(dir string) ([]Entry, error) {
 	// and map iteration is randomised on top of that -- fix an order so the
 	// grid does not reshuffle itself every 5s poll.
 	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].CamID != entries[j].CamID {
-			return entries[i].CamID < entries[j].CamID
+		if entries[i].CameraID != entries[j].CameraID {
+			return entries[i].CameraID < entries[j].CameraID
 		}
 
 		return entries[i].View < entries[j].View
@@ -98,14 +87,15 @@ func list(dir string) ([]Entry, error) {
 // (*, ?, [, ]), which is what actually matters; dots are harmless here.
 var validSegment = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
 
-// HandleGet serves the most recently written {camID}.{view}.* file in dir.
+// HandleGet serves a camera's latest debug image for one view, e.g.
+// /api/snapshot/0/raw.
 func HandleGet(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		camID := r.PathValue("camID")
 		view := r.PathValue("view")
 
 		if !validSegment.MatchString(camID) || !validSegment.MatchString(view) {
-			http.NotFound(w, r)
+			httpjson.Error(w, http.StatusNotFound, httpjson.CodeNotFound, "no such snapshot")
 
 			return
 		}
@@ -113,13 +103,13 @@ func HandleGet(dir string) http.HandlerFunc {
 		path, err := latest(dir, camID, view)
 		if err != nil {
 			slog.Error("finding snapshot", "cam", camID, "view", view, "err", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httpjson.Error(w, http.StatusInternalServerError, httpjson.CodeInternal, "internal error")
 
 			return
 		}
 
 		if path == "" {
-			http.NotFound(w, r)
+			httpjson.Error(w, http.StatusNotFound, httpjson.CodeNotFound, "no such snapshot")
 
 			return
 		}

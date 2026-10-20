@@ -24,16 +24,32 @@ export async function withLoadingState(
   }
 }
 
-// fetch that throws the backend's own response body as the Error message on
-// a non-2xx status, instead of every caller re-deriving that (or, worse,
-// just the numeric status code) from scratch.
+import type { ApiError } from "./apiTypes";
+
+export type { ApiError };
+
+// The host's error for a non-2xx response, as text for a banner: each issue
+// on its own line when there are several.
+export async function errorMessage(response: Response): Promise<string> {
+  const text = await response.text();
+
+  try {
+    const body = JSON.parse(text) as ApiError;
+
+    return body.issues?.join("\n") ?? body.message;
+  } catch {
+    return text || `${String(response.status)} ${response.statusText}`;
+  }
+}
+
+// fetch that throws the host's error message on a non-2xx status.
 export async function requestJSON(
   url: string,
   init?: RequestInit,
 ): Promise<Response> {
   const response = await fetch(url, init);
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw new Error(await errorMessage(response));
   }
 
   return response;

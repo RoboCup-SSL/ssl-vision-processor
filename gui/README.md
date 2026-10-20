@@ -23,11 +23,12 @@ installed by `npm ci`.
 
 Run these from `gui/`.
 
-| Command        | Effect                                                                        |
-| -------------- | -------------------------------------------------------------------------------|
-| `make run`     | Regenerate protobuf bindings, build the frontend, and run the Go host on `:8085`. |
-| `make test`    | Frontend check, lint, and format, plus `go test -race` for every package.     |
-| `make install` | `go install` after a frontend build.                                          |
+| Command        | Effect                                                                             |
+| -------------- | ---------------------------------------------------------------------------------- |
+| `make run`     | Regenerate protobuf bindings, build the frontend, and run the Go host on `:8085`.  |
+| `make test`    | Frontend check, lint, and format, plus `go test -race` for every package.          |
+| `make e2e`     | Playwright smoke tests: the real host in the installed Google Chrome.              |
+| `make install` | `go install` after a frontend build.                                               |
 | `make proto`   | Regenerate `internal/vision`, `internal/gamecontroller`, and `frontend/src/proto`. |
 
 ## Configuration
@@ -47,9 +48,9 @@ set on the Network page, which the two address badges in the header open. Changi
 sockets at once. The same page chooses which network interfaces the host uses, automatically or by unticking
 the ones to skip; that choice is stored under `host.interfaces` and applies to this host only. There are no
 command line flags for any of these.
-| `make vet`     | `go vet` for every package.                                                    |
-| `make build`   | `go build` for every package, without installing.                            |
-| `make clean`   | Remove the frontend build, generated protobuf code, and build sentinels.      |
+| `make vet` | `go vet` for every package. |
+| `make build` | `go build` for every package, without installing. |
+| `make clean` | Remove the frontend build, generated protobuf code, and build sentinels. |
 
 `make proto` needs `git submodule update --init` to have been run once, but no network beyond that: both of
 `buf.gen.yaml`'s plugins are local, not buf.build remotes. `make run`, `make test`, and `make install` all depend

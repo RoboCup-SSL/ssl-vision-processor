@@ -1,15 +1,19 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/alerts"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/httpjson"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/origins"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/snapshot"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/v4l"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -18,259 +22,327 @@ import (
 type VisionServer struct {
 	geometry *geometry.Geometry
 	store    *config.Store
+	status   StatusSource
+	origins  *origins.Policy
 	hub      *hub.Hub
 	video    *video.Manager
 	imgDir   string
 }
 
-func NewVisionServer(geom *geometry.Geometry, store *config.Store, wsHub *hub.Hub, videos *video.Manager, imgDir string) http.Handler {
-	s := &VisionServer{geometry: geom, store: store, hub: wsHub, video: videos, imgDir: imgDir}
+func NewVisionServer(geom *geometry.Geometry, store *config.Store, status StatusSource, policy *origins.Policy, wsHub *hub.Hub, videos *video.Manager, imgDir string) http.Handler {
+	s := &VisionServer{geometry: geom, store: store, status: status, origins: policy, hub: wsHub, video: videos, imgDir: imgDir}
 
 	mux := http.NewServeMux()
-	s.addRoutes(mux)
+	a := newAPI(mux)
+	s.addRoutes(mux, a)
+	a.ServeDocs()
 
-	return mux
+	// A browser page from an untrusted origin can't change state; a trusted
+	// one also gets CORS headers. A request must name this host by one of its
+	// own names, against DNS rebinding.
+	return policy.Handler(mux,
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpjson.Error(w, http.StatusForbidden, httpjson.CodeCrossOrigin, "cross-origin request refused; see -allowOrigin")
+		}),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpjson.Error(w, http.StatusMisdirectedRequest, httpjson.CodeUnknownHost, "this host doesn't answer to "+r.Host+"; add it with -allowHost")
+		}))
 }
 
-// handleCameraDevices lists this host's capture devices for the camera path
-// picker. Empty, not an error, on a machine without Video4Linux.
-func (s *VisionServer) handleCameraDevices() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		devices := v4l.List(v4l.System)
-		if devices == nil {
-			devices = []v4l.Device{}
-		}
+// none is a route's input when it takes nothing.
+type none = struct{}
 
-		writeJSON(w, devices)
-	}
+// healthResponse says the host is up.
+type healthResponse struct {
+	// Status is always "ok".
+	Status string `json:"status"`
 }
 
-func (s *VisionServer) handleHealth() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]string{"status": "ok"})
-	}
+// health reports that the host is up and serving.
+func (s *VisionServer) health(*http.Request, none) (healthResponse, error) {
+	return healthResponse{Status: "ok"}, nil
 }
 
-// handleGetGeometry serves the current wrapper packet as canonical protojson,
-// matching the wire encoding the rest of the league already expects.
-func (s *VisionServer) handleGetGeometry() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		data, err := protojson.Marshal(s.geometry.Snapshot())
-		if err != nil {
-			slog.Error("marshalling geometry", "err", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
+// topics lists the WebSocket topics /ws accepts.
+func (s *VisionServer) topics(*http.Request, none) ([]string, error) {
+	return s.hub.Topics(), nil
+}
 
-			return
-		}
+// network reports each multicast socket's address and what it hears:
+// network.state on demand.
+func (s *VisionServer) network(*http.Request, none) (NetworkState, error) {
+	return s.status.Network(), nil
+}
 
-		w.Header().Set("Content-Type", "application/json")
+// getAlerts lists every problem the host sees right now, most serious first:
+// alerts.state on demand.
+func (s *VisionServer) getAlerts(*http.Request, none) ([]alerts.Alert, error) {
+	return s.status.Alerts(), nil
+}
 
-		if _, err := w.Write(data); err != nil {
-			slog.Error("writing geometry response", "err", err)
-		}
-	}
+// wrapperPacket is an SSL_WrapperPacket as canonical protojson.
+type wrapperPacket []byte
+
+func (p wrapperPacket) MarshalJSON() ([]byte, error) { return p, nil }
+
+// getGeometry serves the wrapper packet the host publishes: the field and
+// every camera's calibration, as canonical protojson, the encoding the rest of
+// the league already reads.
+func (s *VisionServer) getGeometry(*http.Request, none) (wrapperPacket, error) {
+	return protojson.Marshal(s.geometry.Snapshot())
+}
+
+// getSchema describes every vision_processor setting: type, fallback, bounds,
+// and when a change takes effect.
+func (s *VisionServer) getSchema(*http.Request, none) (config.Schema, error) {
+	return config.CurrentSchema(), nil
 }
 
 // configResponse is the working document plus the store's state.
 type configResponse struct {
+	// ETag is the document's revision, for PATCH's If-Match.
+	ETag     revision        `header:"ETag" json:"-"`
 	Document config.Document `json:"document"`
 	State    config.State    `json:"state"`
 }
 
-func (s *VisionServer) handleGetConfig() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		doc, _ := s.store.Working()
-		writeJSON(w, configResponse{Document: doc, State: s.store.State()})
+// getConfig serves the working document and the store's state. Its revision
+// is also the ETag, for PATCH's If-Match.
+func (s *VisionServer) getConfig(*http.Request, none) (configResponse, error) {
+	doc, _ := s.store.Working()
+	state := s.store.State()
+
+	return configResponse{ETag: revision(state.Revision), Document: doc, State: state}, nil
+}
+
+// revision is a document revision as an ETag or If-Match value: "12".
+type revision int64
+
+func (r *revision) UnmarshalText(text []byte) error {
+	n, err := strconv.ParseInt(strings.Trim(string(text), `"`), 10, 64)
+	if err != nil {
+		return errors.New(`want a revision such as "12"`)
 	}
+
+	*r = revision(n)
+
+	return nil
 }
 
+func (r revision) String() string { return `"` + strconv.FormatInt(int64(r), 10) + `"` }
+
+// revisionResponse answers a config write with the revision it left the
+// working document at.
 type revisionResponse struct {
-	Revision int64 `json:"revision"`
+	ETag     revision `header:"ETag" json:"-"`
+	Revision int64    `json:"revision"`
 }
 
+func revisionOf(rev int64) revisionResponse {
+	return revisionResponse{ETag: revision(rev), Revision: rev}
+}
+
+// putConfigRequest is a whole working document and the revision it's based
+// on.
 type putConfigRequest struct {
+	// Revision is the revision the document is based on; a stale one is a 409.
 	Revision int64           `json:"revision"`
 	Document config.Document `json:"document"`
 }
 
-// handlePutConfig replaces the working document, applying it live. Nothing
-// is written to vision.yml until a save.
-func (s *VisionServer) handlePutConfig() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req putConfigRequest
-		if !decodeJSON(w, r, &req) {
-			return
-		}
+// putConfig replaces the working document and applies it live. Nothing is
+// written to vision.yml until a save.
+func (s *VisionServer) putConfig(_ *http.Request, req putConfigRequest) (revisionResponse, error) {
+	rev, err := s.store.Update(req.Revision, req.Document)
 
-		rev, err := s.store.Update(req.Revision, req.Document)
-		if err != nil {
-			respondConfigErr(w, err, "updating config")
-
-			return
-		}
-
-		writeJSON(w, revisionResponse{Revision: rev})
-	}
+	return revisionOf(rev), err
 }
 
+// patchConfigRequest is a merge patch and the revision it's based on.
+type patchConfigRequest struct {
+	// IfMatch is the revision the patch is based on, as GET /api/config's ETag
+	// gives it.
+	IfMatch revision `header:"If-Match" required:"true"`
+	// Patch is merged into the working document's JSON: objects merge, null
+	// removes a key, arrays (cameras) are replaced whole.
+	Patch map[string]any `body:"application/merge-patch+json,application/json"`
+}
+
+// patchConfig merge-patches the working document and applies it live. It
+// follows RFC 7396, for clients that change a few keys rather than resending
+// the whole document. A stale If-Match is a 409, like PUT's stale revision.
+func (s *VisionServer) patchConfig(_ *http.Request, in patchConfigRequest) (revisionResponse, error) {
+	doc, current := s.store.Working()
+	if int64(in.IfMatch) != current {
+		return revisionResponse{}, config.ErrStale
+	}
+
+	doc, err := config.MergePatch(doc, in.Patch)
+	if err != nil {
+		return revisionResponse{}, err
+	}
+
+	next, err := s.store.Update(current, doc)
+
+	return revisionOf(next), err
+}
+
+// configFiles lists the YAML files beside the current vision.yml, for load
+// and save-as.
+func (s *VisionServer) configFiles(*http.Request, none) ([]config.File, error) {
+	return s.store.Files()
+}
+
+// saveRequest saves the working document at a revision.
 type saveRequest struct {
+	// Revision must be the current one; a stale one is a 409.
 	Revision int64 `json:"revision"`
 	// Force overwrites vision.yml even if it changed on disk since it was
-	// loaded -- the "overwrite disk" answer to the external-change prompt.
+	// loaded: the "overwrite disk" answer to the external-change prompt.
 	Force bool `json:"force"`
 }
 
-func (s *VisionServer) handleSave() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req saveRequest
-		if !decodeJSON(w, r, &req) {
-			return
-		}
-
-		if err := s.store.Save(req.Revision, req.Force); err != nil {
-			respondConfigErr(w, err, "saving config")
-
-			return
-		}
-
-		w.WriteHeader(http.StatusNoContent)
+// save writes the working document to vision.yml. A 409 disk_changed means
+// the file was edited elsewhere since it was loaded (config.state's external
+// describes how); force overwrites it anyway.
+func (s *VisionServer) save(_ *http.Request, req saveRequest) (revisionResponse, error) {
+	if err := s.store.Save(req.Revision, req.Force); err != nil {
+		return revisionResponse{}, err
 	}
+
+	return revisionOf(s.store.Revision()), nil
 }
 
+// saveAsRequest saves the working document to another file.
 type saveAsRequest struct {
-	Revision int64  `json:"revision"`
-	Path     string `json:"path"`
-}
-
-func (s *VisionServer) handleSaveAs() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req saveAsRequest
-		if !decodeJSON(w, r, &req) {
-			return
-		}
-
-		if req.Path == "" {
-			http.Error(w, "path: required", http.StatusBadRequest)
-
-			return
-		}
-
-		if err := s.store.SaveAs(req.Revision, req.Path); err != nil {
-			respondConfigErr(w, err, "saving config as", "path", req.Path)
-
-			return
-		}
-
-		w.WriteHeader(http.StatusNoContent)
-	}
-}
-
-type loadRequest struct {
+	// Revision must be the current one; a stale one is a 409.
+	Revision int64 `json:"revision"`
+	// Path is the file to write, on the host.
 	Path string `json:"path"`
 }
 
-// handleLoad switches to editing another vision.yml, replacing the working
-// document (unsaved changes included) and applying it live.
-func (s *VisionServer) handleLoad() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req loadRequest
-		if !decodeJSON(w, r, &req) {
-			return
-		}
-
-		if req.Path == "" {
-			http.Error(w, "path: required", http.StatusBadRequest)
-
-			return
-		}
-
-		if err := s.store.Load(req.Path); err != nil {
-			respondConfigErr(w, err, "loading config", "path", req.Path)
-
-			return
-		}
-
-		w.WriteHeader(http.StatusNoContent)
+// saveAs writes the working document to another path. The host loads from,
+// saves to, and watches that file from then on.
+func (s *VisionServer) saveAs(_ *http.Request, req saveAsRequest) (revisionResponse, error) {
+	if req.Path == "" {
+		return revisionResponse{}, &httpjson.Problem{Code: httpjson.CodeInvalid, Message: "path: required", Issues: []string{"path: required"}}
 	}
-}
 
-// handleReload accepts the current file on disk over the working document:
-// both the "load from disk" answer to the external-change prompt and the
-// menu's "revert to disk".
-func (s *VisionServer) handleReload() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if err := s.store.Reload(); err != nil {
-			respondConfigErr(w, err, "reloading config")
-
-			return
-		}
-
-		w.WriteHeader(http.StatusNoContent)
+	if err := s.store.SaveAs(req.Revision, req.Path); err != nil {
+		return revisionResponse{}, err
 	}
+
+	return revisionOf(s.store.Revision()), nil
 }
 
-func (s *VisionServer) handleLockCalibration() http.HandlerFunc {
-	return s.calibrationHandler(s.store.LockCalibration, "locking calibration")
+// loadRequest names a vision.yml to load.
+type loadRequest struct {
+	// Path is the file to load, on the host.
+	Path string `json:"path"`
 }
 
-func (s *VisionServer) handleUnlockCalibration() http.HandlerFunc {
-	return s.calibrationHandler(s.store.UnlockCalibration, "unlocking calibration")
-}
-
-func (s *VisionServer) calibrationHandler(action func(int) (int64, error), logMsg string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := strconv.Atoi(r.PathValue("id"))
-		if err != nil {
-			http.Error(w, "id: want a camera_id", http.StatusBadRequest)
-
-			return
-		}
-
-		rev, err := action(id)
-		if err != nil {
-			respondConfigErr(w, err, logMsg, "cam", id)
-
-			return
-		}
-
-		writeJSON(w, revisionResponse{Revision: rev})
+// load switches to editing another vision.yml. It replaces the working
+// document, unsaved changes included, and applies it live.
+func (s *VisionServer) load(_ *http.Request, req loadRequest) (revisionResponse, error) {
+	if req.Path == "" {
+		return revisionResponse{}, &httpjson.Problem{Code: httpjson.CodeInvalid, Message: "path: required", Issues: []string{"path: required"}}
 	}
+
+	if err := s.store.Load(req.Path); err != nil {
+		return revisionResponse{}, err
+	}
+
+	return revisionOf(s.store.Revision()), nil
 }
 
-// conflictResponse is the body of a 409, so the frontend can tell a stale
-// edit (refetch) from a file changed on disk (prompt the user).
-type conflictResponse struct {
-	Error   string `json:"error"`
-	Message string `json:"message"`
+// reload accepts vision.yml as it is on disk. It discards unsaved changes:
+// the "load from disk" answer to the external-change prompt, and "revert to
+// disk".
+func (s *VisionServer) reload(*http.Request, none) (revisionResponse, error) {
+	if err := s.store.Reload(); err != nil {
+		return revisionResponse{}, err
+	}
+
+	return revisionOf(s.store.Revision()), nil
 }
 
-// respondConfigErr maps a config.Store error to an HTTP response: caller
-// mistakes are 400 with the error's own message, conflicts 409 with a code,
-// anything else a logged 500.
+// cameraRequest names a camera by camera_id.
+type cameraRequest struct {
+	// ID is the camera's camera_id.
+	ID int `path:"id"`
+}
+
+// effectiveConfig lists every setting of one camera as its vision_processor
+// runs it. Each value says where it comes from: the camera, the shared
+// defaults, the host, or vision_processor's fallback.
+func (s *VisionServer) effectiveConfig(_ *http.Request, in cameraRequest) (config.EffectiveConfig, error) {
+	doc, _ := s.store.Working()
+
+	return doc.EffectiveConfig(in.ID)
+}
+
+// lockCalibration locks the camera's latest live calibration. It's stored in
+// the working document and published in place of whatever the camera sends;
+// once saved, it survives restarts. A 409 no_live_calibration means none has
+// been received yet.
+func (s *VisionServer) lockCalibration(_ *http.Request, in cameraRequest) (revisionResponse, error) {
+	rev, err := s.store.LockCalibration(in.ID)
+
+	return revisionOf(rev), err
+}
+
+// unlockCalibration removes the camera's locked calibration. The host stops
+// publishing any calibration for it, so its vision_processor calibrates again
+// the next time it starts.
+func (s *VisionServer) unlockCalibration(_ *http.Request, in cameraRequest) (revisionResponse, error) {
+	rev, err := s.store.UnlockCalibration(in.ID)
+
+	return revisionOf(rev), err
+}
+
+// cameraDevices lists this host's capture devices: candidates for a camera's
+// camera.path, stable by-id and by-path links first. Empty on a machine
+// without Video4Linux.
+func (s *VisionServer) cameraDevices(*http.Request, none) ([]v4l.Device, error) {
+	devices := v4l.List(v4l.System)
+	if devices == nil {
+		devices = []v4l.Device{}
+	}
+
+	return devices, nil
+}
+
+// snapshots lists the debug images on this host, by camera and view.
+func (s *VisionServer) snapshots(*http.Request, none) ([]snapshot.Entry, error) {
+	return snapshot.List(s.imgDir)
+}
+
+// respondConfigErr maps a handler's error to an httpjson error: one it
+// returned as a Problem as is, caller mistakes 400 with each problem listed,
+// conflicts 409 with a code, anything else a logged 500.
 func respondConfigErr(w http.ResponseWriter, err error, logMsg string, logArgs ...any) {
 	conflict := func(code string) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-
-		if err := json.NewEncoder(w).Encode(conflictResponse{Error: code, Message: err.Error()}); err != nil {
-			slog.Error("writing conflict response", "err", err)
-		}
+		httpjson.Error(w, http.StatusConflict, code, err.Error())
 	}
 
+	var problem *httpjson.Problem
+
 	switch {
+	case errors.As(err, &problem):
+		httpjson.Error(w, httpjson.StatusOf(problem.Code), problem.Code, problem.Message, problem.Issues...)
 	case config.IsValidation(err):
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpjson.Error(w, http.StatusBadRequest, httpjson.CodeInvalid, err.Error(), config.Issues(err)...)
 	case errors.Is(err, config.ErrStale):
-		conflict("stale")
+		conflict(httpjson.CodeStale)
 	case errors.Is(err, config.ErrDiskChanged):
-		conflict("disk_changed")
+		conflict(httpjson.CodeDiskChanged)
 	case errors.Is(err, config.ErrNoLiveCalibration):
-		conflict("no_live_calibration")
+		conflict(httpjson.CodeNoLiveCalibration)
 	case errors.Is(err, config.ErrUnknownCamera):
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpjson.Error(w, http.StatusNotFound, httpjson.CodeNotFound, err.Error())
 	default:
 		slog.Error(logMsg, append(logArgs, "err", err)...)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		httpjson.Error(w, http.StatusInternalServerError, httpjson.CodeInternal, "internal error")
 	}
 }
 
@@ -285,48 +357,30 @@ var fieldPresets = []struct {
 	{Name: "Division B", Path: "config/legacy/geometry-divB.yml"},
 }
 
+// fieldPresetResponse is one rulebook field.
 type fieldPresetResponse struct {
+	// Name is the division, e.g. "Division B".
 	Name               string                       `json:"name"`
 	Field              geometry.FieldConfig         `json:"field"`
 	OptionalFieldLines geometry.OptionalLinesConfig `json:"optionalFieldLines"`
 }
 
-// handleGetFieldPresets serves the rulebook presets for the setup wizard. A
-// preset file that can't be read (wrong working directory, for one) is
-// skipped with a warning rather than failing the whole request.
-func (s *VisionServer) handleGetFieldPresets() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		presets := make([]fieldPresetResponse, 0, len(fieldPresets))
+// fieldPresets lists the rulebook field dimensions, Division A and B. A
+// preset file the host can't read (from the wrong working directory, for one)
+// is left out rather than failing the request.
+func (s *VisionServer) fieldPresets(*http.Request, none) ([]fieldPresetResponse, error) {
+	presets := make([]fieldPresetResponse, 0, len(fieldPresets))
 
-		for _, p := range fieldPresets {
-			field, optional, err := geometry.LoadPreset(p.Path)
-			if err != nil {
-				slog.Warn("skipping unreadable field preset", "name", p.Name, "path", p.Path, "err", err)
+	for _, p := range fieldPresets {
+		field, optional, err := geometry.LoadPreset(p.Path)
+		if err != nil {
+			slog.Warn("skipping unreadable field preset", "name", p.Name, "path", p.Path, "err", err)
 
-				continue
-			}
-
-			presets = append(presets, fieldPresetResponse{Name: p.Name, Field: field, OptionalFieldLines: optional})
+			continue
 		}
 
-		writeJSON(w, presets)
-	}
-}
-
-func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
-	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
-		http.Error(w, "malformed request body: "+err.Error(), http.StatusBadRequest)
-
-		return false
+		presets = append(presets, fieldPresetResponse{Name: p.Name, Field: field, OptionalFieldLines: optional})
 	}
 
-	return true
-}
-
-func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		slog.Error("writing response", "err", err)
-	}
+	return presets, nil
 }

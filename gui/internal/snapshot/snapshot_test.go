@@ -1,7 +1,6 @@
 package snapshot
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,7 +18,7 @@ func writeFile(t *testing.T, dir, name string) {
 }
 
 func TestListReturnsEmptyForMissingDir(t *testing.T) {
-	entries, err := list(filepath.Join(t.TempDir(), "does-not-exist"))
+	entries, err := List(filepath.Join(t.TempDir(), "does-not-exist"))
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -36,12 +35,12 @@ func TestListFindsMatchingFilesAndSkipsOthers(t *testing.T) {
 	writeFile(t, dir, "not-a-snapshot.txt")
 	writeFile(t, dir, "0.calib.json") // legacy / non-image extension
 
-	entries, err := list(dir)
+	entries, err := List(dir)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 
-	want := []Entry{{CamID: "0", View: "raw"}, {CamID: "1", View: "calib"}}
+	want := []Entry{{CameraID: 0, View: "raw"}, {CameraID: 1, View: "calib"}}
 	if len(entries) != len(want) {
 		t.Fatalf("entries = %v, want %v", entries, want)
 	}
@@ -59,12 +58,12 @@ func TestListHandlesADottedViewName(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "0.pixels.corner.png")
 
-	entries, err := list(dir)
+	entries, err := List(dir)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 
-	want := Entry{CamID: "0", View: "pixels.corner"}
+	want := Entry{CameraID: 0, View: "pixels.corner"}
 	if len(entries) != 1 || entries[0] != want {
 		t.Fatalf("entries = %v, want [%v]", entries, want)
 	}
@@ -75,34 +74,13 @@ func TestListDedupesSameCameraAndView(t *testing.T) {
 	writeFile(t, dir, "0.raw.jpg")
 	writeFile(t, dir, "0.raw.png")
 
-	entries, err := list(dir)
+	entries, err := List(dir)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 
 	if len(entries) != 1 {
 		t.Fatalf("entries = %v, want a single deduped entry", entries)
-	}
-}
-
-func TestHandleListServesJSON(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "0.raw.jpg")
-
-	rec := httptest.NewRecorder()
-	HandleList(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshots", nil))
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
-	}
-
-	var got []Entry
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-
-	if len(got) != 1 || got[0] != (Entry{CamID: "0", View: "raw"}) {
-		t.Errorf("got %v", got)
 	}
 }
 

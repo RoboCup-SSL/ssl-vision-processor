@@ -49,6 +49,12 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
+      # The socket tests send real multicast over loopback, which Ubuntu
+      # ships with multicast off. They fail rather than skip under CI, so a
+      # missing step here can't hide as a skip.
+      - name: Enable loopback multicast
+        run: sudo scripts/lo-multicast.sh on
+
       - name: Format, vet, build, test
         run: |
           nix develop --command bash -c '
@@ -58,6 +64,10 @@ jobs:
             make vet
             make build
             make go-test
+            # Committed generated files (doc comments, openapi.json, alert
+            # codes) must match the code.
+            make generate
+            git diff --exit-code
           '
 
   frontend:
@@ -81,3 +91,32 @@ jobs:
             make frontend-test
             make frontend
           '
+
+  gui-e2e:
+    name: End-to-end (gui)
+    runs-on: ubuntu-latest
+    steps:
+      # Same prerequisites as gui-go: generated protobuf and the frontend
+      # build, both via nix. The browser is the runner's own Google Chrome
+      # (Playwright's "chrome" channel), so nothing is downloaded for it.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Smoke tests
+        run: |
+          nix develop --command bash -c '
+            cd gui
+            make e2e
+          '
+
+      - name: Upload traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: gui/frontend/test-results/
+          retention-days: 7

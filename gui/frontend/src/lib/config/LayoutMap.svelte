@@ -25,8 +25,8 @@
 
   let { doc, selected, onselect }: Props = $props();
 
-  let length = $derived(doc.field.fieldLength ?? 0);
-  let width = $derived(doc.field.fieldWidth ?? 0);
+  let length = $derived(doc.field.fieldLength);
+  let width = $derived(doc.field.fieldWidth);
   let halfLength = $derived(length / 2 + SKETCH_MARGIN);
   let halfWidth = $derived(width / 2 + SKETCH_MARGIN);
 

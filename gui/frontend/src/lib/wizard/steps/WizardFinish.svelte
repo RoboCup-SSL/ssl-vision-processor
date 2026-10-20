@@ -24,8 +24,8 @@
 
   <List class="flex flex-col gap-1 text-sm text-gray-700 dark:text-gray-300">
     <Li>
-      Field: {wizard.draft.field.fieldLength ?? 0}mm x {wizard.draft.field
-        .fieldWidth ?? 0}mm
+      Field: {wizard.draft.field.fieldLength}mm x {wizard.draft.field
+        .fieldWidth}mm
     </Li>
     <Li>
       Markings:

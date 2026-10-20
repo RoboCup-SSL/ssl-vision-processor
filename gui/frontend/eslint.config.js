@@ -53,6 +53,9 @@ export default ts.config(
       // Plain Node scripts, outside the TypeScript projects the type-aware
       // rules need.
       "scripts/",
+      "e2e/*.mjs",
+      // Generated from ../openapi.json by npm run gen:api.
+      "src/lib/generated/",
     ],
   },
 );

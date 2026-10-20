@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"gopkg.in/yaml.v3"
 )
@@ -19,25 +20,17 @@ import (
 // the network; vision_processor hot-reloads color/thresholds/tracking/debug
 // from it and needs a restart for everything else.
 func Render(doc Document, c Camera, sourcePath string) ([]byte, error) {
-	merged := doc.Effective(c)
-	merged["cam_id"] = c.CameraID
+	merged := doc.rendered(c)
 
-	geom, _ := merged["geometry"].(map[string]any)
-	if geom == nil {
-		geom = map[string]any{}
-		merged["geometry"] = geom
-	}
+	if geom, _ := merged["geometry"].(map[string]any); geom["line_corners"] != nil {
+		corners := geom["line_corners"].([][2]int)
+		pairs := make([]flowPair, len(corners))
 
-	geom["camera_amount"] = doc.CameraCount()
-	delete(geom, "line_corners")
-
-	if c.Seed != nil && len(c.Seed.LineCorners) == 4 {
-		corners := make([]flowPair, len(c.Seed.LineCorners))
-		for i, p := range c.Seed.LineCorners {
-			corners[i] = flowPair(p)
+		for i, p := range corners {
+			pairs[i] = flowPair(p)
 		}
 
-		geom["line_corners"] = corners
+		geom["line_corners"] = pairs
 	}
 
 	var buf bytes.Buffer
@@ -55,6 +48,29 @@ func Render(doc Document, c Camera, sourcePath string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// rendered is camera c's config.yml content: the document's defaults with c's
+// own config merged over, plus cam_id, camera_amount and the seed's
+// line_corners ([][2]int), which the document as a whole decides.
+func (d Document) rendered(c Camera) map[string]any {
+	merged := d.Effective(c)
+	merged["cam_id"] = c.CameraID
+
+	geom, _ := merged["geometry"].(map[string]any)
+	if geom == nil {
+		geom = map[string]any{}
+		merged["geometry"] = geom
+	}
+
+	geom["camera_amount"] = d.CameraCount()
+	delete(geom, "line_corners")
+
+	if c.Seed != nil && len(c.Seed.LineCorners) == 4 {
+		geom["line_corners"] = slices.Clone(c.Seed.LineCorners)
+	}
+
+	return merged
 }
 
 // flowPair encodes as [x, y] rather than a two-line block sequence.
