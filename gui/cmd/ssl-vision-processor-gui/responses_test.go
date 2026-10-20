@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -39,12 +38,11 @@ func TestResponsesMatchTheSpec(t *testing.T) {
 	}
 }
 
-// checkResponse checks body, a 200 from GET path, against the committed
-// spec.
+// checkResponse checks body, a 200 from GET path, against the spec.
 func checkResponse(t *testing.T, path string, body []byte) {
 	t.Helper()
 
-	data, err := os.ReadFile(specFile)
+	data, err := openapiSpec()
 	if err != nil {
 		t.Fatal(err)
 	}

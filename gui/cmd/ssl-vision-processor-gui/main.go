@@ -45,6 +45,7 @@ var importConfig = flag.String("importConfig", "config.yml", "Legacy vision_proc
 var geometryPreset = flag.String("geometryPreset", "config/legacy/geometry-divB.yml", "Field preset for a new -config when there's no -importGeometry, default: config/legacy/geometry-divB.yml")
 var allowOrigin = flag.String("allowOrigin", "", "Comma-separated origins (scheme://host:port) whose browser pages may use the API on a competition field, besides the host's own; * for any. In a lab, pages from this network are allowed anyway. Default: none")
 var allowHost = flag.String("allowHost", "", "Comma-separated extra names this host is reached by, e.g. a DNS alias; * to turn the check off. Its IPs, hostname, .local name and reverse-DNS names are always accepted. Default: none")
+var openapiOut = flag.String("openapi", "", "Write the API's OpenAPI spec to this path and exit (make builds openapi.json with it)")
 var imgDir = flag.String("imgDir", "img", "Directory the vision processor writes debug snapshot images to, default: img")
 var logLevelFlag = flag.String("logLevel", "Info", "Log Level: Debug, Info, Warn, Error. Default: Info")
 var logFile = flag.String("logFile", "logs/vision-processor-gui.log", "Rotating log file to write alongside stderr, empty to disable. Default: logs/vision-processor-gui.log")
@@ -58,6 +59,10 @@ func main() {
 
 func run() int {
 	flag.Parse()
+
+	if *openapiOut != "" {
+		return writeOpenAPI(*openapiOut)
+	}
 
 	// Parsed before Setup so that the level is known when the handler is built,
 	// but reported after it, so the warning goes through the same handler as
@@ -260,6 +265,22 @@ func newHost(path string, opts hostOptions) (*host, error) {
 		policy:  policy,
 		handler: NewVisionServer(geom, store, status, policy, wsHub, sockets.video, opts.imgDir),
 	}, nil
+}
+
+// writeOpenAPI writes the spec to path, for make.
+func writeOpenAPI(path string) int {
+	spec, err := openapiSpec()
+	if err == nil {
+		err = os.WriteFile(path, append(spec, '\n'), 0o644)
+	}
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "writing the OpenAPI spec:", err)
+
+		return 1
+	}
+
+	return 0
 }
 
 // configWatchInterval is how often vision.yml is checked for edits made

@@ -11,7 +11,10 @@ FRONTEND_SOURCES = $(shell find frontend -type f \
 
 PROTO_SOURCES = $(shell find ../proto/proto -type f 2>/dev/null)
 
-.PHONY: all frontend install test go-test frontend-test e2e generate redoc vet build run proto clean
+# What the OpenAPI spec is built from: the host's Go code.
+GO_SOURCES = $(shell find cmd internal -name '*.go' -not -name '*_test.go') go.mod go.sum
+
+.PHONY: all frontend install test go-test frontend-test e2e generate redoc openapi vet build run proto clean
 
 all: install
 
@@ -37,7 +40,41 @@ proto: .proto
 # `npm run build` empties dist/ first (Vite's emptyOutDir), which deletes
 # dist/.gitkeep along with any stale output. Restore it every time, or a build
 # run before a commit silently drops the tracked sentinel a fresh clone needs.
-.frontend: .proto $(FRONTEND_SOURCES)
+# The API docs viewer: Redoc's standalone bundle (MIT), embedded in the binary
+# so /api/docs works on a venue network with no internet. Fetched at a pinned
+# version rather than committed; REDOC_SHA256 catches a changed download. The
+# stamp names the version, so changing it fetches again.
+REDOC_VERSION = 2.5.1
+REDOC_SHA256 = 2d8d13e94b5a21011cc6f8260d87ca475d0f6f2faed16dd12e7394dfa3bb05b8
+REDOC_STAMP = internal/api/viewer/.redoc-$(REDOC_VERSION)
+
+$(REDOC_STAMP):
+	rm -rf internal/api/viewer && mkdir -p internal/api/viewer
+	tmp=$$(mktemp -d) && cd $$tmp && \
+		npm pack redoc@$(REDOC_VERSION) --silent >/dev/null && \
+		tar -xzf redoc-$(REDOC_VERSION).tgz package/LICENSE package/bundles/redoc.standalone.js package/bundles/redoc.standalone.js.LICENSE.txt && \
+		echo "$(REDOC_SHA256)  package/bundles/redoc.standalone.js" | sha256sum -c --quiet && \
+		cp package/bundles/redoc.standalone.js package/bundles/redoc.standalone.js.LICENSE.txt $(CURDIR)/internal/api/viewer/ && \
+		cp package/LICENSE $(CURDIR)/internal/api/viewer/REDOC-LICENSE && \
+		rm -rf $$tmp
+	touch $@
+
+redoc: $(REDOC_STAMP)
+
+# The API's OpenAPI spec, written by the host itself (-openapi) from its Go
+# code. Not committed; the host also serves it at /api/openapi.json. Compiling
+# the host embeds the docs viewer, hence the stamp.
+openapi.json: .proto $(REDOC_STAMP) $(GO_SOURCES)
+	go run ./cmd/$(BINARY) -openapi $@
+
+openapi: openapi.json
+
+# The frontend's API types, generated from the spec (openapi-typescript). Not
+# committed, like frontend/src/proto.
+frontend/src/lib/generated/api.ts: .proto openapi.json
+	cd frontend && npm run gen:api
+
+.frontend: .proto frontend/src/lib/generated/api.ts $(FRONTEND_SOURCES)
 	cd frontend && npm run build
 	touch frontend/dist/.gitkeep
 	touch .frontend
@@ -68,23 +105,12 @@ e2e: frontend
 	go build -o $(E2E_BIN) ./cmd/$(BINARY)
 	cd frontend && GUI_BIN=$(E2E_BIN) npx playwright test; status=$$?; rm -f $(E2E_BIN); exit $$status
 
-# Regenerates every committed file derived from the code: the doc comments the
-# OpenAPI spec uses, the spec itself (openapi.json), and the alert codes the
-# frontend's tests check. CI runs this and fails on any diff.
-generate: frontend
+# Regenerates the committed files derived from the code: the doc comments the
+# OpenAPI spec uses, and the alert codes the frontend's tests check. CI runs
+# this and fails on any diff.
+generate: .proto
 	cd internal/api && go run ./gen
-	go test ./cmd/$(BINARY) -run OpenAPISpecIsCurrent -update
-	cd frontend && npm run gen:api
 	go test ./internal/alerts -run CodesFileIsCurrent -update
-
-# Refreshes the embedded API docs viewer (Redoc's standalone bundle, MIT).
-REDOC_VERSION = 2.5.1
-
-redoc:
-	cd $$(mktemp -d) && npm pack redoc@$(REDOC_VERSION) --silent && \
-		tar -xzf redoc-$(REDOC_VERSION).tgz package/LICENSE package/bundles/redoc.standalone.js package/bundles/redoc.standalone.js.LICENSE.txt && \
-		cp package/bundles/redoc.standalone.js package/bundles/redoc.standalone.js.LICENSE.txt $(CURDIR)/internal/api/viewer/ && \
-		cp package/LICENSE $(CURDIR)/internal/api/viewer/REDOC-LICENSE
 
 # CI runs go-test and frontend-test as separate parallel jobs (see
 # .github/workflows/ci.yml) -- this is the single "everything before you
@@ -96,6 +122,7 @@ run: frontend
 	go run ./cmd/$(BINARY)
 
 clean:
-	rm -rf frontend/dist frontend/src/proto internal/vision internal/gamecontroller .frontend .proto
+	rm -rf frontend/dist frontend/src/proto frontend/src/lib/generated internal/vision internal/gamecontroller \
+		internal/api/viewer openapi.json .frontend .proto
 	mkdir -p frontend/dist
 	touch frontend/dist/.gitkeep

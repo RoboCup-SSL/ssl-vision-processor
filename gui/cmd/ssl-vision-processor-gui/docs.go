@@ -9,6 +9,7 @@ import (
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/api"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/origins"
 	"github.com/swaggest/jsonschema-go"
 )
 
@@ -34,6 +35,17 @@ is the body of a REST endpoint documented here:
 | ` + "`alerts.state`" + ` | GET /api/alerts |
 | ` + "`wrapper_packet.out`" + ` | GET /api/geometry |
 `
+
+// openapiSpec is the host's OpenAPI spec as JSON. It depends only on the
+// code, so it's built from routes registered on a server with nothing behind
+// it; no handler runs.
+func openapiSpec() ([]byte, error) {
+	mux := http.NewServeMux()
+	a := newAPI(mux)
+	(&VisionServer{origins: &origins.Policy{}}).addRoutes(mux, a)
+
+	return a.Spec()
+}
 
 // newAPI is the host's typed route registry and spec.
 func newAPI(mux *http.ServeMux) *api.API {

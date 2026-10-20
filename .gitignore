@@ -6,6 +6,11 @@
 /gui/internal/vision
 /gui/internal/gamecontroller
 /gui/frontend/src/proto
+# Built by gui/Makefile: the API spec, the frontend's types generated from it,
+# and the fetched docs viewer.
+/gui/openapi.json
+/gui/frontend/src/lib/generated
+/gui/internal/api/viewer
 __pycache__
 
 # Cam viewer

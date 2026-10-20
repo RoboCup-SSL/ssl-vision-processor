@@ -17,7 +17,8 @@ All run from `gui/`.
 make run       # regenerate proto, build frontend, run the Go host on :8085 (-config vision.yml)
 make test      # frontend check/lint/format + go test -race, all packages
 make e2e       # Playwright smoke tests (frontend/e2e/): real host, installed Google Chrome
-make generate  # rewrite generated files: comments_gen.go, openapi.json, the frontend's API types, alert codes
+make generate  # rewrite the committed generated files: internal/api/comments_gen.go, alert codes
+make openapi   # write openapi.json (also built as needed; not committed)
 make install   # go install after a frontend build
 make proto     # regenerate internal/{vision,gamecontroller} and frontend/src/proto
 make clean     # wipe dist/, internal/{vision,gamecontroller}, frontend/src/proto
@@ -253,9 +254,10 @@ first sentence short, and run `make generate` after changing it. List every
 error code a route can return in its `api.Doc`; the `cmd` tests fail otherwise.
 
 The frontend's API types are generated from `openapi.json` into
-`frontend/src/lib/generated/api.ts` (`npm run gen:api`, part of `make
-generate`). Import them by name from `frontend/src/lib/apiTypes.ts`; never
-write a TS copy of a Go type. For the generated types to be exact, a Go
+`frontend/src/lib/generated/api.ts` by `make`, before the frontend builds;
+neither is committed, nor is the Redoc bundle `make` fetches into
+`internal/api/viewer/`. Import the types by name from
+`frontend/src/lib/apiTypes.ts`; never write a TS copy of a Go type. For the generated types to be exact, a Go
 response never sends `null` for a slice, array or map, or for an `omitempty`
 field, and fixed-value strings carry an `enum:` tag. `responses_test.go`
 checks real responses against the spec for that.

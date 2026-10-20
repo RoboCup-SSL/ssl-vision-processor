@@ -2,43 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"net/http"
-	"os"
 	"testing"
 )
-
-var updateSpec = flag.Bool("update", false, "rewrite ../../openapi.json from the served spec")
-
-// specFile is the committed spec: what other clients and the frontend's
-// generated types read, so it must match what the host serves.
-const specFile = "../../openapi.json"
-
-func TestOpenAPISpecIsCurrent(t *testing.T) {
-	h, _ := testServer(t)
-
-	rec := do(t, h, http.MethodGet, "/api/openapi.json", nil)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /api/openapi.json = %d", rec.Code)
-	}
-
-	want := append(rec.Body.Bytes(), '\n')
-
-	if *updateSpec {
-		if err := os.WriteFile(specFile, want, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	got, err := os.ReadFile(specFile)
-	if err != nil {
-		t.Fatalf("%v (regenerate with make generate)", err)
-	}
-
-	if string(got) != string(want) {
-		t.Errorf("%s is out of date; regenerate with make generate", specFile)
-	}
-}
 
 func TestDocsViewerIsServed(t *testing.T) {
 	h, _ := testServer(t)
@@ -57,7 +23,7 @@ func TestDocsViewerIsServed(t *testing.T) {
 // The schema library drops a response body it thinks is empty (a bare
 // {"type": "object"}), so every documented 200 must still have one.
 func TestEveryOKResponseHasABody(t *testing.T) {
-	data, err := os.ReadFile(specFile)
+	data, err := openapiSpec()
 	if err != nil {
 		t.Fatal(err)
 	}
