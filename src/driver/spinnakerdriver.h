@@ -60,6 +60,7 @@ private:
 	void stopAcquisition();
 	void allocateBuffers();
 	bool buffersIdle() const;
+	void loadDefaultUserSet();
 	void configurePacketSize();
 	void selectPixelFormat();
 	void refreshFrametime();
@@ -86,6 +87,7 @@ private:
 	// Acquisition starts on the first readImage(), so the settings applied after construction
 	// (resolution in particular) can still be written; the camera locks them while streaming.
 	bool acquiring = false;
+	double initTime = 0.0;
 
 	// Cached so the frame loop doesn't do a register read (a network round trip on GigE) every frame
 	double frametime = 0.0;

@@ -17,6 +17,9 @@
 
 #include "spinnakerdriver.h"
 
+#include <chrono>
+#include <thread>
+
 #define CATCH_SPINNAKER(f) try { f; } catch (Spinnaker::Exception &e) { WARN("Could not set parameter: " << e.GetFullErrorMessage()); }
 
 
@@ -57,6 +60,7 @@ SpinnakerDriver::SpinnakerDriver(const CameraConfig& config) {
 
 		if(pCam.IsValid()) {
 			pCam->Init();
+			initTime = getRealTime();
 			VP_LOG("Opened " << pCam->DeviceModelName.GetValue() << " - " << pCam->DeviceSerialNumber.GetValue().c_str());
 			break;
 		}
@@ -69,10 +73,7 @@ SpinnakerDriver::SpinnakerDriver(const CameraConfig& config) {
 		sleep(1);
 	}
 
-	// Reset camera parameters. Only UserSetLoad changes the active settings; UserSetDefault just
-	// selects the power-on set and persists that choice on the camera, so leave it alone.
-	CATCH_SPINNAKER(pCam->UserSetSelector.SetValue(Spinnaker::UserSetSelector_Default))
-	CATCH_SPINNAKER(pCam->UserSetLoad.Execute())
+	loadDefaultUserSet();
 
 	CATCH_SPINNAKER(pCam->TriggerMode.SetValue(Spinnaker::TriggerMode_Off))
 	CATCH_SPINNAKER(pCam->AcquisitionMode.SetValue(Spinnaker::AcquisitionMode_Continuous))
@@ -219,6 +220,57 @@ void SpinnakerDriver::selectPixelFormat() {
 		}
 	}
 	FATAL("Camera offers no supported Bayer pixel format (BayerRG8, BayerBG8, BayerGR8 or Raw8 with one of these patterns), available: " << offered);
+}
+
+/** Camera access and streaming state, for diagnosing failed commands. Each read may itself fail while the camera is unresponsive. */
+static std::string describeAccessState(const Spinnaker::CameraPtr& cam) {
+	std::string state;
+	auto add = [&](Spinnaker::GenApi::INodeMap& nodeMap, const char* map, const char* name) {
+		std::string value;
+		try {
+			Spinnaker::GenApi::CValuePtr node = nodeMap.GetNode(name);
+			value = Spinnaker::GenApi::IsReadable(node) ? node->ToString().c_str() : "n/a";
+		} catch (Spinnaker::Exception &e) {
+			value = "read failed";
+		}
+		state += std::string(state.empty() ? "" : ", ") + map + name + "=" + value;
+	};
+
+	add(cam->GetNodeMap(), "", "TLParamsLocked");
+	add(cam->GetNodeMap(), "", "GevCCP");
+	add(cam->GetTLDeviceNodeMap(), "TL ", "DeviceAccessStatus");
+	
+	return state;
+}
+
+void SpinnakerDriver::loadDefaultUserSet() {
+	// Reset camera parameters.
+	//
+	// Only UserSetLoad changes the active settings; UserSetDefault just
+	// selects the power-on set and persists that choice on the camera.
+    //
+	// First generation GigE cameras sometimes fail the first load after opening with an IO error and
+	// stay unresponsive briefly. Loading the factory set again is harmless, so retry after a short wait;
+	// the selector write at the start of each attempt also waits for the camera to respond again.
+	const int attempts = 3;
+	const double start = getRealTime();
+	for(int attempt = 1; attempt <= attempts; attempt++) {
+		try {
+			pCam->UserSetSelector.SetValue(Spinnaker::UserSetSelector_Default);
+			pCam->UserSetLoad.Execute();
+			if(attempt > 1)
+				VP_LOG("Loaded default user set on attempt " << attempt << " after " << (getRealTime() - start) * 1000.0 << " ms");
+			return;
+		} catch (Spinnaker::Exception &e) {
+			WARN("Could not load default user set (attempt " << attempt << "/" << attempts << ", " << (getRealTime() - start) * 1000.0 << " ms, "
+					<< (getRealTime() - initTime) * 1000.0 << " ms after Init; " << describeAccessState(pCam) << "): " << e.GetFullErrorMessage());
+		}
+
+		if(attempt < attempts)
+			std::this_thread::sleep_for(std::chrono::milliseconds(250 * attempt));
+	}
+
+	WARN("Camera keeps its previous settings, except those configured explicitly");
 }
 
 void SpinnakerDriver::configurePacketSize() {
