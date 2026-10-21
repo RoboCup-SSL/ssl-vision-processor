@@ -92,6 +92,8 @@ private:
 	double frametimeUpdated = 0.0;
 
 	std::map<std::shared_ptr<RawImage>, std::unique_ptr<CLMap<uint8_t>>> buffers; // Use own image buffers for page size alignment (OpenCL pinned memory and zero copy)
+	// Pointer array passed to SetUserBuffers. Spinnaker reads it during BeginAcquisition, so it must outlive the call.
+	std::vector<void*> bufferPtrs;
 };
 
 #endif

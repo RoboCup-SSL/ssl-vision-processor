@@ -252,7 +252,7 @@ void SpinnakerDriver::allocateBuffers() {
 		buffers[buffer] = std::make_unique<CLMap<uint8_t>>(buffer->write<uint8_t>());
 	}
 
-	std::vector<void*> bufferPtrs;
+	bufferPtrs.clear();
 	for (auto& item: buffers)
 		bufferPtrs.push_back(**item.second);
 

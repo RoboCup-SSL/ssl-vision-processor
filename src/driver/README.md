@@ -12,13 +12,17 @@ Camera backends behind the `CameraDriver` interface ([cameradriver.h](cameradriv
 | Blackfly BFLY-PGE-13E4C-CS (first gen) | GigE PoE | e2v EV76C560, 1280×1024 | BG | [Technical reference v14](https://www.eureca.de/files/pdf/optoelectronics/flir/BFLY-PGE-Technical-Reference.pdf) (distributor mirror) |
 
 **Generational differences.** The Blackfly S uses standard GenICam (SFNC) node names. The first
-generation Blackfly predates them, so some nodes differ:
+generation Blackfly predates them. With Spinnaker it mostly exposes the standard names too, sometimes
+next to its old ones (e.g. both `AcquisitionFrameRateEnable` and `AcquisitionFrameRateEnabled`), but
+not everywhere. Verified on a BFLY-PGE-13E4C with Spinnaker 4.4:
 
-- Renamed: `GammaEnabled`, `DefaultUserSet`, `AcquisitionFrameRateControlEnabled` (per the manual,
-  unconfirmed on hardware).
+- Renamed: `GammaEnabled` instead of `GammaEnable`.
 - Missing: `AcquisitionResultingFrameRate`, `AutoExposureMeteringMode`, `AutoExposureControlPriority`,
   `BalanceWhiteAutoProfile`.
 - Gamma is unavailable in Raw/Bayer pixel formats.
+
+The 2017 technical reference predates Spinnaker and lists some names (e.g. `DefaultUserSet`,
+`AcquisitionFrameRateControlEnabled`) that this firmware does not expose. Trust a probe dump over it.
 
 The driver resolves these at runtime from the candidate names in
 [spinnakerfeatures.h](spinnakerfeatures.h) and derives the Bayer pattern from the camera.
