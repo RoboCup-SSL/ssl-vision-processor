@@ -16,46 +16,27 @@
 #pragma once
 #ifdef SPINNAKER_AVAILABLE
 
+#include <array>
 #include <string>
-#include <vector>
+#include <string_view>
 
 #include "Spinnaker.h"
 
-/** A camera feature that camera generations expose under different GenICam node names. Shared by the
- * Spinnaker driver and tools/spinnaker_probe, so the probe reports exactly what the driver will use. */
-struct SpinnakerFeature {
-	const char* label;
-	std::vector<const char*> nodes; // In order of preference
-};
-
+/** Pixel format selection shared by the Spinnaker driver and tools/spinnaker_probe, so the probe
+ * reports exactly what the driver will use. */
 namespace SpinnakerFeatures {
-	// Blackfly S, older firmware, first generation Blackfly GigE manual
-	inline const SpinnakerFeature FrameRateControl{"frame rate control", {"AcquisitionFrameRateEnable", "AcquisitionFrameRateEnabled", "AcquisitionFrameRateControlEnabled"}};
-	inline const SpinnakerFeature GammaEnable{"gamma enable", {"GammaEnable", "GammaEnabled"}};
-	inline const SpinnakerFeature Gamma{"gamma", {"Gamma"}};
-	inline const SpinnakerFeature AutoExposureMetering{"auto exposure metering", {"AutoExposureMeteringMode"}};
-	inline const SpinnakerFeature AutoExposurePriority{"auto exposure priority", {"AutoExposureControlPriority"}};
-	inline const SpinnakerFeature WhiteBalanceProfile{"auto white balance profile", {"BalanceWhiteAutoProfile"}};
-	inline const SpinnakerFeature PixelFormatNode{"pixel format", {"PixelFormat"}};
-	inline const SpinnakerFeature PixelColorFilter{"pixel color filter", {"PixelColorFilter"}};
-
-	inline const SpinnakerFeature* const All[] = {
-			&FrameRateControl, &GammaEnable, &Gamma, &AutoExposureMetering, &AutoExposurePriority,
-			&WhiteBalanceProfile, &PixelFormatNode, &PixelColorFilter,
-	};
-
-	/** Availability can depend on register reads (pIsAvailable), which may fail; treat that as unavailable. */
+	/** Availability can depend on register reads, which may fail (also with non-Spinnaker exceptions); treat that as unavailable. */
 	template<typename T>
 	inline bool isAvailable(const T& node) {
 		try {
 			return Spinnaker::GenApi::IsAvailable(node);
-		} catch (Spinnaker::Exception &e) {
+		} catch (std::exception &e) {
 			return false;
 		}
 	}
 
 	// Bayer patterns the OpenCL kernels support, the 8 bit pixel formats are named <pattern>8
-	inline const char* const BayerPatterns[] = {"BayerRG", "BayerBG", "BayerGR"};
+	inline constexpr auto BayerPatterns = std::to_array<std::string_view>({"BayerRG", "BayerBG", "BayerGR"});
 
 	/** The PixelFormat entry the driver selects: the first offered 8 bit Bayer format, else "Raw8"
 	 * (first generation naming, the pattern is then reported by PixelColorFilter), else "". */
@@ -64,7 +45,7 @@ namespace SpinnakerFeatures {
 		if(!isAvailable(formatNode))
 			return "";
 
-		for(const char* pattern : BayerPatterns) {
+		for(std::string_view pattern : BayerPatterns) {
 			const std::string name = std::string(pattern) + "8";
 			if(isAvailable(Spinnaker::GenApi::CEnumEntryPtr(formatNode->GetEntryByName(name.c_str()))))
 				return name;

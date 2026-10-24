@@ -124,13 +124,9 @@
           };
 
           # NVIDIA GPUs through the host's driver, for `nix develop .#nvidia`.
-          # Unlike ROCm, NVIDIA's userspace must match the host's kernel module
-          # exactly, so it can't come from nixpkgs; the shell links to the
-          # host's copy at entry. Only the driver's own libraries go on
-          # LD_LIBRARY_PATH (adding the distro lib dir would mix its libstdc++
-          # etc. into the process). libnvidia-opencl itself only needs glibc,
-          # which nixpkgs provides in a newer version; it dlopens libcuda and
-          # its other parts by name. pocl stays registered as the fallback.
+          # Its userspace must match the host's kernel module, so it can't come
+          # from nixpkgs: link only the driver's own libraries (not the distro's
+          # lib dir) at shell entry. pocl stays registered as the fallback.
           nvidia = shell.overrideAttrs (old: {
             shellHook = old.shellHook + ''
               nv_lib=""

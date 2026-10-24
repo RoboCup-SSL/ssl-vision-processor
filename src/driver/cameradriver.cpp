@@ -39,8 +39,8 @@ CameraConfig::CameraConfig(const YAML::Node &cam) {
 	driverType = cam["driver"].as<std::string>("SPINNAKER");
 
 	hardwareId = cam["id"].as<int>(0);
-	serial = cam["serial"].as<std::string>("");
-	path = cam["path"].as<std::string>("/dev/video" + std::to_string(this->hardwareId));
+	// "path" is the former name of "device"
+	device = cam["device"].as<std::string>(cam["path"].as<std::string>(driverType == "OPENCV" ? "/dev/video" + std::to_string(this->hardwareId) : ""));
 
 	width = cam["width"].as<int>(0);
 	height = cam["height"].as<int>(0);

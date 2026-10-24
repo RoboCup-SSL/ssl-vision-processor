@@ -14,21 +14,24 @@
      limitations under the License.
  */
 
-/* Dumps a Spinnaker camera's GenICam node maps as JSON, together with the nodes vision_processor's
- * Spinnaker driver resolves on it (see src/driver/spinnakerfeatures.h).
+/* Dumps a Spinnaker camera's GenICam node maps as JSON, together with the pixel format vision_processor's
+ * Spinnaker driver selects on it (see src/driver/spinnakerfeatures.h).
  *
  * Strictly read-only: it never writes a node or executes a command, so it is safe to run against
  * shared (e.g. league) cameras. It does not start acquisition. A GigE camera can only be opened by
  * one process, so stop vision_processor first. */
 
+#include <algorithm>
+#include <charconv>
+#include <cerrno>
 #include <cmath>
-#include <cstring>
 #include <fstream>
-#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <set>
 #include <string>
+#include <system_error>
+#include <type_traits>
 #include <vector>
 
 #include "Spinnaker.h"
@@ -36,7 +39,7 @@
 
 using namespace Spinnaker::GenApi;
 
-static const int PROBE_FORMAT_VERSION = 1;
+constexpr int64_t PROBE_FORMAT_VERSION = 1;
 
 
 /** Minimal pretty-printing JSON writer. Compact containers keep small objects (enum entries) on one line. */
@@ -126,8 +129,8 @@ private:
 				case '\r': out << "\\r"; break;
 				case '\t': out << "\\t"; break;
 				default:
-					if((unsigned char)c < 0x20)
-						out << "\\u" << std::hex << std::setw(4) << std::setfill('0') << (int)c << std::dec << std::setfill(' ');
+					if(static_cast<unsigned char>(c) < 0x20)
+						out << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<int>(c) << std::dec << std::setfill(' ');
 					else
 						out << c;
 			}
@@ -141,35 +144,18 @@ private:
 };
 
 
-static const char* accessName(EAccessMode mode) {
-	switch(mode) {
-		case NI: return "NI";
-		case NA: return "NA";
-		case WO: return "WO";
-		case RO: return "RO";
-		case RW: return "RW";
-		default: return "undefined";
-	}
+static std::string str(const Spinnaker::GenICam::gcstring& s) {
+	return s.c_str();
 }
 
 /** Access mode of a node; evaluating it can need register reads, which may fail. */
-static const char* safeAccessName(INode* node, std::vector<std::string>* errors = nullptr) {
+static std::string safeAccessName(INode* node, std::vector<std::string>* errors = nullptr) {
 	try {
-		return accessName(node->GetAccessMode());
+		return str(EAccessModeClass::ToString(node->GetAccessMode()));
 	} catch (std::exception &e) {
 		if(errors != nullptr)
 			errors->push_back(std::string("access: ") + e.what());
 		return "error";
-	}
-}
-
-static const char* visibilityName(EVisibility visibility) {
-	switch(visibility) {
-		case Beginner: return "Beginner";
-		case Expert: return "Expert";
-		case Guru: return "Guru";
-		case Invisible: return "Invisible";
-		default: return "undefined";
 	}
 }
 
@@ -193,10 +179,10 @@ static const char* typeName(EInterfaceType type) {
 
 /** Writes key: get() if the camera answers. Values are read before anything is written, so a node
  * that throws mid-read cannot leave half a field in the output. */
-template<typename T>
-static void field(JsonWriter& json, std::vector<std::string>& errors, const char* key, const std::function<T()>& get) {
+template<typename Get>
+static void field(JsonWriter& json, std::vector<std::string>& errors, const char* key, Get get) {
 	try {
-		const T value = get();
+		const auto value = get();
 		json.key(key).value(value);
 	} catch (Spinnaker::Exception &e) {
 		errors.push_back(std::string(key) + ": " + e.GetErrorMessage());
@@ -206,8 +192,20 @@ static void field(JsonWriter& json, std::vector<std::string>& errors, const char
 	}
 }
 
-static std::string str(const Spinnaker::GenICam::gcstring& s) {
-	return s.c_str();
+/** Value, range and unit of an Integer or Float node. */
+template<typename Ptr>
+static void writeNumber(JsonWriter& json, std::vector<std::string>& errors, Ptr p, bool readable) {
+	if(readable)
+		field(json, errors, "value", [&] { return p->GetValue(); });
+	field(json, errors, "min", [&] { return p->GetMin(); });
+	field(json, errors, "max", [&] { return p->GetMax(); });
+	// Integers always have an increment, floats optionally
+	bool hasInc = true;
+	if constexpr (std::is_same_v<Ptr, CFloatPtr>)
+		hasInc = p->HasInc();
+	if(hasInc)
+		field(json, errors, "inc", [&] { return p->GetInc(); });
+	field(json, errors, "unit", [&] { return str(p->GetUnit()); });
 }
 
 static void writeNode(JsonWriter& json, INode* node, const std::string& category) {
@@ -221,52 +219,37 @@ static void writeNode(JsonWriter& json, INode* node, const std::string& category
 	json.key("category").value(category);
 	json.key("type").value(typeName(type));
 	json.key("access").value(access);
-	json.key("visibility").value(visibilityName(node->GetVisibility()));
+	json.key("visibility").value(str(EVisibilityClass::ToString(node->GetVisibility())));
 	json.key("display_name").value(str(node->GetDisplayName()));
 	json.key("description").value(str(node->GetDescription()));
 
 	// Commands are never executed, registers and ports are not decoded
 	switch(type) {
-		case intfIInteger: {
-			CIntegerPtr p = node;
-			if(readable)
-				field<int64_t>(json, errors, "value", [&] { return p->GetValue(); });
-			field<int64_t>(json, errors, "min", [&] { return p->GetMin(); });
-			field<int64_t>(json, errors, "max", [&] { return p->GetMax(); });
-			field<int64_t>(json, errors, "inc", [&] { return p->GetInc(); });
-			field<std::string>(json, errors, "unit", [&] { return str(p->GetUnit()); });
+		case intfIInteger:
+			writeNumber(json, errors, CIntegerPtr(node), readable);
 			break;
-		}
-		case intfIFloat: {
-			CFloatPtr p = node;
-			if(readable)
-				field<double>(json, errors, "value", [&] { return p->GetValue(); });
-			field<double>(json, errors, "min", [&] { return p->GetMin(); });
-			field<double>(json, errors, "max", [&] { return p->GetMax(); });
-			if(p->HasInc())
-				field<double>(json, errors, "inc", [&] { return p->GetInc(); });
-			field<std::string>(json, errors, "unit", [&] { return str(p->GetUnit()); });
+		case intfIFloat:
+			writeNumber(json, errors, CFloatPtr(node), readable);
 			break;
-		}
 		case intfIBoolean: {
 			CBooleanPtr p = node;
 			if(readable)
-				field<bool>(json, errors, "value", [&] { return p->GetValue(); });
+				field(json, errors, "value", [&] { return p->GetValue(); });
 			break;
 		}
 		case intfIString: {
 			CStringPtr p = node;
 			if(readable)
-				field<std::string>(json, errors, "value", [&] { return str(p->GetValue()); });
+				field(json, errors, "value", [&] { return str(p->GetValue()); });
 			break;
 		}
 		case intfIEnumeration: {
 			CEnumerationPtr p = node;
 			if(readable)
-				field<std::string>(json, errors, "value", [&] { return str(p->GetCurrentEntry()->GetSymbolic()); });
+				field(json, errors, "value", [&] { return str(p->GetCurrentEntry()->GetSymbolic()); });
 
 			// Entries are listed even when the enumeration itself is unavailable
-			std::vector<std::pair<std::string, const char*>> entryList;
+			std::vector<std::pair<std::string, std::string>> entryList;
 			try {
 				NodeList_t entries;
 				p->GetEntries(entries);
@@ -277,10 +260,10 @@ static void writeNode(JsonWriter& json, INode* node, const std::string& category
 			}
 
 			json.key("entries").beginArray();
-			for(const auto& [name, access] : entryList) {
+			for(const auto& [entryName, entryAccess] : entryList) {
 				json.beginObject(true);
-				json.key("name").value(name);
-				json.key("access").value(access);
+				json.key("name").value(entryName);
+				json.key("access").value(entryAccess);
 				json.endObject();
 			}
 			json.endArray();
@@ -306,6 +289,9 @@ static void walkCategory(JsonWriter& json, INode* node, const std::string& path,
 		category->GetFeatures(features);
 	} catch (Spinnaker::Exception &e) {
 		std::cerr << "Skipping category " << path << ": " << e.GetErrorMessage() << std::endl;
+		return;
+	} catch (std::exception &e) {
+		std::cerr << "Skipping category " << path << ": " << e.what() << std::endl;
 		return;
 	}
 
@@ -358,62 +344,128 @@ static std::string readString(INodeMap& nodeMap, const char* name) {
 	}
 }
 
-/** The nodes the driver will resolve for each feature, with the same preference order. */
+/** The pixel format the driver will select on this camera. */
 static void writeDriverView(JsonWriter& json, INodeMap& nodeMap) {
-	json.beginObject();
-
-	json.key("pixel_format").beginObject();
-	const std::string selected = SpinnakerFeatures::findBayerFormat(nodeMap);
-	json.key("selected");
-	if(selected.empty())
-		json.null();
-	else
-		json.value(selected);
-	json.key("current");
-	const std::string current = readString(nodeMap, "PixelFormat");
-	if(current.empty())
-		json.null();
-	else
-		json.value(current);
-	// With Raw8 the driver reads this after switching formats; this is the value in the current format
-	json.key("pixel_color_filter");
-	const std::string colorFilter = readString(nodeMap, "PixelColorFilter");
-	if(colorFilter.empty())
-		json.null();
-	else
-		json.value(colorFilter);
-	json.endObject();
-
-	json.key("features").beginObject();
-	for(const SpinnakerFeature* feature : SpinnakerFeatures::All) {
-		json.key(feature->label).beginObject();
-
-		std::string resolved;
-		json.key("candidates").beginArray();
-		for(const char* name : feature->nodes) {
-			CNodePtr node = nodeMap.GetNode(name);
-			json.beginObject(true);
-			json.key("name").value(name);
-			json.key("access").value(node.IsValid() ? safeAccessName(node) : "missing");
-			json.endObject();
-
-			if(resolved.empty() && SpinnakerFeatures::isAvailable(node))
-				resolved = name;
-		}
-		json.endArray();
-
-		json.key("resolved");
-		if(resolved.empty())
+	auto optional = [&](const char* key, const std::string& value) {
+		json.key(key);
+		if(value.empty())
 			json.null();
 		else
-			json.value(resolved);
-		json.endObject();
-	}
-	json.endObject();
+			json.value(value);
+	};
 
+	json.beginObject();
+	json.key("pixel_format").beginObject();
+	optional("selected", SpinnakerFeatures::findBayerFormat(nodeMap));
+	optional("current", readString(nodeMap, "PixelFormat"));
+	// With Raw8 the driver reads this after switching formats; this is the value in the current format
+	optional("pixel_color_filter", readString(nodeMap, "PixelColorFilter"));
+	json.endObject();
 	json.endObject();
 }
 
+
+static void writeHeader(JsonWriter& json, const std::string& spinnakerVersion) {
+	json.beginObject();
+	json.key("probe_format").value(PROBE_FORMAT_VERSION);
+	json.key("spinnaker_version").value(spinnakerVersion);
+}
+
+/** Runs write with a JSON writer on outputPath, or on stdout when it is empty. */
+template<typename Write>
+static int withOutput(const std::string& outputPath, Write write) {
+	std::ofstream file;
+	if(!outputPath.empty()) {
+		file.open(outputPath);
+		if(!file) {
+			std::cerr << "Cannot write " << outputPath << ": " << std::generic_category().message(errno) << std::endl;
+			return 1;
+		}
+	}
+
+	JsonWriter json(outputPath.empty() ? std::cout : file);
+	return write(json);
+}
+
+static int listCameras(const Spinnaker::CameraList& camList, const std::string& spinnakerVersion, bool requested) {
+	std::cerr << "Spinnaker " << spinnakerVersion << ", " << camList.GetSize() << " camera(s)" << std::endl;
+	for(unsigned int i = 0; i < camList.GetSize(); i++) {
+		INodeMap& tl = camList.GetByIndex(i)->GetTLDeviceNodeMap();
+		std::cerr << "  [" << i << "] " << readString(tl, "DeviceModelName") << "  serial " << readString(tl, "DeviceSerialNumber")
+				<< "  " << readString(tl, "DeviceType") << std::endl;
+	}
+
+	if(requested)
+		return 0;
+	std::cerr << (camList.GetSize() == 0 ? "No camera found" : "Several cameras found, select one with --serial or --index") << std::endl;
+	return 1;
+}
+
+/** Interface node maps show e.g. each NIC's IP configuration, useful when a GigE camera is not found. */
+static int dumpInterfaces(JsonWriter& json, Spinnaker::SystemPtr& system, const std::string& spinnakerVersion, bool all) {
+	writeHeader(json, spinnakerVersion);
+	json.key("system");
+	writeNodeMap(json, system->GetTLNodeMap(), all);
+
+	Spinnaker::InterfaceList interfaceList = system->GetInterfaces();
+	json.key("interfaces").beginArray();
+	for(unsigned int i = 0; i < interfaceList.GetSize(); i++)
+		writeNodeMap(json, interfaceList.GetByIndex(i)->GetTLNodeMap(), all);
+	json.endArray();
+	interfaceList.Clear();
+
+	json.endObject();
+	return 0;
+}
+
+static int dumpCamera(JsonWriter& json, Spinnaker::CameraPtr& cam, const std::string& spinnakerVersion, bool all) {
+	INodeMap& tlDevice = cam->GetTLDeviceNodeMap();
+	writeHeader(json, spinnakerVersion);
+	json.key("camera").beginObject();
+	json.key("model").value(readString(tlDevice, "DeviceModelName"));
+	json.key("serial").value(readString(tlDevice, "DeviceSerialNumber"));
+	json.key("vendor").value(readString(tlDevice, "DeviceVendorName"));
+	json.key("interface").value(readString(tlDevice, "DeviceType"));
+	json.endObject();
+
+	// The transport layer node maps are available without opening the camera
+	json.key("node_maps").beginObject();
+	json.key("tl_device");
+	writeNodeMap(json, tlDevice, all);
+
+	std::string initError;
+	try {
+		cam->Init();
+	} catch (Spinnaker::Exception &e) {
+		// Typically a GigE camera in another subnet or already opened by another process
+		initError = e.GetErrorMessage();
+	} catch (std::exception &e) {
+		initError = e.what();
+	}
+
+	if(!initError.empty()) {
+		json.endObject();
+		json.key("error").value(initError);
+		json.endObject();
+		std::cerr << "Could not open camera: " << initError << std::endl;
+		return 1;
+	}
+
+	json.key("tl_stream");
+	writeNodeMap(json, cam->GetTLStreamNodeMap(), all);
+	json.key("device");
+	writeNodeMap(json, cam->GetNodeMap(), all);
+	json.endObject();
+
+	json.key("vision_processor");
+	writeDriverView(json, cam->GetNodeMap());
+	json.endObject();
+
+	std::cerr << "Probed " << readString(tlDevice, "DeviceModelName") << " (serial " << readString(tlDevice, "DeviceSerialNumber")
+			<< ", firmware " << readString(cam->GetNodeMap(), "DeviceFirmwareVersion") << ")" << std::endl;
+	cam->DeInit();
+	return 0;
+}
 
 static void usage(const char* argv0) {
 	std::cerr << "Usage: " << argv0 << " [--list | --interfaces] [--serial SERIAL | --index N] [--all] [-o FILE]\n"
@@ -448,7 +500,13 @@ int main(int argc, char* argv[]) {
 		} else if(arg == "--serial" && hasValue) {
 			serial = argv[++i];
 		} else if(arg == "--index" && hasValue) {
-			index = std::atoi(argv[++i]);
+			const std::string value = argv[++i];
+			const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), index);
+			if(error != std::errc() || end != value.data() + value.size() || index < 0) {
+				std::cerr << "Invalid --index: " << value << std::endl;
+				usage(argv[0]);
+				return 2;
+			}
 		} else if(arg == "-o" && hasValue) {
 			outputPath = argv[++i];
 		} else {
@@ -462,116 +520,23 @@ int main(int argc, char* argv[]) {
 	const std::string versionString = std::to_string(version.major) + "." + std::to_string(version.minor) + "." + std::to_string(version.type) + "." + std::to_string(version.build);
 
 	Spinnaker::CameraList camList = system->GetCameras();
-	int status = 0;
+	int status;
 
 	if(interfaces) {
-		std::ofstream file;
-		if(!outputPath.empty())
-			file.open(outputPath);
-		if(!outputPath.empty() && !file) {
-			std::cerr << "Cannot write " << outputPath << ": " << std::strerror(errno) << std::endl;
-			status = 1;
-		} else {
-			// Interface node maps show e.g. each NIC's IP configuration, useful when a GigE camera is not found
-			JsonWriter json(outputPath.empty() ? std::cout : file);
-			json.beginObject();
-			json.key("probe_format").value((int64_t)PROBE_FORMAT_VERSION);
-			json.key("spinnaker_version").value(versionString);
-			json.key("system");
-			writeNodeMap(json, system->GetTLNodeMap(), all);
-
-			Spinnaker::InterfaceList interfaceList = system->GetInterfaces();
-			json.key("interfaces").beginArray();
-			for(unsigned int i = 0; i < interfaceList.GetSize(); i++) {
-				Spinnaker::InterfacePtr iface = interfaceList.GetByIndex(i);
-				writeNodeMap(json, iface->GetTLNodeMap(), all);
-			}
-			json.endArray();
-			interfaceList.Clear();
-			json.endObject();
-		}
+		status = withOutput(outputPath, [&](JsonWriter& json) { return dumpInterfaces(json, system, versionString, all); });
 	} else if(list || (serial.empty() && index < 0 && camList.GetSize() != 1)) {
-		std::cerr << "Spinnaker " << versionString << ", " << camList.GetSize() << " camera(s)" << std::endl;
-		for(unsigned int i = 0; i < camList.GetSize(); i++) {
-			Spinnaker::CameraPtr cam = camList.GetByIndex(i);
-			INodeMap& tl = cam->GetTLDeviceNodeMap();
-			std::cerr << "  [" << i << "] " << readString(tl, "DeviceModelName") << "  serial " << readString(tl, "DeviceSerialNumber")
-					<< "  " << readString(tl, "DeviceType") << std::endl;
-		}
-		if(!list) {
-			std::cerr << (camList.GetSize() == 0 ? "No camera found" : "Several cameras found, select one with --serial or --index") << std::endl;
-			status = 1;
-		}
+		status = listCameras(camList, versionString, list);
 	} else {
 		Spinnaker::CameraPtr cam;
 		if(!serial.empty())
 			cam = camList.GetBySerial(serial);
-		else if(index >= 0 && (unsigned int)index < camList.GetSize())
-			cam = camList.GetByIndex(index);
-		else if(index < 0)
-			cam = camList.GetByIndex(0);
-
+		else if(const auto i = static_cast<unsigned int>(std::max(index, 0)); i < camList.GetSize())
+			cam = camList.GetByIndex(i); // Without --index there is exactly one camera
 		if(!cam.IsValid()) {
 			std::cerr << "Camera not found, see --list" << std::endl;
 			status = 1;
 		} else {
-			std::ofstream file;
-			if(!outputPath.empty()) {
-				file.open(outputPath);
-				if(!file) {
-					std::cerr << "Cannot write " << outputPath << ": " << std::strerror(errno) << std::endl;
-					status = 1;
-				}
-			}
-
-			if(status == 0) {
-				JsonWriter json(outputPath.empty() ? std::cout : file);
-				INodeMap& tlDevice = cam->GetTLDeviceNodeMap();
-
-				json.beginObject();
-				json.key("probe_format").value((int64_t)PROBE_FORMAT_VERSION);
-				json.key("spinnaker_version").value(versionString);
-				json.key("camera").beginObject();
-				json.key("model").value(readString(tlDevice, "DeviceModelName"));
-				json.key("serial").value(readString(tlDevice, "DeviceSerialNumber"));
-				json.key("vendor").value(readString(tlDevice, "DeviceVendorName"));
-				json.key("interface").value(readString(tlDevice, "DeviceType"));
-				json.endObject();
-
-				// The transport layer node maps are available without opening the camera
-				json.key("node_maps").beginObject();
-				json.key("tl_device");
-				writeNodeMap(json, tlDevice, all);
-
-				std::string initError;
-				try {
-					cam->Init();
-				} catch (Spinnaker::Exception &e) {
-					// Typically a GigE camera in another subnet or already opened by another process
-					initError = e.GetFullErrorMessage();
-				}
-
-				if(initError.empty()) {
-					json.key("tl_stream");
-					writeNodeMap(json, cam->GetTLStreamNodeMap(), all);
-					json.key("device");
-					writeNodeMap(json, cam->GetNodeMap(), all);
-					json.endObject();
-
-					json.key("vision_processor");
-					writeDriverView(json, cam->GetNodeMap());
-
-					std::cerr << "Probed " << readString(tlDevice, "DeviceModelName") << " (serial " << readString(tlDevice, "DeviceSerialNumber")
-							<< ", firmware " << readString(cam->GetNodeMap(), "DeviceFirmwareVersion") << ")" << std::endl;
-					cam->DeInit();
-				} else {
-					json.endObject();
-					json.key("error").value(initError);
-					std::cerr << "Could not open camera: " << initError << std::endl;
-					status = 1;
-				}
-				json.endObject();
-			}
+			status = withOutput(outputPath, [&](JsonWriter& json) { return dumpCamera(json, cam, versionString, all); });
 		}
 	}
 

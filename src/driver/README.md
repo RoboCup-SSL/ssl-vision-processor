@@ -14,19 +14,18 @@ Camera backends behind the `CameraDriver` interface ([cameradriver.h](cameradriv
 **Generational differences.** The Blackfly S uses standard GenICam (SFNC) node names. The first
 generation Blackfly predates them. With Spinnaker it mostly exposes the standard names too, sometimes
 next to its old ones (e.g. both `AcquisitionFrameRateEnable` and `AcquisitionFrameRateEnabled`), but
-not everywhere. Verified on a BFLY-PGE-13E4C with Spinnaker 4.4:
+not everywhere. On the first generation BFLY-PGE-13E4C (verified with Spinnaker 4.4; the league
+Blackfly S has all of these):
 
-- Renamed: `GammaEnabled` instead of `GammaEnable`.
-- Missing: `AcquisitionResultingFrameRate`, `AutoExposureMeteringMode`, `AutoExposureControlPriority`,
+- `GammaEnabled` instead of `GammaEnable`, and gamma is unavailable in Raw/Bayer pixel formats.
+- No `AcquisitionResultingFrameRate`, `AutoExposureMeteringMode`, `AutoExposureControlPriority` or
   `BalanceWhiteAutoProfile`.
-- Gamma is unavailable in Raw/Bayer pixel formats.
 
 The 2017 technical reference predates Spinnaker and lists some names (e.g. `DefaultUserSet`,
 `AcquisitionFrameRateControlEnabled`) that this firmware does not expose. Trust a probe dump over it.
 
-The driver resolves these at runtime from the candidate names in
-[spinnakerfeatures.h](spinnakerfeatures.h) and derives the Bayer pattern from the camera.
-`build/spinnaker_probe` dumps a camera's nodes and shows what the driver resolves on it.
+The driver skips features a camera lacks (warning once) and derives the Bayer pattern from the camera
+([spinnakerfeatures.h](spinnakerfeatures.h)). `build/spinnaker_probe` dumps a camera's nodes.
 
 ## mvIMPACT (Matrix Vision Bluefox3)
 

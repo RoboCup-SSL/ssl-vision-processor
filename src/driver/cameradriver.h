@@ -78,8 +78,7 @@ public:
 	std::string driverType;
 
 	int hardwareId;
-	std::string serial; // Used for Spinnaker, takes precedence over hardwareId
-	std::string path; // Used for OpenCV, with fallback to /dev/video{hardwareId}
+	std::string device; // Takes precedence over hardwareId. OpenCV: device or file path, with fallback to /dev/video{hardwareId}. Spinnaker: serial number
 
 	int width;
 	int height;

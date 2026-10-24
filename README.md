@@ -112,7 +112,7 @@ The camera livestream cycles through 4 different views:
 ### Spinnaker camera probe
 
 With Spinnaker available the build also produces `build/spinnaker_probe`, a read-only dump of a camera's
-settings (GenICam node maps) as JSON, including which settings the driver will use on that camera.
+settings (GenICam node maps) as JSON, including the pixel format the driver will select on that camera.
 It never changes camera settings. Stop the `vision_processor` using the camera first.
 
     build/spinnaker_probe --list                    # connected cameras

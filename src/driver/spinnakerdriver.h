@@ -16,8 +16,8 @@
 #pragma once
 #ifdef SPINNAKER_AVAILABLE
 
-#include <set>
-#include <string>
+#include <map>
+#include <vector>
 
 #include "cameradriver.h"
 #include "spinnakerfeatures.h"
@@ -56,40 +56,22 @@ public:
 	void setWhiteBalance(WhiteBalanceType type, float blue, float red) override;
 
 private:
-	void startAcquisition();
-	void stopAcquisition();
-	void allocateBuffers();
-	bool buffersIdle() const;
 	void loadDefaultUserSet();
-	void configurePacketSize();
 	void selectPixelFormat();
+	void configurePacketSize();
 	void refreshFrametime();
 
-	// Feature access by GenICam node name. Camera generations name some features differently
-	// (e.g. GammaEnable vs GammaEnabled), so the first available name is used. Features the camera
-	// lacks or does not allow in its current mode are reported once and then skipped.
-	Spinnaker::GenApi::INode* findNode(const SpinnakerFeature& feature);
-	bool setBool(const SpinnakerFeature& feature, bool value);
-	bool setFloat(const SpinnakerFeature& feature, double value);
-	bool setEnum(const SpinnakerFeature& feature, const char* entry);
-	std::string getEnum(const SpinnakerFeature& feature);
-	void reportOnce(const std::string& message);
-
-	std::set<std::string> reported;
+	Spinnaker::SystemPtr pSystem;
+	Spinnaker::CameraPtr pCam;
+	double initTime = 0.0;
 
 	const PixelFormat* pixelFormat = &PixelFormat::RGGB8;
 	// Last requested auto profile, reported back on cameras without BalanceWhiteAutoProfile
 	WhiteBalanceType whiteBalanceType = WhiteBalanceType_AutoOutdoor;
 
-	Spinnaker::SystemPtr pSystem;
-	Spinnaker::CameraPtr pCam;
-
-	// Acquisition starts on the first readImage(), so the settings applied after construction
-	// (resolution in particular) can still be written; the camera locks them while streaming.
-	bool acquiring = false;
-	double initTime = 0.0;
-
 	// Cached so the frame loop doesn't do a register read (a network round trip on GigE) every frame
+	bool autoExposure = false;
+	uint64_t droppedImages = 0;
 	double frametime = 0.0;
 	double frametimeUpdated = 0.0;
 
