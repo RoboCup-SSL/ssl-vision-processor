@@ -140,6 +140,18 @@ In `geometry[X].yml` set the corresponding flag under `optional_field_lines` to 
 
 H.264 RTSP streams can silently produce corrupted frames on slower or throttled machines. Switch the source to MJPEG, or run on a machine with a real OpenCL GPU.
 
+### Spinnaker camera probe
+
+With Spinnaker available the build also produces `build/spinnaker_probe`, a read-only dump of a camera's
+settings (GenICam node maps) as JSON, including the pixel format the driver will select on that camera.
+It never changes camera settings. Stop the `vision_processor` using the camera first.
+
+    build/spinnaker_probe --list                    # connected cameras
+    build/spinnaker_probe --serial <S> -o cam.json  # dump one camera
+    build/spinnaker_probe --interfaces              # host NICs/USB controllers, e.g. GigE subnet issues
+
+Attach the output when reporting a camera model the driver handles badly.
+
 ### If nothing else helps
 
 Activate `stream: raw_feed: true` in your `config[X].yml` and record the video livestream
