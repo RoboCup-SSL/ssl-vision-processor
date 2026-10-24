@@ -16,7 +16,11 @@
 #pragma once
 #ifdef SPINNAKER_AVAILABLE
 
+#include <map>
+#include <vector>
+
 #include "cameradriver.h"
+#include "spinnakerfeatures.h"
 #include "Spinnaker.h"
 
 class SpinnakerDriver : public CameraDriver {
@@ -52,10 +56,28 @@ public:
 	void setWhiteBalance(WhiteBalanceType type, float blue, float red) override;
 
 private:
+	void loadDefaultUserSet();
+	void selectPixelFormat();
+	void configurePacketSize();
+	void refreshFrametime();
+
 	Spinnaker::SystemPtr pSystem;
 	Spinnaker::CameraPtr pCam;
+	double initTime = 0.0;
+
+	const PixelFormat* pixelFormat = &PixelFormat::RGGB8;
+	// Last requested auto profile, reported back on cameras without BalanceWhiteAutoProfile
+	WhiteBalanceType whiteBalanceType = WhiteBalanceType_AutoOutdoor;
+
+	// Cached so the frame loop doesn't do a register read (a network round trip on GigE) every frame
+	bool autoExposure = false;
+	uint64_t droppedImages = 0;
+	double frametime = 0.0;
+	double frametimeUpdated = 0.0;
 
 	std::map<std::shared_ptr<RawImage>, std::unique_ptr<CLMap<uint8_t>>> buffers; // Use own image buffers for page size alignment (OpenCL pinned memory and zero copy)
+	// Pointer array passed to SetUserBuffers. Spinnaker reads it during BeginAcquisition, so it must outlive the call.
+	std::vector<void*> bufferPtrs;
 };
 
 #endif

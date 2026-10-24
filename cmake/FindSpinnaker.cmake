@@ -35,6 +35,19 @@ if (WITH_SPINNAKER)
             SPINNAKER_INCLUDE_DIRS STREQUAL "SPINNAKER_INCLUDE_DIRS-NOTFOUND"
     ))
         add_definitions( -DSPINNAKER_AVAILABLE )
+
+        # This fixes some problems with paths after Ubuntu LTS upgrades and
+        # on Nix. This does prevent overriding spinnaker.so via LD_LIBRARY_PATH.
+        add_link_options( -Wl,--disable-new-dtags )
+
+        # If system libusb isn't correctly on the path, spinnaker init function
+        # throws an exception, and it's not clear why (their fault). Error here.
+        find_library(LIBUSB_LIB NAMES usb-1.0 libusb-1.0.so.0)
+        if (NOT LIBUSB_LIB)
+            message(FATAL_ERROR "libusb-1.0 not found; required by the Spinnaker GenTL producer.")
+        endif ()
+        list(APPEND SPINNAKER_LIBS ${LIBUSB_LIB})
+        
         message(STATUS "Spinnaker found, activating Spinnaker support.")
     else()
         set(SPINNAKER_INCLUDE_DIRS "")
