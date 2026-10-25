@@ -24,11 +24,6 @@ export const CONFIG_FIELDS = {
       comment:
         "Pixel corners for calibration seeding -- this is what the Corner Picker below produces",
     },
-    { name: "refinement", comment: "Field line pixel refinement toggle" },
-    { name: "field_line_threshold", comment: "0-255 brightness delta" },
-    { name: "min_line_segment_length", comment: "px" },
-    { name: "max_line_segment_offset", comment: "px" },
-    { name: "max_line_segment_angle", comment: "degrees" },
   ],
   color: [
     { name: "reference_force", comment: "0.0 - 0.5-history_force/2" },

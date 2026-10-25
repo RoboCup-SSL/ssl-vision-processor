@@ -7,6 +7,7 @@
   import type { VisionInstance } from "../layout/nav.svelte";
   import CornerPicker from "../CornerPicker.svelte";
   import CalibrationCard from "./CalibrationCard.svelte";
+  import LineDetectionCard from "./LineDetectionCard.svelte";
   import ConfigFieldList from "./ConfigFieldList.svelte";
 
   interface Props {
@@ -33,6 +34,7 @@
   {#if instance}
     {#key instance.cameraId}
       <CalibrationCard cameraId={instance.cameraId} />
+      <LineDetectionCard cameraId={instance.cameraId} />
     {/key}
   {/if}
 

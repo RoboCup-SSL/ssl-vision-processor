@@ -11,8 +11,9 @@
 #
 # All lengths are in mm.
 
-# Format version. The GUI refuses other versions.
-version: 1
+# Format version. The GUI reads 1 (exposure in config.yml's units) and
+# writes 2.
+version: 2
 
 # The field, as in proto/ssl_vision_geometry.proto. Division B shown; see
 # legacy/geometry-divA.yml for Division A. Field lines and arcs are generated
@@ -87,6 +88,9 @@ defaults:
 
   camera:
     driver: OPENCV
+    # Exposure in µs for every driver; 0 is automatic. The host converts it
+    # to what each driver reads from config.yml.
+    # exposure: 5000
 
   # network:
   #   vision_ip: 224.5.23.2

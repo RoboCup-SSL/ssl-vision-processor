@@ -27,6 +27,8 @@ __pycache__
 # git ignores it wherever it lives, so `git add -A` can't sweep in a venue's
 # config or calibration.
 *.yml
+# The GUI's backup of a config.yml it imported and now regenerates.
+*.yml.orig
 !/config/**/*.yml
 # Not configs: test fixtures, CI, and vision_processor's default robot height
 # table, which it reads from the working directory.
