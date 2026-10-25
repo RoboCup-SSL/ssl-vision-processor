@@ -33,6 +33,12 @@ std::shared_ptr<RawImage> OpenCVDriver::readImage() {
 	if(!capture.read(mat))
 		return nullptr;
 
+	// V4L2 streams start on the first read; some UVC cameras ignore exposure set before that.
+	if(!exposureApplied) {
+		applyExposure();
+		exposureApplied = true;
+	}
+
 	return image;
 }
 
@@ -82,13 +88,26 @@ float OpenCVDriver::getExposure() {
 }
 
 void OpenCVDriver::setExposure(float exposure) {
-	if(exposure == 0.0f) {
-		capture.set(cv::CAP_PROP_AUTO_EXPOSURE, 1.0);
+	this->exposure = exposure;
+	applyExposure();
+}
+
+void OpenCVDriver::applyExposure() {
+	// The V4L2 backend passes CAP_PROP_AUTO_EXPOSURE through as V4L2_CID_EXPOSURE_AUTO, a menu where UVC
+	// cameras offer 1 (manual) and 3 (aperture priority, i.e. automatic). Other backends keep OpenCV's
+	// 0.25/0.75 convention.
+	const bool v4l2 = capture.getBackendName() == "V4L2";
+	const double autoMode = v4l2 ? 3.0 : 0.75;
+	const double manualMode = v4l2 ? 1.0 : 0.25;
+
+	capture.set(cv::CAP_PROP_AUTO_EXPOSURE, autoMode);
+	if(exposure == 0.0f)
 		return;
-	} else {
-		capture.set(cv::CAP_PROP_AUTO_EXPOSURE, 0.0);
-		capture.set(cv::CAP_PROP_EXPOSURE, exposure * 1000.0);
-	}
+
+	// Passing through automatic first: some UVC cameras (e.g. the SunplusIT UC70) keep their last
+	// exposure and ignore exposure_time_absolute until they switch from automatic to manual.
+	capture.set(cv::CAP_PROP_AUTO_EXPOSURE, manualMode);
+	capture.set(cv::CAP_PROP_EXPOSURE, exposure * 1000.0);
 }
 
 float OpenCVDriver::getGain() {
