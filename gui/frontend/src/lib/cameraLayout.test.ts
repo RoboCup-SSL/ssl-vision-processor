@@ -17,7 +17,7 @@ function camera(id: number, extra: Partial<CameraDoc> = {}): CameraDoc {
 
 function doc(cameras: CameraDoc[], layout?: number): ConfigDocument {
   return {
-    version: 1,
+    version: 2,
     field: { ...blankField(), fieldLength: 9000, fieldWidth: 6000 },
     optionalFieldLines: {
       goal2Goal: true,

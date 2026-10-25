@@ -5,11 +5,14 @@
 // over the network (SSL_VPConfig), these become fallbacks. The number box next
 // to each slider takes any value, so a range here never limits a setting.
 //
-// OPENCV uses the team's UC70 dev webcam (v4l2-ctl --list-ctrls), expressed in
-// the units vision_processor's OpenCV driver actually sends, which aren't the
-// ones config.yml documents (src/driver/opencvdriver.cpp):
-//   - exposure: the file's value × 1000 becomes V4L2 exposure_time_absolute,
-//     in 100 µs steps. The UC70 takes 3-2047 (0.3-204.7 ms).
+// Exposure is µs for every driver; the host converts it to each driver's
+// config.yml unit. The slider stops at 20 ms: past that, motion blur ruins
+// detection and the frame rate drops. OPENCV steps by 100 µs, V4L2's
+// exposure_time_absolute unit.
+//
+// OPENCV's other ranges use the team's UC70 dev webcam (v4l2-ctl
+// --list-ctrls), in the units vision_processor's OpenCV driver actually
+// sends (src/driver/opencvdriver.cpp):
 //   - gain: sent as is. The UC70 takes 0-8.
 //   - gamma: sent as is, where V4L2 means gamma × 100. The UC70 takes
 //     100-300.
@@ -38,12 +41,12 @@ export interface CameraRanges {
 export const CAMERA_RANGES: Record<Driver, CameraRanges> = {
   SPINNAKER: {
     exposure: {
-      min: 0.01,
-      max: 30,
-      step: 0.01,
-      unit: "ms",
+      min: 10,
+      max: 20000,
+      step: 10,
+      unit: "µs",
       scale: 1,
-      fallback: 5,
+      fallback: 5000,
     },
     gain: { min: 0.1, max: 48, step: 0.1, unit: "dB", scale: 1, fallback: 5 },
     gamma: { min: 0.25, max: 4, step: 0.05, unit: "", scale: 1, fallback: 1.5 },
@@ -58,12 +61,12 @@ export const CAMERA_RANGES: Record<Driver, CameraRanges> = {
   },
   MVIMPACT: {
     exposure: {
-      min: 0.01,
-      max: 30,
-      step: 0.01,
-      unit: "ms",
+      min: 10,
+      max: 20000,
+      step: 10,
+      unit: "µs",
       scale: 1,
-      fallback: 5,
+      fallback: 5000,
     },
     gain: { min: 0.1, max: 24, step: 0.1, unit: "dB", scale: 1, fallback: 5 },
     // mvIMPACT ignores gamma; the panel hides it.
@@ -79,12 +82,12 @@ export const CAMERA_RANGES: Record<Driver, CameraRanges> = {
   },
   OPENCV: {
     exposure: {
-      min: 3,
-      max: 2047,
-      step: 1,
-      unit: "× 100 µs",
-      scale: 0.001,
-      fallback: 166,
+      min: 100,
+      max: 20000,
+      step: 100,
+      unit: "µs",
+      scale: 1,
+      fallback: 5000,
     },
     // 0 means automatic in the file, so manual starts at 1.
     gain: {

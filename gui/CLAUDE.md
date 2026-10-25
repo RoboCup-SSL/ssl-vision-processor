@@ -55,6 +55,8 @@ internal/
   snapshot/    debug image listing/serving
   video/       live video: RTP H.264 -> fMP4 over /ws/video/{id} for MSE
   v4l/         this host's capture devices, for the camera path picker
+  supervisor/  -vp: runs a vision_processor per config_path, restarting it on
+               startup-only setting changes (config.RestartKeys)
   logging/     slog setup: tint console + lumberjack file
   vision/      generated Go protobuf, not committed -- run `make proto` (DO NOT EDIT)
   gamecontroller/  generated Go protobuf, not committed
@@ -169,7 +171,20 @@ transport until vision_processor accepts config over the network:
 `camera_amount` (`layout.camera_count`, else the number of cameras rounded
 up to a power of 2) and `line_corners` (from the seed). This
 supersedes the old line-splice writers, which existed to preserve the file's
-comments -- irrelevant once the file is generated.
+comments -- irrelevant once the file is generated. Importing one keeps the
+original as `<file>.orig`.
+
+**`-vp` supervises local vision_processors; a test stand-in, not the
+deployment model.** `internal/supervisor` observes the store (`Sync` on every
+change) rather than sitting in `Store.apply`: the store still writes the file,
+and the supervisor restarts a process when `config.RestartKeys` (anything not
+`live`/`host` in the schema, unknown keys included) finds a difference between
+what it started with and the current render, debounced 1 s. Keyed by
+`config_path`, so moving a camera to another slot is a restart, not a stop and
+start. Children get their own process group (terminal Ctrl-C reaches only the
+host) and `Pdeathsig`. vision_processor checks SIGTERM only between frames, so
+a blocked `readImage()` needs the SIGKILL fallback. Goes away with the network
+config push.
 
 **Numbers in free-form blocks are normalized** (integral floats to int). JSON
 from the browser makes every number a float64 and YAML makes integers ints;

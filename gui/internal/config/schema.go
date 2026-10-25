@@ -91,7 +91,7 @@ var settings = map[string]Setting{
 	"camera.path":          {Type: TypeString, Apply: ApplyRestart}, // /dev/video{id}
 	"camera.width":         {Type: TypeInteger, Default: 0, Apply: ApplyRestart, Unit: "px", Minimum: bound(0)},
 	"camera.height":        {Type: TypeInteger, Default: 0, Apply: ApplyRestart, Unit: "px", Minimum: bound(0)},
-	"camera.exposure":      {Type: TypeNumber, Default: 0, Apply: ApplyRestart, Minimum: bound(0)},
+	"camera.exposure":      {Type: TypeNumber, Default: 0, Apply: ApplyRestart, Unit: "µs", Minimum: bound(0)},
 	"camera.gain":          {Type: TypeNumber, Default: 0, Apply: ApplyRestart, Minimum: bound(0)},
 	"camera.gamma":         {Type: TypeNumber, Default: 1, Apply: ApplyRestart, Minimum: bound(0), ExclusiveMinimum: true},
 	"camera.white_balance": {Type: TypeWhiteBalance, Default: "OUTDOOR", Apply: ApplyRestart, Enum: []string{"OUTDOOR", "INDOOR"}},

@@ -53,7 +53,26 @@ so a hand edit prompts the browser to load it or overwrite it.
 `-config` does not exist yet, the host creates it on startup. It imports `-importGeometry` (default
 `geometry.yml`) and `-importConfig` (default `config.yml`) when they exist, and otherwise starts from
 `-geometryPreset` (default `config/legacy/geometry-divB.yml`). An imported `config.yml` becomes a camera with that file as its `config_path`, so the host
-regenerates it from `vision.yml` from then on. Keep a copy if you want its comments.
+regenerates it from `vision.yml` from then on. The original is kept beside it as `<file>.orig`.
+
+### Running vision_processor from the host
+
+Until vision_processor takes its config over the network, the host can run it too. With `-vp`, it starts one
+vision_processor per camera with a `config_path` (`-vp` is the command; the config path is appended), from the
+host's working directory. Settings vision_processor hot reloads (thresholds, tracking, color, debug) only rewrite
+the file. A change to any other setting (camera, geometry, network, stream) restarts it once edits stop for a
+second. The Camera Settings page shows its state and output and has a Restart button. A crash is retried, waiting
+longer each time; a clean exit, such as a video file ending, is started again after a second.
+
+`-legacy` drives one existing `config.yml`: it imports it into `<file>.vision.yml` beside it (unless `-config` is
+given) and regenerates it from then on. For a bench test, from the repo root:
+
+```
+make run ARGS="-legacy config-camtest.yml -vp build/vision_processor"
+```
+
+Stop any vision_processor already using the camera first. A restart recalibrates geometry unless the camera's
+calibration is locked.
 
 The vision and game controller multicast addresses are in the same file, under `defaults.network`. They are
 set on the Network page, which the two address badges in the header open. Changing one reopens the host's
@@ -85,6 +104,7 @@ internal/
   hub/         topic pub/sub and the /ws handler
   snapshot/    debug image listing and serving
   video/       live video, relayed to the browser
+  supervisor/  runs and restarts local vision_processors (-vp)
   v4l/         this host's capture devices
   logging/     slog setup
   vision/      generated protobuf bindings, not committed

@@ -38,7 +38,7 @@ func (d Document) EffectiveConfig(id int) (EffectiveConfig, error) {
 		return EffectiveConfig{}, ErrUnknownCamera
 	}
 
-	merged := d.rendered(*c)
+	merged := d.Rendered(*c)
 	out := EffectiveConfig{CameraID: id, Settings: map[string]EffectiveSetting{}}
 
 	sourceOf := func(path string) string {

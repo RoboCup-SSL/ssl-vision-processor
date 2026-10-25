@@ -14,6 +14,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/origins"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/snapshot"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/supervisor"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/v4l"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -26,11 +27,12 @@ type VisionServer struct {
 	origins  *origins.Policy
 	hub      *hub.Hub
 	video    *video.Manager
+	procs    *supervisor.Supervisor // nil when not supervising
 	imgDir   string
 }
 
-func NewVisionServer(geom *geometry.Geometry, store *config.Store, status StatusSource, policy *origins.Policy, wsHub *hub.Hub, videos *video.Manager, imgDir string) http.Handler {
-	s := &VisionServer{geometry: geom, store: store, status: status, origins: policy, hub: wsHub, video: videos, imgDir: imgDir}
+func NewVisionServer(geom *geometry.Geometry, store *config.Store, status StatusSource, policy *origins.Policy, wsHub *hub.Hub, videos *video.Manager, procs *supervisor.Supervisor, imgDir string) http.Handler {
+	s := &VisionServer{geometry: geom, store: store, status: status, origins: policy, hub: wsHub, video: videos, procs: procs, imgDir: imgDir}
 
 	mux := http.NewServeMux()
 	a := newAPI(mux)
@@ -315,6 +317,25 @@ func (s *VisionServer) cameraDevices(*http.Request, none) ([]v4l.Device, error) 
 // snapshots lists the debug images on this host, by camera and view.
 func (s *VisionServer) snapshots(*http.Request, none) ([]snapshot.Entry, error) {
 	return snapshot.List(s.imgDir)
+}
+
+// processes lists the vision_processors the host runs itself (-vp), by
+// camera_id: processes.state on demand. Empty when it runs none.
+func (s *VisionServer) processes(*http.Request, none) ([]supervisor.Status, error) {
+	return s.procs.Statuses(), nil
+}
+
+// restartProcess restarts the camera's vision_processor now, rather than
+// waiting for a startup-only setting to change. A 404 not_found means the
+// host doesn't run that camera's vision_processor.
+func (s *VisionServer) restartProcess(_ *http.Request, in cameraRequest) ([]supervisor.Status, error) {
+	if err := s.procs.Restart(in.ID); errors.Is(err, supervisor.ErrNotSupervised) {
+		return nil, httpjson.Errorf(httpjson.CodeNotFound, "the host doesn't run camera %d's vision_processor; start the host with -vp", in.ID)
+	} else if err != nil {
+		return nil, err
+	}
+
+	return s.procs.Statuses(), nil
 }
 
 // respondConfigErr maps a handler's error to an httpjson error: one it

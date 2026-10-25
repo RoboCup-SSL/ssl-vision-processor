@@ -23,7 +23,7 @@ const module = "github.com/RoboCup-SSL/ssl-vision-processor/gui"
 // dirs are relative to internal/api, where go generate runs.
 var dirs = []string{
 	"../alerts", "../config", "../detections", "../geometry", "../httpjson",
-	"../multicast", "../referee", "../snapshot", "../v4l",
+	"../multicast", "../referee", "../snapshot", "../supervisor", "../v4l",
 	"../../cmd/ssl-vision-processor-gui",
 }
 

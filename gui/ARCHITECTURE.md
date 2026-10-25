@@ -90,6 +90,7 @@ before returning.
 | `internal/referee`                           | The current match's teams, from the game controller, and their robot heights from `bot_heights_file`.                                   |
 | `internal/snapshot`                          | Debug image listing and serving.                                                                                                        |
 | `internal/video`                             | Live video: each camera's H.264 RTP stream relayed to browsers as fragmented MP4.                                                       |
+| `internal/supervisor`                        | `-vp`: runs a vision_processor per local camera and restarts it when a startup-only setting changes.                                   |
 | `internal/v4l`                               | Lists this host's Video4Linux capture devices for the camera path picker.                                                               |
 | `internal/logging`                           | slog setup: a coloured console handler and a rotating file handler.                                                                     |
 | `internal/vision`, `internal/gamecontroller` | Generated protobuf bindings. Not committed, see Build-time codegen below.                                                               |
@@ -156,6 +157,17 @@ starts with a header saying it is generated. `reloadConfigIfChanged()` in `src/R
 `thresholds`, `tracking`, `color`, and `debug` every half second, but never `geometry`, `camera`, `network`, or
 `stream`. Changes to those take effect when the instance restarts.
 
+With `-vp`, the host also runs those instances itself (`internal/supervisor`), one per `config_path`, from its own
+working directory. It watches the store like any other subscriber: on each change it renders every camera's
+config and compares it with what each process was started with. A difference in a setting the schema marks `live`
+or `host` needs nothing more, since the file is already rewritten; any other difference (startup-only, derived,
+or unknown) restarts the process once edits have been quiet for a second, so a slider drag restarts it once.
+Stopping is SIGTERM, then SIGKILL after 3 s, since vision_processor only checks for SIGTERM between frames. A
+process that exits on its own is started again: after 1 s for a clean exit, doubling per crash in a row up to
+30 s. `processes.state` and `GET /api/processes` carry each one's state, pending restart keys, last exit, and last
+lines of output; `POST /api/processes/{id}/restart` restarts one at once. `-legacy <file>` imports a
+`config.yml` into `<file>.vision.yml` so one existing file can be driven directly.
+
 The host's own sockets use the shared `defaults.network` block (`vision_ip`, `vision_port`, `gc_ip`, `gc_port`),
 with vision_processor's defaults for missing keys. Each is a `multicast.Endpoint`. When an edit changes an
 address, the endpoint closes its sockets and opens new ones on the new address straight away. A multicast
@@ -187,6 +199,11 @@ SPINNAKER and MVIMPACT, a path for OPENCV, gamma hidden for MVIMPACT, and the OU
 balance profiles only for SPINNAKER. vision_processor reads `camera:` only at startup. Validation rejects what it
 would misread instead of refusing: an unknown driver (fatal at startup) and any white balance string other than
 OUTDOOR or INDOOR (it treats every other string as INDOOR).
+
+`camera.exposure` is µs in `vision.yml` for every driver. The host converts it when it writes `config.yml`
+(`internal/config/exposure.go`) and when it imports one: SPINNAKER and MVIMPACT read milliseconds, and OPENCV
+sends the value × 1000 to V4L2's `exposure_time_absolute`, which counts 100 µs. Format version 1 stored the file's
+unit; a version 1 document is migrated on load and saved as version 2.
 
 Every number in the free form blocks is normalized to an int or a float64. The browser sends every number as a
 JSON float and YAML decodes integers as ints, so without this every edit would show spurious changes such as
@@ -279,6 +296,8 @@ status comes from the network rather than the store.
 `network.state` carries each multicast socket's address and what it has heard there: vision detection packets
 (the host's own looped back geometry doesn't count) and game controller referee messages. It is published once per
 second and on every config change.
+`processes.state` carries the vision_processors the host runs (`-vp`), on every state change and once per
+second; an empty list without `-vp`.
 `alerts.state` carries every problem the host can see (`internal/alerts`), on the same schedule: a stable `id`,
 a `code`, a `severity` (`error`, `warning`, `caution`), an optional `cameraId`, the facts behind it as `params`,
 and a plain English `message`. The host decides which alerts exist and how serious they are; a client words and

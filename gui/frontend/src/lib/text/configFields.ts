@@ -8,7 +8,7 @@ export const CONFIG_FIELDS = {
     { name: "driver", comment: "SPINNAKER, MVIMPACT, or OPENCV" },
     { name: "id / path", comment: "Which camera device" },
     { name: "width / height", comment: "0 = highest supported resolution" },
-    { name: "exposure", comment: "ms; 0.0 = automatic" },
+    { name: "exposure", comment: "µs; 0 = automatic" },
     { name: "gain", comment: "0.0 = automatic" },
     { name: "gamma", comment: "1.0 = no gamma" },
     { name: "white_balance", comment: "OUTDOOR/INDOOR, or manual red/blue" },

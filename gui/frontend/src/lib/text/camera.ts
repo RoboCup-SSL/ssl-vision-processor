@@ -10,6 +10,27 @@ export const camera = {
   writesTo: (path: string): string => `The host writes them to \`${path}\`.`,
   noConfigPath:
     "This camera has no `config_path`, so the host doesn't write its config file; copy these to it by hand.",
+  // The host's own vision_processor for this camera (gui started with -vp).
+  process: {
+    banner: (camera: number): string =>
+      `The host runs cam ${String(camera)}'s vision_processor and restarts it when a setting it reads only at startup changes.`,
+    state: {
+      running: "Running",
+      restarting: "Restarting",
+      waiting: "Waiting to start",
+      stopped: "Stopped",
+    },
+    pid: (pid: number): string => `pid ${String(pid)}`,
+    restarts: (n: number): string =>
+      n === 1 ? "1 restart" : `${String(n)} restarts`,
+    pending: (keys: string[]): string =>
+      `Restarting shortly for ${keys.join(", ")}.`,
+    lastExit: (how: string): string => `Last run: ${how}.`,
+    crashes: (n: number): string =>
+      `Failed ${String(n)} times in a row; retrying, waiting longer each time. See its output below.`,
+    restartNow: "Restart now",
+    output: "Output",
+  },
   slotChip:
     "Which region of the field this camera covers. Change it on the Camera Layout page.",
   noInstance: SELECT_INSTANCE,
@@ -56,10 +77,13 @@ export const camera = {
       "At or above the frame time (33 ms at 30 fps) the frame rate drops.",
     ],
     opencv: [
-      "Shown in the camera's 100 µs steps: vision_processor sends the file's value × 1000, so 166 here is 16.6 ms and the file stores 0.166.",
-      "Placeholder range: the UC70 dev camera's 3-2047.",
+      "V4L2 sets exposure in 100 µs steps. The host writes config.yml in the unit vision_processor's OpenCV driver expects (5000 µs is 0.05).",
     ],
-    sdk: [PLACEHOLDER_RANGE],
+    sdk: [
+      "The host writes config.yml in milliseconds, the unit this driver reads.",
+    ],
+    // Beside the unit, while not automatic.
+    ms: (micros: number): string => `${(micros / 1000).toFixed(2)} ms`,
     opencvAutoBroken:
       "vision_processor's OpenCV driver sends auto_exposure = 1 for Auto, which V4L2 cameras read as Manual: the camera keeps its last exposure.",
   },

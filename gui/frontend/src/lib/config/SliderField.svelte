@@ -15,6 +15,10 @@
     max: number;
     step: number;
     unit?: string;
+    // Shown after the unit, e.g. the value in another unit.
+    detail?: string;
+    // The mouse wheel over the slider moves it by this much per notch.
+    wheelStep?: number;
     // label defaults to "Auto"; gamma's sentinel (1.0) reads "Off".
     auto?: { value: number; fallback: number; label?: string };
     notes?: string[];
@@ -34,6 +38,8 @@
     max,
     step,
     unit = "",
+    detail,
+    wheelStep,
     auto,
     notes = [],
     hints = [],
@@ -54,6 +60,17 @@
 
   function set(raw: number): void {
     if (Number.isFinite(raw)) onchange(raw);
+  }
+
+  function wheel(e: WheelEvent): void {
+    if (!wheelStep || isAuto || e.deltaY === 0) return;
+
+    e.preventDefault();
+
+    const next = value + (e.deltaY < 0 ? wheelStep : -wheelStep);
+    const snapped = Math.round(next / step) * step;
+
+    set(Math.min(max, Math.max(min, Number(snapped.toFixed(6)))));
   }
 </script>
 
@@ -79,6 +96,7 @@
     <Range
       size="sm"
       class="min-w-24 flex-1"
+      onwheel={wheel}
       {min}
       {max}
       {step}
@@ -102,7 +120,9 @@
         }}
       />
     </div>
-    <span class="unit">{unit}</span>
+    <span class="unit"
+      >{unit}{#if detail}<span class="detail">{detail}</span>{/if}</span
+    >
     {#if reset}
       <Button
         size="xs"
@@ -129,5 +149,11 @@
     width: 5.5rem;
     color: var(--text-muted);
     font-size: 0.8rem;
+  }
+
+  .detail {
+    display: block;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 </style>

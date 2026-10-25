@@ -22,6 +22,13 @@ import (
 func testHost(t *testing.T, edit ...func(*config.Document)) (*host, *httptest.Server) {
 	t.Helper()
 
+	return testHostWith(t, hostOptions{imgDir: t.TempDir()}, edit...)
+}
+
+// testHostWith is testHost with opts.
+func testHostWith(t *testing.T, opts hostOptions, edit ...func(*config.Document)) (*host, *httptest.Server) {
+	t.Helper()
+
 	src, err := os.ReadFile(visionFixture)
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +54,7 @@ func testHost(t *testing.T, edit ...func(*config.Document)) (*host, *httptest.Se
 		t.Fatal(err)
 	}
 
-	h, err := newHost(path, hostOptions{imgDir: t.TempDir()})
+	h, err := newHost(path, opts)
 	if err != nil {
 		t.Fatalf("newHost: %v", err)
 	}

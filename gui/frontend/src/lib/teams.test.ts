@@ -15,7 +15,7 @@ import {
 
 function emptyDoc(): ConfigDocument {
   return {
-    version: 1,
+    version: 2,
     field: blankField(),
     optionalFieldLines: {
       goal2Goal: true,

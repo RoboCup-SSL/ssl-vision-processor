@@ -262,7 +262,7 @@ func TestWatcherReportsExternalEditsButNotOwnSaves(t *testing.T) {
 func TestWatcherReportsAnUnparseableFile(t *testing.T) {
 	s, _, path := testStore(t)
 
-	writeExternal(t, path, "version: 1", "version: 1\nbogus_key: true")
+	writeExternal(t, path, "version: 2", "version: 2\nbogus_key: true")
 
 	if !s.checkDisk() {
 		t.Fatal("watcher missed an external edit")

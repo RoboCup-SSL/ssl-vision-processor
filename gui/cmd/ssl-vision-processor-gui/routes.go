@@ -74,6 +74,11 @@ func (s *VisionServer) addRoutes(mux *http.ServeMux, a *api.API) {
 	api.Route(a, "GET /api/geometry/presets", api.Doc{Tags: tagField}, s.fieldPresets)
 
 	api.Route(a, "GET /api/camera/devices", api.Doc{Tags: tagHost}, s.cameraDevices)
+	api.Route(a, "GET /api/processes", api.Doc{Tags: tagHost}, s.processes)
+	api.Route(a, "POST /api/processes/{id}/restart", api.Doc{
+		Tags:   tagHost,
+		Errors: []string{httpjson.CodeBadRequest, httpjson.CodeNotFound},
+	}, s.restartProcess)
 	api.Route(a, "GET /api/snapshots", api.Doc{Tags: tagHost}, s.snapshots)
 	api.Raw[snapshotRequest](a, "GET /api/snapshot/{camID}/{view}", api.Doc{
 		Tags:        tagHost,

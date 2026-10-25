@@ -2,7 +2,7 @@
   import StatusAlert from "../StatusAlert.svelte";
   import RichText from "../RichText.svelte";
   import SettingsCard from "../SettingsCard.svelte";
-  import { Input, Select, Badge, Heading, P } from "flowbite-svelte";
+  import { Input, Select, Badge, Button, Heading, P } from "flowbite-svelte";
   import { cameraCount, regionLabel } from "../cameraLayout";
   import { categoryHref } from "../layout/nav.svelte";
   import { onMount } from "svelte";
@@ -21,6 +21,7 @@
   import VideoPlayer from "../video/VideoPlayer.svelte";
   import FormRow from "../FormRow.svelte";
   import SliderField from "./SliderField.svelte";
+  import { processFor, restartProcess } from "../processes.svelte";
   import { camera as text } from "../text/camera";
   import { NO_HOST, PLACEHOLDER_RANGE } from "../text/common";
 
@@ -37,6 +38,39 @@
   // Placeholder slider ranges; see cameraRanges.ts.
   let ranges = $derived(CAMERA_RANGES[settings.driver]);
   let configPath = $derived(cameraDoc(cameraId)?.configPath);
+  let proc = $derived(processFor(cameraId));
+  let restartError = $state<string | null>(null);
+
+  const PROCESS_COLOR = {
+    running: "green",
+    restarting: "yellow",
+    waiting: "yellow",
+    stopped: "gray",
+  } as const;
+
+  // One line under the badge: the most pressing of these.
+  let procMessage = $derived.by((): { text: string; error: boolean } => {
+    if (!proc) return { text: "", error: false };
+    if (restartError) return { text: restartError, error: true };
+    if (proc.pendingKeys.length > 0)
+      return { text: text.process.pending(proc.pendingKeys), error: false };
+    if (proc.crashes > 0)
+      return { text: text.process.crashes(proc.crashes), error: true };
+    if (proc.lastExit)
+      return { text: text.process.lastExit(proc.lastExit), error: false };
+
+    return { text: "", error: false };
+  });
+
+  async function restartNow(): Promise<void> {
+    restartError = null;
+
+    try {
+      await restartProcess(cameraId);
+    } catch (err) {
+      restartError = err instanceof Error ? err.message : String(err);
+    }
+  }
 
   let devices = $state<VideoDevice[]>([]);
 
@@ -222,7 +256,11 @@
 
   {#if instance}
     <StatusAlert color="primary" class="mb-3 p-2 text-sm">
-      <RichText text={text.restartBanner(instance.cameraId)} />
+      <RichText
+        text={proc
+          ? text.process.banner(instance.cameraId)
+          : text.restartBanner(instance.cameraId)}
+      />
       <RichText
         text={configPath ? text.writesTo(configPath) : text.noConfigPath}
       />
@@ -396,6 +434,10 @@
             max={ranges.exposure.max}
             step={ranges.exposure.step}
             unit={ranges.exposure.unit}
+            detail={settings.exposure === 0
+              ? undefined
+              : text.exposure.ms(settings.exposure)}
+            wheelStep={100}
             auto={{ value: 0, fallback: ranges.exposure.fallback }}
             notes={exposureNotes}
             warnings={exposureWarnings}
@@ -500,6 +542,43 @@
         </SettingsCard>
       </div>
     </div>
+
+    {#if proc}
+      <!-- Fixed height, so status changes never move the page. -->
+      <SettingsCard title="vision_processor" class="mt-6 mb-0">
+        <div class="flex items-center gap-2 text-sm">
+          <Badge color={proc.crashes > 0 ? "red" : PROCESS_COLOR[proc.state]}>
+            {text.process.state[proc.state]}
+          </Badge>
+          {#if proc.pid}
+            <span class="font-mono">{text.process.pid(proc.pid)}</span>
+          {/if}
+          <span>{text.process.restarts(proc.restarts)}</span>
+          <Button
+            size="xs"
+            color="alternative"
+            class="ml-auto"
+            onclick={() => void restartNow()}
+          >
+            {text.process.restartNow}
+          </Button>
+        </div>
+        <p
+          class={[
+            "mt-2 h-5 truncate text-sm",
+            procMessage.error
+              ? "text-red-700 dark:text-red-400"
+              : "text-gray-600 dark:text-gray-400",
+          ]}
+          title={procMessage.text}
+        >
+          {procMessage.text}
+        </p>
+        <pre
+          class="mt-2 h-40 overflow-auto rounded bg-gray-100 p-2 text-xs dark:bg-gray-800"
+          aria-label={text.process.output}>{proc.output.join("\n")}</pre>
+      </SettingsCard>
+    {/if}
   {:else}
     <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400"
       >{text.noInstance}</P

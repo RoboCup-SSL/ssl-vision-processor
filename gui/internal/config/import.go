@@ -122,6 +122,12 @@ func importConfig(path string) (Camera, map[string]any, int, error) {
 			camera.Config[key] = block
 		}
 
+		if key == "camera" {
+			if block, ok := camera.Config[key].(map[string]any); ok {
+				convertExposure(block, microsPerFileUnit(blockDriver(block)))
+			}
+		}
+
 		delete(raw, key)
 	}
 

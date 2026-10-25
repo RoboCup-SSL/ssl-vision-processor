@@ -20,7 +20,8 @@ import (
 // the network; vision_processor hot-reloads color/thresholds/tracking/debug
 // from it and needs a restart for everything else.
 func Render(doc Document, c Camera, sourcePath string) ([]byte, error) {
-	merged := doc.rendered(c)
+	merged := doc.Rendered(c)
+	exposureToFile(merged)
 
 	if geom, _ := merged["geometry"].(map[string]any); geom["line_corners"] != nil {
 		corners := geom["line_corners"].([][2]int)
@@ -50,10 +51,10 @@ func Render(doc Document, c Camera, sourcePath string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// rendered is camera c's config.yml content: the document's defaults with c's
+// Rendered is camera c's config.yml content: the document's defaults with c's
 // own config merged over, plus cam_id, camera_amount and the seed's
 // line_corners ([][2]int), which the document as a whole decides.
-func (d Document) rendered(c Camera) map[string]any {
+func (d Document) Rendered(c Camera) map[string]any {
 	merged := d.Effective(c)
 	merged["cam_id"] = c.CameraID
 

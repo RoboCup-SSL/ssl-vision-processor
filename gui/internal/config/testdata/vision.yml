@@ -1,5 +1,5 @@
 # vision.yml fixture: two cameras, one with a locked calibration.
-version: 1
+version: 2
 field:
   field_length: 9000
   field_width: 6000

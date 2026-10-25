@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -24,6 +25,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/origins"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/referee"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/supervisor"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -48,6 +50,13 @@ var allowHost = flag.String("allowHost", "", "Comma-separated extra names this h
 var openapiOut = flag.String("openapi", "", "Write the API's OpenAPI spec to this path and exit (make builds openapi.json with it)")
 var imgDir = flag.String("imgDir", "img", "Directory the vision processor writes debug snapshot images to, default: img")
 var logLevelFlag = flag.String("logLevel", "Info", "Log Level: Debug, Info, Warn, Error. Default: Info")
+
+// Until vision_processor takes config over the network: run it for each camera
+// with a config_path, restarting it when a setting it reads only at startup
+// changes. -legacy is the shortest way to drive one existing config.yml.
+var vpCommand = flag.String("vp", "", "Run this vision_processor (binary, then any arguments; the config path is appended) for each camera with a config_path, restarting it when a startup-only setting changes. Default: none, run them yourself")
+var legacyConfig = flag.String("legacy", "", "Drive this legacy vision_processor config.yml: shorthand for -importConfig it and, unless -config is given, -config <it>.vision.yml. The GUI regenerates the file in place; the original is kept as <it>.orig")
+
 var logFile = flag.String("logFile", "logs/vision-processor-gui.log", "Rotating log file to write alongside stderr, empty to disable. Default: logs/vision-processor-gui.log")
 
 func main() {
@@ -85,6 +94,13 @@ func run() int {
 
 	slog.Info("Init VP GUI")
 
+	if *legacyConfig != "" {
+		*importConfig = *legacyConfig
+		if !flagSet("config") {
+			*configPath = strings.TrimSuffix(*legacyConfig, filepath.Ext(*legacyConfig)) + ".vision.yml"
+		}
+	}
+
 	if err := bootstrapConfig(*configPath, *importGeometry, *importConfig, *geometryPreset); err != nil {
 		slog.Error("creating config file", "err", err)
 
@@ -96,6 +112,7 @@ func run() int {
 		allowedHosts:   splitList(*allowHost),
 		imgDir:         *imgDir,
 		verbose:        level == slog.LevelDebug,
+		vpCommand:      strings.Fields(*vpCommand),
 	})
 	if err != nil {
 		slog.Error("starting", "config", *configPath, "err", err)
@@ -142,9 +159,14 @@ func run() int {
 			sockets.apply(store)
 			match.SetHeightsFile(botHeightsFile(store))
 			publishStatus(wsHub, status)
+			publishJSON(wsHub, processesStateTopic, h.procs.Statuses())
 		})
 	})
 	runBackground(&wg, "config file watcher", func() error { return store.Watch(ctx, configWatchInterval) })
+
+	if h.procs != nil {
+		runBackground(&wg, "vision_processor supervisor", func() error { return h.procs.Run(ctx) })
+	}
 
 	srv := &http.Server{
 		Addr:              *address,
@@ -198,6 +220,8 @@ type host struct {
 	hub     *hub.Hub
 	status  *hostStatus
 	policy  *origins.Policy
+	// procs is nil unless the host runs the vision_processors itself (-vp).
+	procs   *supervisor.Supervisor
 	handler http.Handler
 }
 
@@ -206,6 +230,8 @@ type hostOptions struct {
 	allowedHosts   []string
 	imgDir         string
 	verbose        bool
+	// vpCommand runs a vision_processor per local camera; empty for none.
+	vpCommand []string
 }
 
 // newHost opens the config at path and wires the store, geometry, sockets,
@@ -240,9 +266,21 @@ func newHost(path string, opts hostOptions) (*host, error) {
 	sockets.apply(store)
 	match.SetHeightsFile(botHeightsFile(store))
 
-	wsHub := hub.New(wrapperPacketTopic, configStateTopic, networkStateTopic, alertsStateTopic)
+	wsHub := hub.New(wrapperPacketTopic, configStateTopic, networkStateTopic, alertsStateTopic, processesStateTopic)
 	status := &hostStatus{store: store, sockets: sockets, match: match}
 	policy.SetStrict(competitionField(store))
+
+	var procs *supervisor.Supervisor
+
+	if len(opts.vpCommand) > 0 {
+		procs = supervisor.New(supervisor.Options{
+			Command:  opts.vpCommand,
+			OnChange: func() { publishJSON(wsHub, processesStateTopic, procs.Statuses()) },
+		})
+
+		doc, _ := store.Working()
+		procs.Sync(doc)
+	}
 
 	store.OnChange(func() {
 		// A changed address or interface selection takes effect at once: the
@@ -253,6 +291,11 @@ func newHost(path string, opts hostOptions) (*host, error) {
 
 		publishConfigState(wsHub, store)
 		publishStatus(wsHub, status)
+
+		if procs != nil {
+			doc, _ := store.Working()
+			procs.Sync(doc)
+		}
 	})
 
 	return &host{
@@ -263,7 +306,8 @@ func newHost(path string, opts hostOptions) (*host, error) {
 		hub:     wsHub,
 		status:  status,
 		policy:  policy,
-		handler: NewVisionServer(geom, store, status, policy, wsHub, sockets.video, opts.imgDir),
+		procs:   procs,
+		handler: NewVisionServer(geom, store, status, policy, wsHub, sockets.video, procs, opts.imgDir),
 	}, nil
 }
 
@@ -305,6 +349,14 @@ func bootstrapConfig(path, legacyGeometry, legacyConfig, preset string) error {
 	configSource := ""
 	if fileExists(legacyConfig) {
 		configSource = legacyConfig
+	}
+
+	// The imported camera's config_path is the file itself, which the host
+	// then regenerates, comments and all; keep the original.
+	if configSource != "" && !fileExists(configSource+".orig") {
+		if err := copyFile(configSource, configSource+".orig"); err != nil {
+			return fmt.Errorf("back up %s: %w", configSource, err)
+		}
 	}
 
 	doc, err := config.Import(geometrySource, configSource)
@@ -355,6 +407,28 @@ func openConfig(path string) (*geometry.Geometry, *config.Store, error) {
 	}
 
 	return geom, store, nil
+}
+
+func copyFile(from, to string) error {
+	data, err := os.ReadFile(from)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(to, data, 0o644)
+}
+
+// flagSet reports whether the named flag was given on the command line.
+func flagSet(name string) bool {
+	set := false
+
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			set = true
+		}
+	})
+
+	return set
 }
 
 func fileExists(path string) bool {
@@ -475,6 +549,8 @@ func warnLoopbackMulticast() {
 const (
 	networkStateTopic = "network.state"
 	alertsStateTopic  = "alerts.state"
+	// processesStateTopic carries the supervised vision_processors (-vp).
+	processesStateTopic = "processes.state"
 )
 
 // publishStatus publishes the network state and the alerts, which depend on

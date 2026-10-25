@@ -47,7 +47,7 @@ func testServer(t *testing.T) (http.Handler, string) {
 		t.Fatal(err)
 	}
 
-	return NewVisionServer(geom, store, stubStatus{}, policy, hub.New("config.state"), video.NewManager(false), t.TempDir()), path
+	return NewVisionServer(geom, store, stubStatus{}, policy, hub.New("config.state"), video.NewManager(false), nil, t.TempDir()), path
 }
 
 // stubStatus is a host whose sockets have heard nothing yet.

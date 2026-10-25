@@ -23,8 +23,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Version is the vision.yml format version this package reads and writes.
-const Version = 1
+// Version is the vision.yml format version this package writes. It also
+// reads version 1, whose camera.exposure was in config.yml's units rather
+// than µs.
+const Version = 2
 
 const fileHeader = `# vision-processor-gui configuration. Edit freely: the GUI watches this file
 # and asks before applying or overwriting changes made here. Comments are not
@@ -249,6 +251,11 @@ func decode(data []byte) (Document, error) {
 	}
 
 	doc.normalize()
+
+	if doc.Version == 1 {
+		doc.migrateV1()
+		doc.normalize()
+	}
 
 	return doc, nil
 }

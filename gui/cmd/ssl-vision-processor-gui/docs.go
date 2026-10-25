@@ -33,6 +33,7 @@ is the body of a REST endpoint documented here:
 | ` + "`config.state`" + ` | ` + "`state`" + ` in GET /api/config |
 | ` + "`network.state`" + ` | GET /api/network |
 | ` + "`alerts.state`" + ` | GET /api/alerts |
+| ` + "`processes.state`" + ` | GET /api/processes |
 | ` + "`wrapper_packet.out`" + ` | GET /api/geometry |
 `
 
