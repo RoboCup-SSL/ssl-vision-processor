@@ -1,0 +1,19 @@
+[
+  "calibration_aspect_mismatch",
+  "camera_id_conflict",
+  "camera_unplaced",
+  "field_changed",
+  "file_changed",
+  "heights_unreadable",
+  "loopback_multicast_off",
+  "region_uncovered",
+  "render_failed",
+  "seed_aspect_mismatch",
+  "seed_rescalable",
+  "seed_resolution_unknown",
+  "seed_stale",
+  "socket_problem",
+  "socket_silent",
+  "team_default_height",
+  "unknown_setting"
+]

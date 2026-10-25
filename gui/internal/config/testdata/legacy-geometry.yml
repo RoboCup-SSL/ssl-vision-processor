@@ -1,0 +1,27 @@
+# Legacy geometry-*.yml fixture for config import tests.
+field:
+  field_length: 2160
+  field_width: 1680
+  goal_width: 280
+  goal_depth: 50
+  goal_height: 160
+  penalty_area_depth: 290
+  penalty_area_width: 570
+  goal_center_to_penalty_mark: 1440
+  boundary_width: 100
+  boundary_width_goal_line: 100
+  center_circle_radius: 140
+  line_thickness: 10
+  ball_radius: 22
+  max_robot_radius: 90
+  goal_substitution_area_width: 0
+models:
+  straight_two_phase:
+    acc_roll: -0.45
+    acc_slide: -3.4
+    k_switch: 0.64
+optional_field_lines:
+  centercircle: false
+  goal2goal: false
+  halfway: true
+  penalty: true

@@ -1,0 +1,151 @@
+# vision.yml reference: the unified config the GUI host owns.
+#
+# Copy this file (e.g. to vision.yml at the repo root, which git ignores) and
+# start the host with `-config vision.yml`. Don't edit this copy; it's a
+# read-only reference.
+#
+# One file holds the field, settings shared by every camera, each camera's own
+# settings, and locked calibrations. The GUI edits it live and asks before
+# overwriting changes made here by hand. Comments aren't kept when the GUI
+# saves.
+#
+# All lengths are in mm.
+
+# Format version. The GUI refuses other versions.
+version: 1
+
+# The field, as in proto/ssl_vision_geometry.proto. Division B shown; see
+# legacy/geometry-divA.yml for Division A. Field lines and arcs are generated
+# from these dimensions.
+field:
+  field_length: 9000
+  field_width: 6000
+  goal_width: 1000
+  goal_depth: 180
+  goal_height: 160
+  penalty_area_depth: 1000
+  penalty_area_width: 2000
+  goal_center_to_penalty_mark: 6000
+  boundary_width: 300
+  boundary_width_goal_line: 300
+  center_circle_radius: 500
+  line_thickness: 10
+  ball_radius: 21.5
+  max_robot_radius: 90
+  goal_substitution_area_width: 0
+
+# Field markings a lab or exhibition carpet may not have. Turn off any line
+# the physical field lacks: lines the camera can't see disturb calibration.
+optional_field_lines:
+  goal2goal: true # center line running end to end
+  halfway: true # halfway line across the width
+  centercircle: true # center circle
+  penalty: true # penalty area lines in front of each goal
+
+# Ball models, published with the geometry. acc_slide and acc_roll in m/s².
+# Defaults from RoboCup 2026.
+models:
+  straight_two_phase:
+    acc_slide: -3.40
+    acc_roll: -0.45
+    k_switch: 0.64
+  chip_fixed_loss:
+    damping_xy_first_hop: 0.55
+    damping_xy_other_hops: 0.88
+    damping_z: 0.54
+
+# How the field is split between cameras: 1, 2 or 4 regions. A camera's
+# camera_id picks its region (see camera_ids.png). Unset: the number of
+# cameras, rounded up to a power of 2.
+layout:
+  camera_count: 1
+
+# A match setup with a game controller, rather than lab use. Changes how the
+# GUI keeps robot height choices and how loudly it reports missing setup;
+# vision_processor doesn't read it.
+# competition_field: true
+
+# Robot height choices. A team or color without one uses bot_heights_file,
+# looked up by the game controller's team name. Shown in the GUI only for
+# now; vision_processor still uses the game controller and the table.
+# teams:
+#   # On a competition field: by the game controller's team name, so each
+#   # follows its team if the colors are switched.
+#   overrides:
+#     ER Force: { name: ER-Force } # another table entry's height
+#     Custom FC: { height: 150 } # a custom height in mm
+#   # Otherwise (lab use, often no game controller): per color.
+#   by_color:
+#     yellow: { height: 150 }
+#     blue: { name: ER-Force }
+
+# Settings every camera shares, in vision_processor's own config.yml layout
+# (see legacy/config.yml for every key and its default). A camera's own
+# `config` below overrides these key by key.
+defaults:
+  bot_heights_file: robot-heights.yml
+
+  camera:
+    driver: OPENCV
+
+  # network:
+  #   vision_ip: 224.5.23.2
+  #   vision_port: 10006
+  #   gc_ip: 224.5.23.1
+  #   gc_port: 10003
+
+  # stream:
+  #   active: true
+  #   ip_base_prefix: 224.5.23.
+  #   ip_base_end: 100
+  #   port: 10100
+
+  # thresholds:
+  #   min_confidence: 0.2
+
+  # tracking:
+  #   max_bot_acceleration: 6.5
+
+  # color:
+  #   reference_force: 0.1
+  #   history_force: 0.7
+
+# One entry per camera, keyed by camera_id (its region), not by machine: a
+# host running four cameras appears four times.
+cameras:
+  - camera_id: 0
+    # The machine running this camera's vision_processor.
+    instance: lab-pc
+    # A config.yml on this host the GUI regenerates from this file, for a
+    # vision_processor on the same machine. Omit for a remote one. Use a
+    # git-ignored name such as config-local.yml.
+    config_path: config-local.yml
+    # This camera's overrides of `defaults`, same layout.
+    config:
+      camera:
+        path: /dev/v4l/by-id/usb-Example_Camera-video-index0
+        width: 1920
+        height: 1080
+    # Written by the corner picker: the four field line corners in image
+    # pixels, the resolution they were picked at, and the region they were
+    # picked for.
+    # seed:
+    #   resolution: [1920, 1080]
+    #   line_corners: [[1131, 949], [1512, 733], [1266, 76], [792, 303]]
+    #   goal_side_marker: 1
+    #   slot: { camera_id: 0, camera_count: 1 }
+    # Written by "Lock" on the Geometry page; published in place of what the
+    # camera sends, so a restart doesn't recalibrate.
+    # calibration:
+    #   locked_at: 2026-01-01T12:00:00Z
+    #   field_hash: sha256:...
+    #   camera: { camera_id: 0, focal_length: 1184.6, ... }
+    # How the GUI turns this camera's video to match the field (0, 90, 180,
+    # 270 degrees clockwise; mirror flips it). Only the GUI reads it.
+    # display: { rotate: 0, mirror: false }
+
+# Settings for the GUI host alone.
+# host:
+#   interfaces:
+#     auto: true # pick interfaces itself
+#     skip: [docker0] # with auto off, interfaces not to use
