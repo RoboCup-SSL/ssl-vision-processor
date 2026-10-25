@@ -50,7 +50,11 @@ public:
 	void setWhiteBalance(WhiteBalanceType type, float blue, float red) override;
 
 private:
+	void applyExposure();
+
 	cv::VideoCapture capture;
 	std::shared_ptr<RawImage> image = nullptr;
 	std::string name;
+	float exposure = 0.0f;
+	bool exposureApplied = false;
 };
