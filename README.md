@@ -142,7 +142,7 @@ H.264 RTSP streams can silently produce corrupted frames on slower or throttled 
 
 ### Spinnaker camera probe
 
-With Spinnaker available the build also produces `build/spinnaker_probe`, a read-only dump of a camera's
+With Spinnaker available, the build also produces `build/spinnaker_probe`, a binary that creates a dump of a camera's
 settings (GenICam node maps) as JSON, including the pixel format the driver will select on that camera.
 It never changes camera settings. Stop the `vision_processor` using the camera first.
 
