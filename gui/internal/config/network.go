@@ -97,10 +97,10 @@ func networkFromBlock(block any) (Network, error) {
 func (n Network) Validate() error {
 	var errs error
 
-	errs = errors.Join(errs, validateGroup("vision_ip", n.VisionIP))
-	errs = errors.Join(errs, validatePort("vision_port", n.VisionPort))
-	errs = errors.Join(errs, validateGroup("gc_ip", n.GCIP))
-	errs = errors.Join(errs, validatePort("gc_port", n.GCPort))
+	errs = errors.Join(errs, validateGroup("network.vision_ip", n.VisionIP))
+	errs = errors.Join(errs, validatePort("network.vision_port", n.VisionPort))
+	errs = errors.Join(errs, validateGroup("network.gc_ip", n.GCIP))
+	errs = errors.Join(errs, validatePort("network.gc_port", n.GCPort))
 
 	if n.VisionAddress() == n.GCAddress() {
 		errs = errors.Join(errs, fmt.Errorf("network: vision and game controller can't share %s", n.VisionAddress()))
@@ -109,14 +109,16 @@ func (n Network) Validate() error {
 	return errs
 }
 
+// validateGroup and validatePort take the key's full path (network.vision_ip,
+// tracker.ip) for their messages.
 func validateGroup(key, ip string) error {
 	addr, err := netip.ParseAddr(ip)
 	if err != nil || !addr.Is4() {
-		return fmt.Errorf("network.%s: want an IPv4 address, got %q", key, ip)
+		return fmt.Errorf("%s: want an IPv4 address, got %q", key, ip)
 	}
 
 	if addr.IsUnspecified() {
-		return fmt.Errorf("network.%s: 0.0.0.0 isn't a destination", key)
+		return fmt.Errorf("%s: 0.0.0.0 isn't a destination", key)
 	}
 
 	return nil
@@ -124,7 +126,7 @@ func validateGroup(key, ip string) error {
 
 func validatePort(key string, port int) error {
 	if port < 1 || port > 65535 {
-		return fmt.Errorf("network.%s: want 1 to 65535, got %d", key, port)
+		return fmt.Errorf("%s: want 1 to 65535, got %d", key, port)
 	}
 
 	return nil

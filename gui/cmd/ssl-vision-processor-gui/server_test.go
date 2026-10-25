@@ -10,12 +10,14 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/alerts"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/httpjson"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/livefield"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/origins"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
@@ -57,10 +59,15 @@ func (stubStatus) Network() NetworkState {
 	return NetworkState{
 		Vision:            multicast.Status{Address: "224.5.23.2:10006", Mode: "multicast"},
 		GC:                multicast.Status{Address: "224.5.23.1:10003", Mode: "multicast"},
+		Tracker:           multicast.Status{Address: "224.5.23.2:10010", Mode: "multicast"},
 		Cameras:           []detections.Source{},
 		Interfaces:        []multicast.Interface{},
 		LoopbackMulticast: true,
 	}
+}
+
+func (stubStatus) LiveField() livefield.Snapshot {
+	return livefield.NewFeed().Snapshot(time.Now())
 }
 
 func (stubStatus) Alerts() []alerts.Alert {

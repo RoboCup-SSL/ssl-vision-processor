@@ -9,6 +9,7 @@ import (
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/api"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/livefield"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/origins"
 	"github.com/swaggest/jsonschema-go"
 )
@@ -75,6 +76,16 @@ func newAPI(mux *http.ServeMux) *api.API {
 		},
 	})
 	a.SchemaFor(reflect.TypeFor[wrapperPacket](), packet)
+	a.SchemaFor(reflect.TypeFor[livefield.DetectionFrame](), mustSchema(map[string]any{
+		"type":                 "object",
+		"description":          "An SSL_DetectionFrame from the league's ssl_vision_detection.proto, as canonical protojson. Positions in mm.",
+		"additionalProperties": true,
+	}))
+	a.SchemaFor(reflect.TypeFor[livefield.TrackedFrame](), mustSchema(map[string]any{
+		"type":                 "object",
+		"description":          "A TrackedFrame from the league's ssl_vision_detection_tracked.proto, as canonical protojson. Positions in m.",
+		"additionalProperties": true,
+	}))
 
 	return a
 }

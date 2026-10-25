@@ -1,5 +1,5 @@
 // Shared display metadata for FieldConfig/OptionalFieldLines, so the field
-// list and optional-line list aren't duplicated between FieldEditor.svelte
+// list and optional-line list aren't duplicated between FieldDimensionsEditor.svelte
 // and the setup wizard's equivalent steps.
 import type { FieldConfig, OptionalFieldLines } from "./geometry.svelte";
 
@@ -9,14 +9,14 @@ export interface FieldConfigField {
   // Which optional line this dimension only makes sense with, if any (e.g. no
   // penalty area means no penalty area depth/width to enter). Used by the
   // wizard's Dimensions step, which asks about markings first specifically so
-  // it can skip fields that don't apply; FieldEditor.svelte ignores this and
+  // it can skip fields that don't apply; FieldDimensionsEditor.svelte ignores this and
   // always shows every field, since a direct-edit form has no such ordering.
   gatedBy?: keyof OptionalFieldLines;
 }
 
 // Order matches how someone would actually measure a field: outer boundary
 // first, then the goal, then the penalty area, then the smaller markings.
-// fieldLength is deliberately excluded -- FieldEditor.svelte handles it
+// fieldLength is deliberately excluded -- FieldDimensionsEditor.svelte handles it
 // separately (its half/full toggle); a caller that doesn't do that (the
 // wizard) prepends its own { key: "fieldLength", ... } entry.
 export const DIMENSION_FIELDS: FieldConfigField[] = [

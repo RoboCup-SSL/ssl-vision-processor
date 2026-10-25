@@ -68,7 +68,7 @@ export const RESOLUTION_DOCS = {
     cause:
       "vision_processor looks each team up in its height table by its exact game controller name. A team that isn't listed keeps that color's previous height: the table's mean before any known team has played, otherwise the last known team's, which after a color switch is the other team's. Robots are then placed at the wrong height, which shifts them on the field.",
     steps: [
-      "Open the Overview page and find the team under Teams.",
+      "Open the Team Assignment page and find the team under Teams.",
       "Turn off Derive from game controller, then pick the table entry that matches the team, or Custom and enter its robot height in mm.",
       "Save. The override is kept by team name, so it follows the team if the colors are switched.",
       "Until vision_processor reads these overrides, also add the team to the height table (bot_heights_file, robot-heights.yml by default) under its exact game controller name, and restart the vision_processors.",

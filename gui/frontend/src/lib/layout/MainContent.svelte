@@ -1,7 +1,7 @@
 <script lang="ts">
   import { nav, selectedInstance, selectedCategory } from "./nav.svelte";
   import TabBar from "./TabBar.svelte";
-  import FieldEditor from "../FieldEditor.svelte";
+  import FieldDimensionsEditor from "../FieldDimensionsEditor.svelte";
   import GeometryPanel from "../config/GeometryPanel.svelte";
   import ColorPanel from "../config/ColorPanel.svelte";
   import NetworkPanel from "../config/NetworkPanel.svelte";
@@ -9,7 +9,8 @@
   import CameraPanel from "../config/CameraPanel.svelte";
   import LayoutPanel from "../config/LayoutPanel.svelte";
   import AdvancedPanel from "../config/AdvancedPanel.svelte";
-  import OverviewPanel from "../config/OverviewPanel.svelte";
+  import TeamAssignmentPanel from "../config/TeamAssignmentPanel.svelte";
+  import LiveFieldPanel from "../live/LiveFieldPanel.svelte";
   import AlertsPanel from "../alerts/AlertsPanel.svelte";
   import ConfigCategoryPlaceholder from "../config/ConfigCategoryPlaceholder.svelte";
   import { schema } from "../schema.svelte";
@@ -27,10 +28,12 @@
     <!-- loading -->
   {:else if nav.selectedCategoryId === "alerts"}
     <AlertsPanel />
-  {:else if nav.selectedCategoryId === "overview"}
-    <OverviewPanel />
-  {:else if nav.selectedCategoryId === "field"}
-    <FieldEditor />
+  {:else if nav.selectedCategoryId === "live_field"}
+    <LiveFieldPanel />
+  {:else if nav.selectedCategoryId === "team_assignment"}
+    <TeamAssignmentPanel />
+  {:else if nav.selectedCategoryId === "field_dimensions"}
+    <FieldDimensionsEditor />
   {:else if nav.selectedCategoryId === "layout"}
     <LayoutPanel />
   {:else if nav.selectedCategoryId === "advanced"}

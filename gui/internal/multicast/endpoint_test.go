@@ -222,7 +222,9 @@ func TestVisionConsumerAbsorbsGeometryButCountsOnlyDetections(t *testing.T) {
 
 	visionConsume := VisionConsumer(
 		func(g *vision.SSL_GeometryData) { got = g },
-		func(id uint32, from net.IP) { tracked = append(tracked, fmt.Sprintf("%d@%s", id, from)) },
+		func(d *vision.SSL_DetectionFrame, from net.IP) {
+			tracked = append(tracked, fmt.Sprintf("%d@%s", d.GetCameraId(), from))
+		},
 	)
 	from := &net.UDPAddr{IP: net.IPv4(10, 0, 0, 5), Port: 10006}
 	consume := func(data []byte) bool { return visionConsume(data, from) }
@@ -426,5 +428,28 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 		}
 
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestTrackerConsumer(t *testing.T) {
+	var got []string
+
+	trackerConsume := TrackerConsumer(func(p *vision.TrackerWrapperPacket, from net.IP) {
+		got = append(got, fmt.Sprintf("%s@%s", p.GetSourceName(), from))
+	})
+	from := &net.UDPAddr{IP: net.IPv4(10, 0, 0, 20), Port: 10010}
+
+	packet := &vision.TrackerWrapperPacket{Uuid: proto.String("u1"), SourceName: proto.String("TIGERs AutoRef")}
+	if !trackerConsume(marshal(t, packet), from) {
+		t.Fatal("tracker packet not counted as heard")
+	}
+
+	if len(got) != 1 || got[0] != "TIGERs AutoRef@10.0.0.20" {
+		t.Fatalf("tracked = %v, want the packet and its sender once", got)
+	}
+
+	// uuid is required.
+	if trackerConsume(marshal(t, &vision.SSL_WrapperPacket{}), from) {
+		t.Fatal("a packet without a uuid counted as heard")
 	}
 }

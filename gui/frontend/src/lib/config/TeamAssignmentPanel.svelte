@@ -18,7 +18,7 @@
     teamName,
     type Color,
   } from "../teams.svelte";
-  import { overview as text } from "../text/overview";
+  import { teamAssignment as text } from "../text/teamAssignment";
   import { preferences } from "../preferences.svelte";
 
   // Select value for "Custom", which can't be a team name in the table.

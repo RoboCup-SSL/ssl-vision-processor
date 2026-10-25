@@ -51,7 +51,7 @@ function unsavedChanges(...paths: string[]): void {
         jsonPath: path,
         before: null,
         after: null,
-        section: "overview",
+        section: "team_assignment",
       }),
     ),
     cameras: [],

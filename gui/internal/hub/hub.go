@@ -37,6 +37,15 @@ func (h *Hub) Known(topic string) bool {
 	return ok
 }
 
+// Watched reports whether topic has any subscriber, so a publisher can skip
+// work nobody would see.
+func (h *Hub) Watched(topic string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return len(h.subs[topic]) > 0
+}
+
 // Subscribe returns a channel of values published to topic, starting with
 // the latest one if there is any, and an unsubscribe function the caller must
 // call exactly once when done.

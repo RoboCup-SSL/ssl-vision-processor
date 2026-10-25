@@ -51,6 +51,9 @@ type Document struct {
 	// setup to errors; vision_processor doesn't read it.
 	CompetitionField bool     `yaml:"competition_field,omitempty" json:"competitionField,omitempty"`
 	Cameras          []Camera `yaml:"cameras" json:"cameras"`
+	// Tracker is the autoref tracker group. The GUI host listens on it for
+	// the Live Field page; no vision_processor reads it.
+	Tracker *Tracker `yaml:"tracker,omitempty" json:"tracker,omitempty"`
 	// Host is settings for this GUI host alone; no vision_processor reads it.
 	Host *Host `yaml:"host,omitempty" json:"host,omitempty"`
 }
@@ -291,10 +294,16 @@ func (d Document) Validate() error {
 		add(err)
 	}
 
-	if n, err := d.Network(); err != nil {
+	n, err := d.Network()
+	if err == nil {
+		err = n.Validate()
+	}
+
+	if err != nil {
 		addIn("defaults", err)
-	} else if err := n.Validate(); err != nil {
-		addIn("defaults", err)
+		add(d.validateTracker(nil))
+	} else {
+		add(d.validateTracker(&n))
 	}
 
 	if d.Teams != nil {

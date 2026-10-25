@@ -43,8 +43,9 @@ so a hand edit prompts the browser to load it or overwrite it.
 `-geometryPreset` (default `config/legacy/geometry-divB.yml`). An imported `config.yml` becomes a camera with that file as its `config_path`, so the host
 regenerates it from `vision.yml` from then on. Keep a copy if you want its comments.
 
-The vision and game controller multicast addresses are in the same file, under `defaults.network`. They are
-set on the Network page, which the two address badges in the header open. Changing one reopens the host's
+The vision and game controller multicast addresses are in the same file, under `defaults.network`; the autoref
+tracker address, which only the host listens to, is under `tracker`. All three are set on the Network page,
+which the address badges in the header open. Changing one reopens the host's
 sockets at once. The same page chooses which network interfaces the host uses, automatically or by unticking
 the ones to skip; that choice is stored under `host.interfaces` and applies to this host only. There are no
 command line flags for any of these.
@@ -74,8 +75,9 @@ internal/
   config/      vision.yml: working document, save and load, locked calibrations, disk watcher,
                generated config.yml files
   geometry/    live field template, published calibrations, the 1Hz publish loop
-  multicast/   vision and game controller sockets, interface selection
+  multicast/   vision, game controller and tracker sockets, interface selection
   hub/         topic pub/sub and the /ws handler
+  livefield/   latest detections and autoref tracker frames, for the Live Field page
   snapshot/    debug image listing and serving
   video/       live video, relayed to the browser
   v4l/         this host's capture devices

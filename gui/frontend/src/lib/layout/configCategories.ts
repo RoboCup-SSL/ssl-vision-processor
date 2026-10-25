@@ -40,8 +40,16 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
     inNav: false,
   },
   {
-    id: "overview",
-    label: "Overview",
+    id: "live_field",
+    label: "Live Field",
+    // Live detections and autoref tracker output drawn on the field.
+    scope: "shared",
+    yamlKey: null,
+    fields: [],
+  },
+  {
+    id: "team_assignment",
+    label: "Team Assignment",
     scope: "shared",
     yamlKey: null, // vision.yml's teams
     fields: [],
@@ -56,7 +64,7 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
     fields: CONFIG_FIELDS.network,
   },
   {
-    id: "field",
+    id: "field_dimensions",
     label: "Field Dimensions",
     scope: "shared",
     yamlKey: null, // geometry.yml's field: block, not config.yml
@@ -122,9 +130,10 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
 // full list of all nine. Start small and add to this as more categories earn
 // a spot -- it's deliberately a subset, not a duplicate of CONFIG_CATEGORIES.
 export const TAB_CATEGORY_IDS = [
-  "overview",
+  "live_field",
+  "team_assignment",
   "network",
-  "field",
+  "field_dimensions",
   "layout",
   "advanced",
   "camera",

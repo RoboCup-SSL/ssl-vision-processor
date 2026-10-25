@@ -24,6 +24,7 @@ func TestResponsesMatchTheSpec(t *testing.T) {
 		"/api/config/files":                  "/api/config/files",
 		"/api/config/cameras/{id}/effective": "/api/config/cameras/0/effective",
 		"/api/geometry/presets":              "/api/geometry/presets",
+		"/api/live_field":                    "/api/live_field",
 		"/api/camera/devices":                "/api/camera/devices",
 		"/api/snapshots":                     "/api/snapshots",
 	} {

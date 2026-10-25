@@ -12,7 +12,7 @@ import { navHref, selectedInstance } from "../layout/nav.svelte";
 import { regionLabel } from "../cameraLayout";
 import type { DocId } from "../text/docs";
 import { alerts as text } from "../text/alerts";
-import { overview as overviewText } from "../text/overview";
+import { teamAssignment as teamAssignmentText } from "../text/teamAssignment";
 import { hostAlerts, type HostAlert, type Severity } from "./hostAlerts.svelte";
 
 export type { Severity };
@@ -163,20 +163,20 @@ function present(a: HostAlert): Alert {
     case "team_default_height": {
       const color =
         p["color"] === "yellow"
-          ? overviewText.teams.yellow
-          : overviewText.teams.blue;
+          ? teamAssignmentText.teams.yellow
+          : teamAssignmentText.teams.blue;
       const team = str("team");
-      const issue = p["issue"] as keyof typeof overviewText.teams.issue;
+      const issue = p["issue"] as keyof typeof teamAssignmentText.teams.issue;
 
       return {
         ...base,
         title: team
           ? text.teamDefaultHeight(color, team)
           : text.colorDefaultHeight(color),
-        detail: overviewText.teams.issue[issue],
+        detail: teamAssignmentText.teams.issue[issue],
         actions: [
           howTo("team-height-missing"),
-          page(text.pages.overview, undefined, "overview"),
+          page(text.pages.teamAssignment, undefined, "team_assignment"),
         ],
       };
     }
@@ -210,7 +210,10 @@ function present(a: HostAlert): Alert {
 }
 
 function socketLabel(kind: string): string {
-  return kind === "vision" ? text.socketLabels.vision : text.socketLabels.gc;
+  if (kind === "vision") return text.socketLabels.vision;
+  if (kind === "tracker") return text.socketLabels.tracker;
+
+  return text.socketLabels.gc;
 }
 
 export function alerts(): Alert[] {

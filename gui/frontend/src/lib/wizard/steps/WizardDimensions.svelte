@@ -7,7 +7,7 @@
   import { wizard } from "../wizard.svelte";
   import WizardDimensionsPreview from "./WizardDimensionsPreview.svelte";
 
-  // A short, curated list, not FieldEditor's full one: goal depth/height, line
+  // A short, curated list, not FieldDimensionsEditor's full one: goal depth/height, line
   // thickness, ball radius, and max robot radius are close enough to standard
   // for most setups to skip asking here. They're still editable in the main
   // Field Dimensions page for anyone who needs to adjust them.
@@ -34,7 +34,7 @@
 
   // People measure a half field with a tape measure, not a full one -- there
   // is no full-field number to enter directly, so ask for the half and double
-  // it, the same way FieldEditor's half/full toggle does.
+  // it, the same way FieldDimensionsEditor's half/full toggle does.
   let halfLength = $derived(Math.round(wizard.draft.field.fieldLength / 2));
 
   function setHalfLength(value: number): void {

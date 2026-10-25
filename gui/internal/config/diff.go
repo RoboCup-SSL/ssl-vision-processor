@@ -9,15 +9,15 @@ import (
 
 // Section names which GUI tab a change belongs to.
 const (
-	SectionField    = "field"
-	SectionGeometry = "geometry"
-	SectionColor    = "color"
-	SectionNetwork  = "network"
-	SectionCamera   = "camera"
-	SectionLayout   = "layout"
-	SectionAdvanced = "advanced"
-	SectionOverview = "overview"
-	SectionOther    = "other"
+	SectionFieldDimensions = "field_dimensions"
+	SectionGeometry        = "geometry"
+	SectionColor           = "color"
+	SectionNetwork         = "network"
+	SectionCamera          = "camera"
+	SectionLayout          = "layout"
+	SectionAdvanced        = "advanced"
+	SectionTeamAssignment  = "team_assignment"
+	SectionOther           = "other"
 )
 
 // Change is one leaf-level difference between two documents. Before or
@@ -31,7 +31,7 @@ type Change struct {
 	JSONPath string `json:"jsonPath"`
 	Before   any    `json:"before"`
 	After    any    `json:"after"`
-	Section  string `json:"section" enum:"field,geometry,color,network,camera,layout,advanced,overview,other"`
+	Section  string `json:"section" enum:"field_dimensions,geometry,color,network,camera,layout,advanced,team_assignment,other"`
 	CameraID *int   `json:"cameraId,omitempty"`
 }
 
@@ -190,13 +190,13 @@ func classify(path []string) (string, *int) {
 
 	switch first := path[0]; {
 	case first == "field" || first == "optional_field_lines" || first == "models":
-		return SectionField, nil
-	case first == "host":
+		return SectionFieldDimensions, nil
+	case first == "host" || first == "tracker":
 		return SectionNetwork, nil
 	case first == "layout":
 		return SectionLayout, nil
 	case first == "teams" || first == "competition_field":
-		return SectionOverview, nil
+		return SectionTeamAssignment, nil
 	case first == "defaults":
 		switch segment(1) {
 		case "color":

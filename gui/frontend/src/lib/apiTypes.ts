@@ -61,3 +61,7 @@ export type SnapshotEntry = Schemas["SnapshotEntry"];
 
 export type ApiError = Schemas["HttpjsonErrorBody"];
 export type ErrorCode = ApiError["error"];
+
+export type LiveFieldSnapshot = Schemas["LivefieldSnapshot"];
+export type LiveFieldCamera = Schemas["LivefieldCamera"];
+export type LiveFieldTracker = Schemas["LivefieldTracker"];

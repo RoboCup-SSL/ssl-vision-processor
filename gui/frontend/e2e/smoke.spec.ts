@@ -12,9 +12,10 @@ import {
 
 // Every page, as #<camera>/<page>. advanced is shown only to expert users.
 const PAGES = [
-  "0/overview",
+  "0/live_field",
+  "0/team_assignment",
   "0/network",
-  "0/field",
+  "0/field_dimensions",
   "0/layout",
   "0/advanced",
   "0/alerts",
@@ -53,7 +54,7 @@ test.beforeEach(async ({ page, request }) => {
 test("loads with the host's alerts", async ({ page }) => {
   const errors = pageErrors(page);
 
-  await page.goto("/#0/field");
+  await page.goto("/#0/field_dimensions");
 
   await expect(page.getByText("User Interface - OPEN")).toBeVisible();
   // The fixture's locked calibration predates its field: a field_changed
@@ -67,7 +68,7 @@ test("loads with the host's alerts", async ({ page }) => {
 test("every page renders", async ({ page }) => {
   const errors = pageErrors(page);
 
-  await page.goto("/#0/overview");
+  await page.goto("/#0/team_assignment");
 
   for (const hash of PAGES) {
     // Same-document navigation: only the hash changes, as when clicking
@@ -83,7 +84,7 @@ test("every page renders", async ({ page }) => {
 });
 
 test("an edit applies live and shows as unsaved", async ({ page }) => {
-  await page.goto("/#0/field");
+  await page.goto("/#0/field_dimensions");
 
   const put = page.waitForResponse(
     (r) => r.url().endsWith("/api/config") && r.request().method() === "PUT",
@@ -102,7 +103,7 @@ test("an edit applies live and shows as unsaved", async ({ page }) => {
 });
 
 test("a rejected edit shows the host's reason", async ({ page }) => {
-  await page.goto("/#0/field");
+  await page.goto("/#0/field_dimensions");
 
   await page.getByRole("spinbutton", { name: "Field width" }).fill("0");
 
@@ -141,7 +142,7 @@ test("leaving a page right after an edit", async ({ page }) => {
 
   const errors = pageErrors(page);
 
-  await page.goto("/#0/field");
+  await page.goto("/#0/field_dimensions");
 
   const put = page.waitForResponse(
     (r) => r.url().endsWith("/api/config") && r.request().method() === "PUT",
@@ -149,7 +150,7 @@ test("leaving a page right after an edit", async ({ page }) => {
   await page.getByRole("spinbutton", { name: "Field width" }).fill("6100");
   await put;
 
-  await page.goto("/#0/overview");
+  await page.goto("/#0/team_assignment");
   await expect(page.locator("main").getByRole("heading").first()).toBeVisible();
 
   expect(errors).toEqual([]);
@@ -188,8 +189,8 @@ test("an edit from a stale page is refused, not clobbering the other", async ({
     // Accepted, never connected to the host.
   });
 
-  await fresh.goto("/#0/field");
-  await stale.goto("/#0/field");
+  await fresh.goto("/#0/field_dimensions");
+  await stale.goto("/#0/field_dimensions");
 
   const freshPut = fresh.waitForResponse(
     (r) => r.url().endsWith("/api/config") && r.request().method() === "PUT",
@@ -224,7 +225,7 @@ test("saving writes the file and clears the unsaved marker", async ({
   request,
 }) => {
   await withConfigFile(request, async (path) => {
-    await page.goto("/#0/field");
+    await page.goto("/#0/field_dimensions");
 
     const put = page.waitForResponse(
       (r) => r.url().endsWith("/api/config") && r.request().method() === "PUT",
@@ -244,7 +245,7 @@ test("saving writes the file and clears the unsaved marker", async ({
 
 test("a file changed on disk can be loaded", async ({ page, request }) => {
   await withConfigFile(request, async (path, original) => {
-    await page.goto("/#0/field");
+    await page.goto("/#0/field_dimensions");
     await expect(
       page.getByRole("spinbutton", { name: "Field width" }),
     ).toHaveValue("6000");
@@ -284,7 +285,7 @@ test("debug snapshots reach the page", async ({ page }) => {
 });
 
 test("the settings menu opens the API reference", async ({ page, context }) => {
-  await page.goto("/#0/field");
+  await page.goto("/#0/field_dimensions");
 
   await page.getByRole("button", { name: "Settings" }).click();
   const link = page.getByRole("link", { name: /API Reference/ });

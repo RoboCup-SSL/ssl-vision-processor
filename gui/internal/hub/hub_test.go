@@ -165,3 +165,22 @@ func TestConcurrentSubscribePublishUnsubscribe(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestWatchedFollowsSubscribers(t *testing.T) {
+	h := New("geometry")
+
+	if h.Watched("geometry") {
+		t.Fatal("watched before anyone subscribed")
+	}
+
+	_, unsubscribe := h.Subscribe("geometry")
+	if !h.Watched("geometry") {
+		t.Fatal("not watched with a subscriber")
+	}
+
+	unsubscribe()
+
+	if h.Watched("geometry") {
+		t.Fatal("still watched after the last unsubscribe")
+	}
+}

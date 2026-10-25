@@ -78,6 +78,7 @@ func Codes() []string {
 type Network struct {
 	Vision            multicast.Status
 	GC                multicast.Status
+	Tracker           multicast.Status
 	Sources           []detections.Source
 	Referee           referee.State
 	Loopback          string
@@ -152,7 +153,7 @@ func Collect(doc config.Document, state config.State, net Network) []Alert {
 	for _, socket := range []struct {
 		kind   string
 		status multicast.Status
-	}{{"vision", net.Vision}, {"gc", net.GC}} {
+	}{{"vision", net.Vision}, {"gc", net.GC}, {"tracker", net.Tracker}} {
 		params := map[string]any{"socket": socket.kind, "address": socket.status.Address}
 
 		switch {
@@ -163,6 +164,11 @@ func Collect(doc config.Document, state config.State, net Network) []Alert {
 				Message: fmt.Sprintf("The %s socket on %s isn't open: %s", socket.kind, socket.status.Address, socket.status.Problem),
 			})
 		case !socket.status.Receiving:
+			// Running without an autoref is normal.
+			if socket.kind == "tracker" {
+				continue
+			}
+
 			// Off a competition field a game controller is optional: lab use
 			// often runs without one. On one, a match can't run without it.
 			if socket.kind == "gc" && !doc.CompetitionField {
