@@ -14,7 +14,7 @@ PROTO_SOURCES = $(shell find ../proto/proto -type f 2>/dev/null)
 # What the OpenAPI spec is built from: the host's Go code.
 GO_SOURCES = $(shell find cmd internal -name '*.go' -not -name '*_test.go') go.mod go.sum
 
-.PHONY: all frontend install test go-test frontend-test e2e generate redoc openapi vet build run proto clean
+.PHONY: all frontend install test go-test frontend-test e2e generate redoc comments openapi vet build run proto clean
 
 all: install
 
@@ -61,10 +61,20 @@ $(REDOC_STAMP):
 
 redoc: $(REDOC_STAMP)
 
+# Go doc comments for the OpenAPI spec (go generate ./internal/api). Not
+# committed, like internal/vision; every Go build gets it through openapi.json
+# below.
+COMMENTS = internal/api/comments_gen.go
+
+$(COMMENTS): $(filter-out $(COMMENTS),$(GO_SOURCES))
+	cd internal/api && go run ./gen
+
+comments: $(COMMENTS)
+
 # The API's OpenAPI spec, written by the host itself (-openapi) from its Go
 # code. Not committed; the host also serves it at /api/openapi.json. Compiling
 # the host embeds the docs viewer, hence the stamp.
-openapi.json: .proto $(REDOC_STAMP) $(GO_SOURCES)
+openapi.json: .proto $(REDOC_STAMP) $(COMMENTS) $(GO_SOURCES)
 	go run ./cmd/$(BINARY) -openapi $@
 
 openapi: openapi.json
@@ -105,11 +115,9 @@ e2e: frontend
 	go build -o $(E2E_BIN) ./cmd/$(BINARY)
 	cd frontend && GUI_BIN=$(E2E_BIN) npx playwright test; status=$$?; rm -f $(E2E_BIN); exit $$status
 
-# Regenerates the committed files derived from the code: the doc comments the
-# OpenAPI spec uses, and the alert codes the frontend's tests check. CI runs
-# this and fails on any diff.
+# Regenerates the one committed file derived from the code: the alert codes
+# the frontend's tests check. CI runs this and fails on any diff.
 generate: .proto
-	cd internal/api && go run ./gen
 	go test ./internal/alerts -run CodesFileIsCurrent -update
 
 # CI runs go-test and frontend-test as separate parallel jobs (see
@@ -123,6 +131,6 @@ run: frontend
 
 clean:
 	rm -rf frontend/dist frontend/src/proto frontend/src/lib/generated internal/vision internal/gamecontroller \
-		internal/api/viewer openapi.json .frontend .proto
+		internal/api/viewer $(COMMENTS) openapi.json .frontend .proto
 	mkdir -p frontend/dist
 	touch frontend/dist/.gitkeep

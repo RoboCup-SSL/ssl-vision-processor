@@ -23,7 +23,7 @@ const dir = mkdtempSync(join(tmpdir(), "vision-gui-e2e-"));
 const config = join(dir, "vision.yml");
 
 copyFileSync(
-  join(repo, "gui/cmd/ssl-vision-processor-gui/testdata/vision.yml"),
+  join(repo, "gui/internal/config/testdata/vision.yml"),
   config,
 );
 

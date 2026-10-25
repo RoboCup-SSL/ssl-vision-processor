@@ -199,12 +199,11 @@ OpenAPI 3.1 spec from each handler's request and response types, and its summary
 from their Go doc comments. The host serves the spec at `GET /api/openapi.json` and a reference for it at
 `GET /api/docs` (Redoc, embedded, so it works offline), linked from the GUI's settings menu.
 
-None of the spec's outputs are committed; `make` builds them. `gui/openapi.json` comes from the host itself
-(`-openapi <path>`, which writes the spec and exits), the frontend's API types
-(`frontend/src/lib/generated/api.ts`) from that by openapi-typescript, and the viewer (`internal/api/viewer/`) is
-Redoc's bundle fetched at a pinned version and checked against its SHA-256. The frontend imports its API types from
-`frontend/src/lib/apiTypes.ts`, never a hand copy. `internal/api/comments_gen.go` is committed: `make generate`
-rewrites it, and CI fails when it or the alert codes are stale.
+None of the spec's inputs or outputs are committed; `make` builds them. `internal/api/comments_gen.go` holds the
+Go doc comments (`go generate`, from the source), `gui/openapi.json` comes from the host itself (`-openapi <path>`,
+which writes the spec and exits), the frontend's API types (`frontend/src/lib/generated/api.ts`) from that by
+openapi-typescript, and the viewer (`internal/api/viewer/`) is Redoc's bundle fetched at a pinned version and checked
+against its SHA-256. The frontend imports its API types from `frontend/src/lib/apiTypes.ts`, never a hand copy.
 
 A handler takes one input struct and returns one output. Input fields tagged `path:`, `query:` or `header:` are
 parameters, and a field tagged `body:"<content types>"` is the body; an input with only JSON fields is itself the

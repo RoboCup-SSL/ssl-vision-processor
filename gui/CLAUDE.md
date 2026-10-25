@@ -17,7 +17,7 @@ All run from `gui/`.
 make run       # regenerate proto, build frontend, run the Go host on :8085 (-config vision.yml)
 make test      # frontend check/lint/format + go test -race, all packages
 make e2e       # Playwright smoke tests (frontend/e2e/): real host, installed Google Chrome
-make generate  # rewrite the committed generated files: internal/api/comments_gen.go, alert codes
+make generate  # rewrite the one committed generated file: the alert codes
 make openapi   # write openapi.json (also built as needed; not committed)
 make install   # go install after a frontend build
 make proto     # regenerate internal/{vision,gamecontroller} and frontend/src/proto
@@ -250,7 +250,7 @@ Not automated -- there is no CI hardware to run it on.
 Routes go through `api.Route` (typed input and output) or `api.Raw`, never
 `mux.Handle`, so the spec stays complete. A handler's doc comment is its API
 summary (first sentence) and description: write it for API readers, keep the
-first sentence short, and run `make generate` after changing it. List every
+first sentence short; `make` regenerates the spec when it changes. List every
 error code a route can return in its `api.Doc`; the `cmd` tests fail otherwise.
 
 The frontend's API types are generated from `openapi.json` into
@@ -274,7 +274,7 @@ these skip until `../scripts/lo-multicast.sh on`; under `CI` they fail
 instead, and the workflow turns it on first.
 
 `make e2e` runs `frontend/e2e/` with Playwright against the real host on a
-scratch copy of `cmd/ssl-vision-processor-gui/testdata/vision.yml`, in the
+scratch copy of `internal/config/testdata/vision.yml`, in the
 installed Google Chrome (no browser download). A `test.fail()` there marks a
 known bug: when it starts passing, the bug is fixed and the marker comes out.
 

@@ -26,7 +26,7 @@ import (
 func testServer(t *testing.T) (http.Handler, string) {
 	t.Helper()
 
-	src, err := os.ReadFile("testdata/vision.yml")
+	src, err := os.ReadFile(visionFixture)
 	if err != nil {
 		t.Fatalf("ReadFile fixture: %v", err)
 	}

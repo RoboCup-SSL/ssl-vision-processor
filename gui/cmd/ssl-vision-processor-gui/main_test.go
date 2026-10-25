@@ -12,7 +12,7 @@ import (
 func TestBootstrapConfigImportsLegacyFiles(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "vision.yml")
 
-	if err := bootstrapConfig(path, "testdata/geometry.yml", "testdata/config.yml", "missing-preset.yml"); err != nil {
+	if err := bootstrapConfig(path, geometryFixture, configFixture, "missing-preset.yml"); err != nil {
 		t.Fatalf("bootstrapConfig: %v", err)
 	}
 
@@ -26,7 +26,7 @@ func TestBootstrapConfigImportsLegacyFiles(t *testing.T) {
 		t.Fatalf("bootstrapped file doesn't parse: %v", err)
 	}
 
-	if len(doc.Cameras) != 1 || doc.Cameras[0].ConfigPath != "testdata/config.yml" || doc.Cameras[0].Seed == nil {
+	if len(doc.Cameras) != 1 || doc.Cameras[0].ConfigPath != configFixture || doc.Cameras[0].Seed == nil {
 		t.Fatalf("cameras = %+v, want the legacy config imported as camera with its corners", doc.Cameras)
 	}
 }
@@ -35,7 +35,7 @@ func TestBootstrapConfigFallsBackToThePreset(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "vision.yml")
 
-	if err := bootstrapConfig(path, filepath.Join(dir, "none.yml"), filepath.Join(dir, "none.yml"), "testdata/geometry.yml"); err != nil {
+	if err := bootstrapConfig(path, filepath.Join(dir, "none.yml"), filepath.Join(dir, "none.yml"), geometryFixture); err != nil {
 		t.Fatalf("bootstrapConfig: %v", err)
 	}
 
@@ -51,7 +51,7 @@ func TestBootstrapConfigLeavesExistingFileAlone(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	if err := bootstrapConfig(path, "testdata/geometry.yml", "", "testdata/geometry.yml"); err != nil {
+	if err := bootstrapConfig(path, geometryFixture, "", geometryFixture); err != nil {
 		t.Fatalf("bootstrapConfig: %v", err)
 	}
 

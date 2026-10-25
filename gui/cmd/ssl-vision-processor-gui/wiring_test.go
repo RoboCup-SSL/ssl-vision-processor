@@ -22,7 +22,7 @@ import (
 func testHost(t *testing.T, edit ...func(*config.Document)) (*host, *httptest.Server) {
 	t.Helper()
 
-	src, err := os.ReadFile("testdata/vision.yml")
+	src, err := os.ReadFile(visionFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
