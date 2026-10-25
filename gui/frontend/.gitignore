@@ -8,9 +8,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-# dist is a build artefact, but the directory itself must exist: //go:embed
-# fails at compile time when it is missing, which would break `go test ./...`
-# on a fresh clone.
+# The build output. dist/.gitkeep stays committed: //go:embed fails to
+# compile without a file in dist/, and the host is compiled before the
+# frontend's first build, to write the OpenAPI spec its API types come from.
 dist/*
 !dist/.gitkeep
 dist-ssr

@@ -7,10 +7,11 @@ together. This document covers the frontend's own layout and scripts.
 
 The UI is organized as a two column shell: an instance list and config
 category nav on the left, the selected category's panel on the right. A tab
-bar above the panel gives quick access to the categories used most, Virtual
-Field, Geometry, and Color. All three edit the host's `vision.yml` working
-copy, which applies live; Save in the settings menu writes it to disk, and a
-tab shows an asterisk while it has unsaved changes. Field Dimensions edits the
+bar above the panel gives quick access to the categories used most: the
+shared Overview, Network, Field Dimensions, Camera Layout and Advanced, and the
+selected camera's Camera Settings, Geometry and Color. They edit the host's
+`vision.yml` working copy, which applies live; Save in the settings menu
+writes it to disk, and a tab shows an asterisk while it has unsaved changes. Field Dimensions edits the
 shared field. Geometry holds the selected camera's calibration lock and the
 corner picker, which marks calibration corners on a debug snapshot. Debug
 snapshots (via `GET /api/snapshots`) are only
@@ -19,24 +20,25 @@ the root [README.md](../../README.md).
 
 ## Run
 
-Two options:
+Two options, both from `gui/`:
 
 ```
-# Standalone dev server with HMR (proxies /api and /ws to the Go host on :8085)
-cd gui && make proto   # regenerates src/proto -- not committed to git, see gui/CLAUDE.md
-cd frontend
-npm install
-npm run dev
-```
-
-```
-# Through the Go host itself, on its own port, no proxy involved
-cd gui
+# Through the Go host itself: builds everything, serves on :8085
 make run
 ```
 
-Either way the Go host in `gui/` must be running for the connection
-badge and snapshot grid to show anything.
+```
+# Vite dev server with hot reload on :5173, proxying /api and /ws to :8085.
+# Needs the host running (make run, in another terminal) and one `make
+# frontend` first: the protobuf bindings (src/proto) and the API types
+# (src/lib/generated) are generated, not committed.
+make frontend
+cd frontend && npm run dev
+```
+
+Use `make npm` rather than `npm install` to install packages: it runs
+`npm ci`, which keeps `package-lock.json` as committed. The frontend needs
+Node 22 (`.nvmrc`); the nix dev shell provides it.
 
 ## Layout
 
@@ -51,12 +53,16 @@ badge and snapshot grid to show anything.
   bookmarks work. The tab bar is links styled with Flowbite's tab theme rather
   than its Tabs component, which can't leave every tab unselected on a page
   that isn't a tab.
-- `src/lib/FieldEditor.svelte` is the Field Dimensions editor, backed by
-  `src/lib/geometry.svelte.ts`, a module level `$state` object shared with
-  anything else that needs the field config.
+- `src/lib/FieldEditor.svelte` is the Field Dimensions editor. It edits
+  `config.doc.field` in the working document; `src/lib/geometry.svelte.ts`
+  holds what the host derives from it (the field markings) and the rulebook
+  presets.
 - `src/lib/config/GeometryPanel.svelte` is the Geometry category's panel. It
-  embeds `src/lib/CornerPicker.svelte`, backed by
-  `src/lib/lineCorners.svelte.ts` in the same way.
+  embeds `src/lib/CornerPicker.svelte`, which edits the selected camera's
+  `seed` in the working document (`config.svelte.ts`).
+- `src/lib/apiTypes.ts` names the host's API types, generated from its
+  OpenAPI spec into `src/lib/generated/` by `make`. Import API shapes from
+  there; never copy a Go type by hand.
 - `src/lib/alerts/` is the Alerts page and its sidebar summary.
   `alerts.ts` derives every known problem from state the browser already
   has and sorts it into errors, warnings, and cautions; `docs.ts` holds the

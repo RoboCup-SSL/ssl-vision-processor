@@ -14,18 +14,21 @@ which still import it directly — do not delete `geom_publisher.py`.
 All run from `gui/`.
 
 ```
-make run       # regenerate proto, build frontend, run the Go host on :8085 (-config vision.yml)
-make test      # frontend check/lint/format + go test -race, all packages
-make e2e       # Playwright smoke tests (frontend/e2e/): real host, installed Google Chrome
+make           # list the targets
+make run       # build everything, run the host from the repo root on :8085 (ARGS="..." for flags)
+make test      # go test -race + the frontend's checks and unit tests
+make check     # everything CI checks: gofmt, vet, tests, generated files, browser tests
+make e2e       # Playwright browser tests (frontend/e2e/): real host, installed Google Chrome
 make generate  # rewrite the one committed generated file: the alert codes
-make openapi   # write openapi.json (also built as needed; not committed)
-make install   # go install after a frontend build
-make proto     # regenerate internal/{vision,gamecontroller} and frontend/src/proto
-make clean     # wipe dist/, internal/{vision,gamecontroller}, frontend/src/proto
+make clean     # remove everything built, generated or fetched
 ```
 
-`proto` (and by extension `run`/`test`/`install`, which all depend on it)
-needs `git submodule update --init` to have been run at least once, but no
+Every target builds what it needs first: npm packages (reinstalled when
+`package-lock.json` changes), the protobuf bindings, the Redoc bundle, the
+OpenAPI spec and the TS types generated from it, and the frontend.
+
+`proto` (and so every target) needs `git submodule update --init` to have
+been run at least once, but no
 network beyond that: `buf generate`'s two plugins are both local, not
 buf.build remotes. Not using `nix develop`? You need `buf` itself, plus:
 `go get -tool google.golang.org/protobuf/cmd/protoc-gen-go` (records the
@@ -184,12 +187,10 @@ step. This used to be committed when the plugins were remote (buf.build
 codegen calls, real network dependency); switching to local plugins removed
 the reason to.
 
-`gui/frontend/dist/.gitkeep` exists for a similar but distinct reason on the
-frontend side -- `//go:embed` fails to compile if `dist/` doesn't exist, so a
-fresh clone with no `npm run build` yet must still be able to `go test`. That
-one stays committed: `dist/` is the frontend's actual build _output_, not
-codegen from a source of truth already in the tree, so there's nothing to
-regenerate it from without first running the build it's the output of.
+`gui/frontend/dist/.gitkeep` stays committed: `//go:embed` fails to compile
+without a file in `dist/`, and the host is compiled before the frontend's first
+build, to write the OpenAPI spec the frontend's API types are generated from.
+`make` restores it after each build, since Vite empties `dist/`.
 
 **Discovery is multicast-announce-based** -- still unimplemented; see below.
 

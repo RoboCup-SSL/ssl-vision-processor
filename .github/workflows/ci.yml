@@ -59,15 +59,11 @@ jobs:
         run: |
           nix develop --command bash -c '
             cd gui
-            make .proto
-            test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+            make fmt-check
             make vet
             make build
             make go-test
-            # Committed generated files (doc comments, openapi.json, alert
-            # codes) must match the code.
-            make generate
-            git diff --exit-code
+            make generate-check
           '
 
   frontend:

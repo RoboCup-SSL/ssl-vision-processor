@@ -22,10 +22,7 @@ const repo = resolve(here, "../../..");
 const dir = mkdtempSync(join(tmpdir(), "vision-gui-e2e-"));
 const config = join(dir, "vision.yml");
 
-copyFileSync(
-  join(repo, "gui/internal/config/testdata/vision.yml"),
-  config,
-);
+copyFileSync(join(repo, "gui/internal/config/testdata/vision.yml"), config);
 
 // Debug snapshots for camera 0, as vision_processor writes them: the corner
 // picker's calibration input and a raw frame.

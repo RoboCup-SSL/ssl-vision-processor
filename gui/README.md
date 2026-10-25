@@ -12,24 +12,36 @@ This document covers development on `gui` itself. For running vision_processor a
 ## Requirements
 
 The root `flake.nix` provides everything needed: `go`, `buf`, `nodejs_22`, and the C++ toolchain for the rest of
-the repo. Run `nix develop` from the repo root before any command below.
+the repo. Run `nix develop` from the repo root before any command below, and `git submodule update --init` once
+for the protobuf definitions in `proto/`.
 
 Without nix, you need `buf` on your `PATH`, a Go toolchain matching the `go` directive in `gui/go.mod`, and
-Node 22. `protoc-gen-go` and `protoc-gen-es` do not need to be installed separately: `go tool protoc-gen-go` is
-resolved from `gui/go.mod`'s `tool` directive, and `protoc-gen-es` is a `frontend/package.json` devDependency
-installed by `npm ci`.
+Node 22 (`frontend/.nvmrc`). `protoc-gen-go` and `protoc-gen-es` do not need to be installed separately:
+`go tool protoc-gen-go` is resolved from `gui/go.mod`'s `tool` directive, and `protoc-gen-es` is a
+`frontend/package.json` devDependency.
+
+The browser tests (`make e2e`, part of `make check`) drive the installed Google Chrome, which nix doesn't
+provide; `make check` skips them when it isn't found. The socket and video tests need multicast on loopback
+(`../scripts/lo-multicast.sh on`, root, until reboot) and skip without it.
 
 ## Commands
 
-Run these from `gui/`.
+Run these from `gui/`; `make` alone lists them. Each builds whatever it needs first: npm packages (reinstalled
+when `frontend/package-lock.json` changes), the protobuf bindings, the API docs viewer, the OpenAPI spec and the
+TypeScript types generated from it, and the frontend. None of those are committed.
 
-| Command        | Effect                                                                             |
-| -------------- | ---------------------------------------------------------------------------------- |
-| `make run`     | Regenerate protobuf bindings, build the frontend, and run the Go host on `:8085`.  |
-| `make test`    | Frontend check, lint, and format, plus `go test -race` for every package.          |
-| `make e2e`     | Playwright smoke tests: the real host in the installed Google Chrome.              |
-| `make install` | `go install` after a frontend build.                                               |
-| `make proto`   | Regenerate `internal/vision`, `internal/gamecontroller`, and `frontend/src/proto`. |
+| Command         | Effect                                                                                          |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| `make run`      | Build everything and run the host from the repo root on `:8085`. Flags go in `ARGS="..."`.      |
+| `make test`     | `go test -race` for every package, and the frontend's type checks, lint, unit tests and format. |
+| `make check`    | Everything CI checks: gofmt, vet, the tests, the committed generated file, the browser tests.   |
+| `make e2e`      | Playwright browser tests: the real host in the installed Google Chrome.                         |
+| `make vet`      | `go vet` for every package.                                                                     |
+| `make build`    | `go build` for every package, without installing.                                               |
+| `make install`  | `go install` the host.                                                                          |
+| `make openapi`  | Write the API's OpenAPI spec to `openapi.json`.                                                 |
+| `make generate` | Regenerate the one committed generated file, `frontend/src/lib/alerts/alert-codes.json`.        |
+| `make clean`    | Remove everything built, generated or fetched.                                                  |
 
 ## Configuration
 
@@ -48,19 +60,14 @@ set on the Network page, which the two address badges in the header open. Changi
 sockets at once. The same page chooses which network interfaces the host uses, automatically or by unticking
 the ones to skip; that choice is stored under `host.interfaces` and applies to this host only. There are no
 command line flags for any of these.
-| `make vet` | `go vet` for every package. |
-| `make build` | `go build` for every package, without installing. |
-| `make clean` | Remove the frontend build, generated protobuf code, and build sentinels. |
-
-`make proto` needs `git submodule update --init` to have been run once, but no network beyond that: both of
-`buf.gen.yaml`'s plugins are local, not buf.build remotes. `make run`, `make test`, and `make install` all depend
-on it, so a fresh checkout builds correctly without a separate manual step.
+`make proto` needs no network beyond the checked out `proto/` submodule: both of `buf.gen.yaml`'s plugins are
+local, not buf.build remotes. The npm packages and the docs viewer come from npm.
 
 For frontend only work with hot reload:
 
 ```
-cd frontend
-npm run dev
+make frontend           # once, for the generated code
+cd frontend && npm run dev
 ```
 
 This proxies `/api` and `/ws` to the Go host, so `gui`'s own server still needs to be running (`make run` in a
