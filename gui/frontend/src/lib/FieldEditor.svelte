@@ -120,8 +120,8 @@
 
       <div class="sketch">
         <FieldSketch
-          fieldLength={doc.field.fieldLength ?? 0}
-          fieldWidth={doc.field.fieldWidth ?? 0}
+          fieldLength={doc.field.fieldLength}
+          fieldWidth={doc.field.fieldWidth}
           lines={virtualField.fieldLines}
           arcs={virtualField.fieldArcs}
           slice={fieldSlice}
@@ -134,7 +134,7 @@
                as half of it (see fieldLayout above). -->
           {#if fieldLayout === "half"}
             <FormRow
-              label={`Half field length (full: ${String(doc.field.fieldLength ?? 0)} mm)`}
+              label={`Half field length (full: ${String(doc.field.fieldLength)} mm)`}
               for="field-length"
               labelWidth={LABEL_WIDTH}
             >

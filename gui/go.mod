@@ -20,10 +20,14 @@ require (
 	github.com/abema/go-mp4 v1.7.3 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
+	github.com/swaggest/refl v1.4.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 require (
 	github.com/libp2p/go-reuseport v0.4.0
+	github.com/swaggest/jsonschema-go v0.3.79
+	github.com/swaggest/openapi-go v0.2.61
 	golang.org/x/net v0.55.0
 	golang.org/x/sys v0.45.0
 )

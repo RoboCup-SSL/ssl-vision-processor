@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
@@ -39,8 +40,8 @@ type Document struct {
 	Models map[string]any `yaml:"models,omitempty" json:"models,omitempty"`
 	// Defaults uses vision_processor's own config.yml layout (camera:,
 	// geometry:, color:, thresholds:, ...) and applies to every camera.
-	Defaults map[string]any `yaml:"defaults,omitempty" json:"defaults,omitempty"`
-	Layout   *Layout        `yaml:"layout,omitempty" json:"layout,omitempty"`
+	Defaults Settings `yaml:"defaults,omitempty" json:"defaults,omitempty"`
+	Layout   *Layout  `yaml:"layout,omitempty" json:"layout,omitempty"`
 	// Teams overrides robot heights by team. Shown in the GUI only for now:
 	// vision_processor still looks heights up in bot_heights_file by game
 	// controller team name.
@@ -53,6 +54,10 @@ type Document struct {
 	// Host is settings for this GUI host alone; no vision_processor reads it.
 	Host *Host `yaml:"host,omitempty" json:"host,omitempty"`
 }
+
+// Settings is vision_processor's config.yml layout: blocks (camera,
+// thresholds, color, ...) of keys, as GET /api/schema describes them.
+type Settings map[string]any
 
 // Layout is how the field is split between cameras.
 type Layout struct {
@@ -160,9 +165,9 @@ type Camera struct {
 	// for a vision_processor on the same machine. Empty for remote instances.
 	ConfigPath string `yaml:"config_path,omitempty" json:"configPath,omitempty"`
 	// Config overrides Defaults, same config.yml layout, deep-merged.
-	Config      map[string]any `yaml:"config,omitempty" json:"config,omitempty"`
-	Seed        *Seed          `yaml:"seed,omitempty" json:"seed,omitempty"`
-	Calibration *Calibration   `yaml:"calibration,omitempty" json:"calibration,omitempty"`
+	Config      Settings     `yaml:"config,omitempty" json:"config,omitempty"`
+	Seed        *Seed        `yaml:"seed,omitempty" json:"seed,omitempty"`
+	Calibration *Calibration `yaml:"calibration,omitempty" json:"calibration,omitempty"`
 	// Display is how the GUI shows this camera's video. Never rendered.
 	Display *Display `yaml:"display,omitempty" json:"display,omitempty"`
 }
@@ -170,7 +175,7 @@ type Camera struct {
 // Display orients a camera's video in the GUI to match the field, since a
 // camera can be mounted at any angle.
 type Display struct {
-	Rotate int  `yaml:"rotate,omitempty" json:"rotate,omitempty"` // degrees clockwise: 0, 90, 180, 270
+	Rotate int  `yaml:"rotate,omitempty" json:"rotate,omitempty" enum:"0,90,180,270"` // degrees clockwise: 0, 90, 180, 270
 	Mirror bool `yaml:"mirror,omitempty" json:"mirror,omitempty"`
 }
 
@@ -272,13 +277,14 @@ func (d Document) Validate() error {
 	var errs error
 
 	add := func(err error) { errs = errors.Join(errs, err) }
+	addIn := func(prefix string, err error) { add(prefixed(prefix, err)) }
 
 	if d.Version != Version {
 		add(fmt.Errorf("version: want %d, got %d", Version, d.Version))
 	}
 
 	if err := d.Field.Validate(); err != nil {
-		add(fmt.Errorf("field: %w", err))
+		addIn("field", err)
 	}
 
 	if _, err := d.ModelsProto(); err != nil {
@@ -286,9 +292,9 @@ func (d Document) Validate() error {
 	}
 
 	if n, err := d.Network(); err != nil {
-		add(fmt.Errorf("defaults: %w", err))
+		addIn("defaults", err)
 	} else if err := n.Validate(); err != nil {
-		add(fmt.Errorf("defaults: %w", err))
+		addIn("defaults", err)
 	}
 
 	if d.Teams != nil {
@@ -356,7 +362,7 @@ func (d Document) Validate() error {
 			p, err := c.Calibration.Proto()
 			switch {
 			case err != nil:
-				add(fmt.Errorf("%s.calibration: %w", prefix, err))
+				addIn(prefix+".calibration", err)
 			case int(p.GetCameraId()) != c.CameraID:
 				add(fmt.Errorf("%s.calibration.camera.camera_id: want %d, got %d", prefix, c.CameraID, p.GetCameraId()))
 			}
@@ -366,25 +372,25 @@ func (d Document) Validate() error {
 		// add a new problem here.
 		if c.Config["network"] != nil {
 			if n, err := networkFromBlock(d.Effective(c)["network"]); err != nil {
-				add(fmt.Errorf("%s: %w", prefix, err))
+				addIn(prefix, err)
 			} else if err := n.Validate(); err != nil {
-				add(fmt.Errorf("%s: %w", prefix, err))
+				addIn(prefix, err)
 			}
 		}
 
 		if err := validateCamera(d.Effective(c)["camera"]); err != nil {
-			add(fmt.Errorf("%s: %w", prefix, err))
+			addIn(prefix, err)
 		}
 
-		if err := validateAdvanced(d.Effective(c)); err != nil {
-			add(fmt.Errorf("%s: %w", prefix, err))
+		if err := validateSettings(d.Effective(c)); err != nil {
+			addIn(prefix, err)
 		}
 
 		color, err := colorFromBlock(d.Effective(c)["color"])
 		if err != nil {
-			add(fmt.Errorf("%s: %w", prefix, err))
+			addIn(prefix, err)
 		} else if err := color.Validate(); err != nil {
-			add(fmt.Errorf("%s: %w", prefix, err))
+			addIn(prefix, err)
 		}
 	}
 
@@ -393,6 +399,30 @@ func (d Document) Validate() error {
 	}
 
 	return nil
+}
+
+// prefixed puts prefix on every line of err, not just the first as
+// fmt.Errorf("%s: %w") would on a joined error, so each line names its own
+// key. Nil stays nil.
+func prefixed(prefix string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	lines := strings.Split(err.Error(), "\n")
+	errs := make([]error, len(lines))
+
+	for i, line := range lines {
+		errs[i] = errors.New(prefix + ": " + line)
+	}
+
+	return errors.Join(errs...)
+}
+
+// Issues is err split into its separate problems, one per line, as Validate
+// reports them.
+func Issues(err error) []string {
+	return strings.Split(err.Error(), "\n")
 }
 
 func (s Seed) validate(prefix string) error {
@@ -544,9 +574,18 @@ func (d *Document) normalize() {
 	d.Models = normalizeMap(d.Models)
 	d.Defaults = normalizeMap(d.Defaults)
 
+	// Never null on the wire, whether the file had cameras: or not.
+	if d.Cameras == nil {
+		d.Cameras = []Camera{}
+	}
+
 	for i := range d.Cameras {
 		c := &d.Cameras[i]
 		c.Config = normalizeMap(c.Config)
+
+		if c.Seed != nil && c.Seed.LineCorners == nil {
+			c.Seed.LineCorners = [][2]int{}
+		}
 
 		if c.Calibration != nil {
 			c.Calibration.Camera = normalizeMap(c.Calibration.Camera)
@@ -565,9 +604,12 @@ func normalizeMap(m map[string]any) map[string]any {
 }
 
 // normalize turns integral floats into ints and every number type into int
-// or float64, recursively.
+// or float64, recursively. Nested blocks become plain maps: yaml.v3 decodes
+// a mapping inside a Settings as another Settings.
 func normalize(v any) any {
 	switch t := v.(type) {
+	case Settings:
+		return normalize(map[string]any(t))
 	case map[string]any:
 		out := make(map[string]any, len(t))
 		for k, val := range t {
@@ -624,6 +666,8 @@ func deepMerge(base, over map[string]any) map[string]any {
 
 func deepCopy(v any) any {
 	switch t := v.(type) {
+	case Settings:
+		return deepMerge(t, nil)
 	case map[string]any:
 		return deepMerge(t, nil)
 	case []any:

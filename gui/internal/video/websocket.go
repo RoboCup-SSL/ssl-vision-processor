@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/httpjson"
 	"github.com/gorilla/websocket"
 )
 
@@ -16,16 +17,17 @@ const (
 	writeWait  = 10 * time.Second
 )
 
-var upgrader = websocket.Upgrader{}
-
 // HandleWebSocket serves GET /ws/video/{id}?mode=full|keyframes: one camera's
 // stream as JSON format and status messages and binary fMP4 segments, ready
-// for a MediaSource SourceBuffer in sequence mode.
-func HandleWebSocket(m *Manager) http.HandlerFunc {
+// for a MediaSource SourceBuffer in sequence mode. checkOrigin decides which
+// pages may connect; nil allows only the host's own.
+func HandleWebSocket(m *Manager, checkOrigin func(*http.Request) bool) http.HandlerFunc {
+	upgrader := websocket.Upgrader{CheckOrigin: checkOrigin}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(r.PathValue("id"))
 		if err != nil {
-			http.Error(w, "camera id must be a number", http.StatusBadRequest)
+			httpjson.Error(w, http.StatusBadRequest, httpjson.CodeBadRequest, "id: want a camera_id")
 
 			return
 		}
@@ -36,7 +38,7 @@ func HandleWebSocket(m *Manager) http.HandlerFunc {
 		}
 
 		if mode != ModeFull && mode != ModeKeyframes {
-			http.Error(w, `mode must be "full" or "keyframes"`, http.StatusBadRequest)
+			httpjson.Error(w, http.StatusBadRequest, httpjson.CodeBadRequest, `mode: want "full" or "keyframes"`)
 
 			return
 		}
@@ -44,7 +46,7 @@ func HandleWebSocket(m *Manager) http.HandlerFunc {
 		// Subscribed before upgrading, so an unknown camera is a plain 404.
 		ch, unsubscribe, err := m.Subscribe(id, mode)
 		if errors.Is(err, ErrUnknownCamera) {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httpjson.Error(w, http.StatusNotFound, httpjson.CodeNotFound, err.Error())
 
 			return
 		}

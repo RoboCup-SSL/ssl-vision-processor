@@ -24,10 +24,14 @@ const (
 // After is nil when the value was added or removed. Lists (e.g.
 // line_corners) are compared as a whole, not element by element.
 type Change struct {
+	// Path is in vision.yml's spelling (field.field_width), JSONPath in the
+	// JSON document's (field.fieldWidth). In both, cameras[N] is the camera
+	// with camera_id N, not a list index.
 	Path     string `json:"path"`
+	JSONPath string `json:"jsonPath"`
 	Before   any    `json:"before"`
 	After    any    `json:"after"`
-	Section  string `json:"section"`
+	Section  string `json:"section" enum:"field,geometry,color,network,camera,layout,advanced,overview,other"`
 	CameraID *int   `json:"cameraId,omitempty"`
 }
 
@@ -161,6 +165,7 @@ func newChange(path []string, before, after any) Change {
 
 	return Change{
 		Path:     strings.Join(path, "."),
+		JSONPath: strings.Join(jsonPath(path), "."),
 		Before:   before,
 		After:    after,
 		Section:  section,
@@ -235,4 +240,58 @@ func classify(path []string) (string, *int) {
 	default:
 		return SectionOther, nil
 	}
+}
+
+// jsonPath respells a vision.yml path in the JSON document's keys, following
+// the struct tags down Document. Free-form maps (defaults, a camera's config)
+// use the same keys in both, so segments below one pass through unchanged.
+func jsonPath(path []string) []string {
+	out := make([]string, len(path))
+	t := reflect.TypeFor[Document]()
+
+	for i, segment := range path {
+		out[i] = segment
+
+		for t != nil && t.Kind() == reflect.Pointer {
+			t = t.Elem()
+		}
+
+		switch {
+		case t == nil:
+		case t == reflect.TypeFor[Document]() && strings.HasPrefix(segment, "cameras["):
+			t = reflect.TypeFor[Camera]()
+		case t.Kind() == reflect.Struct:
+			field, ok := fieldByYAMLName(t, segment)
+			if !ok {
+				t = nil
+
+				continue
+			}
+
+			out[i] = tagName(field.Tag.Get("json"))
+			t = field.Type
+		case t.Kind() == reflect.Map:
+			t = t.Elem()
+		default:
+			t = nil
+		}
+	}
+
+	return out
+}
+
+func fieldByYAMLName(t reflect.Type, name string) (reflect.StructField, bool) {
+	for i := range t.NumField() {
+		if f := t.Field(i); tagName(f.Tag.Get("yaml")) == name {
+			return f, true
+		}
+	}
+
+	return reflect.StructField{}, false
+}
+
+func tagName(tag string) string {
+	name, _, _ := strings.Cut(tag, ",")
+
+	return name
 }

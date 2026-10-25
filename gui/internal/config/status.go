@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/vision"
 )
@@ -17,7 +18,7 @@ const (
 // the live network state -- never stored.
 type CameraStatus struct {
 	CameraID    int    `json:"cameraId"`
-	Calibration string `json:"calibration"`
+	Calibration string `json:"calibration" enum:"none,live,locked"`
 	// Live is the latest calibration received from the network (proto field
 	// names), whether or not one is locked -- what "Lock" would store.
 	Live map[string]any `json:"live,omitempty"`
@@ -25,6 +26,23 @@ type CameraStatus struct {
 	// [0, 0] if unknown.
 	LiveResolution [2]int    `json:"liveResolution"`
 	Warnings       []Warning `json:"warnings"`
+}
+
+// Camera warning codes, stable for clients to key UI off.
+const (
+	WarningFieldChanged              = "field_changed"
+	WarningCalibrationAspectMismatch = "calibration_aspect_mismatch"
+	WarningUnknownSetting            = "unknown_setting"
+	WarningSeedStale                 = "seed_stale"
+	WarningSeedResolutionUnknown     = "seed_resolution_unknown"
+	WarningSeedRescalable            = "seed_rescalable"
+	WarningSeedAspectMismatch        = "seed_aspect_mismatch"
+)
+
+// WarningCodes is every code cameraStatus can raise.
+var WarningCodes = []string{
+	WarningFieldChanged, WarningCalibrationAspectMismatch, WarningUnknownSetting, WarningSeedStale,
+	WarningSeedResolutionUnknown, WarningSeedRescalable, WarningSeedAspectMismatch,
 }
 
 // Warning is one problem worth surfacing on a camera, with a stable code the
@@ -54,14 +72,30 @@ func cameraStatus(doc Document, c Camera, live *vision.SSL_GeometryCameraCalibra
 		status.Calibration = CalibrationLocked
 
 		if c.Calibration.FieldHash != fieldHash(doc.Field) {
-			warn("field_changed", "The field dimensions changed after this calibration was locked; it was solved against the old field lines.")
+			warn(WarningFieldChanged, "The field dimensions changed after this calibration was locked; it was solved against the old field lines.")
 		}
 
 		if locked, err := c.Calibration.Proto(); err == nil && liveKnown {
 			lockedRes := [2]int{int(locked.GetPixelImageWidth()), int(locked.GetPixelImageHeight())}
 			if lockedRes[0] > 0 && lockedRes[1] > 0 && !sameAspect(lockedRes, liveRes) {
-				warn("calibration_aspect_mismatch", "Locked calibration was solved at %dx%d but the camera now reports %dx%d, a different aspect ratio. vision_processor can't rescale across aspect ratios; unlock and recalibrate.", lockedRes[0], lockedRes[1], liveRes[0], liveRes[1])
+				warn(WarningCalibrationAspectMismatch, "Locked calibration was solved at %dx%d but the camera now reports %dx%d, a different aspect ratio. vision_processor can't rescale across aspect ratios; unlock and recalibrate.", lockedRes[0], lockedRes[1], liveRes[0], liveRes[1])
 			}
+		}
+	}
+
+	if eff, err := doc.EffectiveConfig(c.CameraID); err == nil {
+		var unknown []string
+
+		for path, setting := range eff.Settings {
+			if !setting.Known {
+				unknown = append(unknown, path)
+			}
+		}
+
+		slices.Sort(unknown)
+
+		for _, path := range unknown {
+			warn(WarningUnknownSetting, "%s isn't a setting vision_processor reads, so it has no effect. Check the spelling.", path)
 		}
 	}
 
@@ -69,16 +103,16 @@ func cameraStatus(doc Document, c Camera, live *vision.SSL_GeometryCameraCalibra
 		seedRes := c.Seed.Resolution
 
 		if slot := (Slot{CameraID: c.CameraID, CameraCount: doc.CameraCount()}); c.Seed.Slot != nil && *c.Seed.Slot != slot {
-			warn("seed_stale", "Line corners were picked as camera %d of %d, but this camera is now %d of %d and covers a different region. Re-pick them.", c.Seed.Slot.CameraID, c.Seed.Slot.CameraCount, slot.CameraID, slot.CameraCount)
+			warn(WarningSeedStale, "Line corners were picked as camera %d of %d, but this camera is now %d of %d and covers a different region. Re-pick them.", c.Seed.Slot.CameraID, c.Seed.Slot.CameraCount, slot.CameraID, slot.CameraCount)
 		}
 
 		switch {
 		case seedRes[0] == 0 || seedRes[1] == 0:
-			warn("seed_resolution_unknown", "Line corners were saved without the image resolution they were picked at, so a resolution change can't be detected. Re-save them from the corner picker.")
+			warn(WarningSeedResolutionUnknown, "Line corners were saved without the image resolution they were picked at, so a resolution change can't be detected. Re-save them from the corner picker.")
 		case liveKnown && seedRes != liveRes && sameAspect(seedRes, liveRes):
-			warn("seed_rescalable", "Line corners were picked at %dx%d but the camera now reports %dx%d. Same aspect ratio, so they can be rescaled.", seedRes[0], seedRes[1], liveRes[0], liveRes[1])
+			warn(WarningSeedRescalable, "Line corners were picked at %dx%d but the camera now reports %dx%d. Same aspect ratio, so they can be rescaled.", seedRes[0], seedRes[1], liveRes[0], liveRes[1])
 		case liveKnown && seedRes != liveRes:
-			warn("seed_aspect_mismatch", "Line corners were picked at %dx%d but the camera now reports %dx%d, a different aspect ratio. Re-pick them.", seedRes[0], seedRes[1], liveRes[0], liveRes[1])
+			warn(WarningSeedAspectMismatch, "Line corners were picked at %dx%d but the camera now reports %dx%d, a different aspect ratio. Re-pick them.", seedRes[0], seedRes[1], liveRes[0], liveRes[1])
 		}
 	}
 

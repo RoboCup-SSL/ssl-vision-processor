@@ -70,4 +70,5 @@ const CAMERA_WARNING_TITLES: Record<string, string> = {
   seed_aspect_mismatch: "line corners don't match the resolution",
   seed_rescalable: "line corners need rescaling",
   seed_resolution_unknown: "line corners have no recorded resolution",
+  unknown_setting: "setting has no effect",
 };

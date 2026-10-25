@@ -12,11 +12,14 @@
     "check:text": "node scripts/check-text.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "gen:api": "openapi-typescript ../openapi.json -o src/lib/generated/api.ts --array-length --alphabetize --default-non-nullable false"
   },
   "devDependencies": {
     "@bufbuild/protoc-gen-es": "^2.14.1",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tailwindcss/vite": "^4.3.3",
     "@tsconfig/svelte": "^5.0.8",
@@ -26,6 +29,7 @@
     "eslint-plugin-svelte": "^3.17.1",
     "globals": "^17.6.0",
     "jsdom": "^30.1.2",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.8.3",
     "prettier-plugin-svelte": "^3.5.2",
     "svelte": "^5.55.5",
@@ -41,5 +45,10 @@
     "@bufbuild/protobuf": "^2.14.1",
     "flowbite": "^4.0.2",
     "flowbite-svelte": "^1.33.1"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }

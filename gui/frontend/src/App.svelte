@@ -5,6 +5,7 @@
   import Shell from "./lib/layout/Shell.svelte";
   import { nav, selectedCategory } from "./lib/layout/nav.svelte";
   import { requestJSON } from "./lib/api";
+  import type { SnapshotEntry } from "./lib/apiTypes";
   import SetupWizard from "./lib/wizard/SetupWizard.svelte";
   import { loadConfig } from "./lib/config.svelte";
 
@@ -39,11 +40,7 @@
   });
 
   // Same-origin: the Go host serves /api itself, alongside /ws and the frontend.
-  interface Snapshot {
-    cam_id: string;
-    view: string;
-  }
-  let snapshots = $state<Snapshot[]>([]);
+  let snapshots = $state<SnapshotEntry[]>([]);
   let cacheBuster = $state(0);
 
   // flat/gradient/blob are ball-detection debug views (see src/main.cpp) --
@@ -59,7 +56,7 @@
   async function refreshSnapshotList(): Promise<void> {
     try {
       const response = await requestJSON("/api/snapshots");
-      snapshots = (await response.json()) as Snapshot[];
+      snapshots = (await response.json()) as SnapshotEntry[];
     } catch {
       // ignore: next tick will retry
     }
@@ -105,13 +102,13 @@
           <p class="hint">No images in img/ yet.</p>
         {:else}
           <div class="grid">
-            {#each visibleSnapshots as snap (`${snap.cam_id}.${snap.view}`)}
+            {#each visibleSnapshots as snap (`${String(snap.cameraId)}.${snap.view}`)}
               <figure>
                 <img
-                  src={`/api/snapshot/${snap.cam_id}/${snap.view}?t=${String(cacheBuster)}`}
-                  alt={`cam ${snap.cam_id} ${snap.view}`}
+                  src={`/api/snapshot/${String(snap.cameraId)}/${snap.view}?t=${String(cacheBuster)}`}
+                  alt={`cam ${String(snap.cameraId)} ${snap.view}`}
                 />
-                <figcaption>cam {snap.cam_id} / {snap.view}</figcaption>
+                <figcaption>cam {snap.cameraId} / {snap.view}</figcaption>
               </figure>
             {/each}
           </div>

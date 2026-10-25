@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/logging"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/origins"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/referee"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -41,6 +43,9 @@ var configPath = flag.String("config", "vision.yml", "Host configuration file (f
 var importGeometry = flag.String("importGeometry", "geometry.yml", "Legacy field geometry file to import into a new -config, default: geometry.yml")
 var importConfig = flag.String("importConfig", "config.yml", "Legacy vision_processor config.yml to import into a new -config as its camera, default: config.yml")
 var geometryPreset = flag.String("geometryPreset", "config/legacy/geometry-divB.yml", "Field preset for a new -config when there's no -importGeometry, default: config/legacy/geometry-divB.yml")
+var allowOrigin = flag.String("allowOrigin", "", "Comma-separated origins (scheme://host:port) whose browser pages may use the API on a competition field, besides the host's own; * for any. In a lab, pages from this network are allowed anyway. Default: none")
+var allowHost = flag.String("allowHost", "", "Comma-separated extra names this host is reached by, e.g. a DNS alias; * to turn the check off. Its IPs, hostname, .local name and reverse-DNS names are always accepted. Default: none")
+var openapiOut = flag.String("openapi", "", "Write the API's OpenAPI spec to this path and exit (make builds openapi.json with it)")
 var imgDir = flag.String("imgDir", "img", "Directory the vision processor writes debug snapshot images to, default: img")
 var logLevelFlag = flag.String("logLevel", "Info", "Log Level: Debug, Info, Warn, Error. Default: Info")
 var logFile = flag.String("logFile", "logs/vision-processor-gui.log", "Rotating log file to write alongside stderr, empty to disable. Default: logs/vision-processor-gui.log")
@@ -54,6 +59,10 @@ func main() {
 
 func run() int {
 	flag.Parse()
+
+	if *openapiOut != "" {
+		return writeOpenAPI(*openapiOut)
+	}
 
 	// Parsed before Setup so that the level is known when the handler is built,
 	// but reported after it, so the warning goes through the same handler as
@@ -82,9 +91,14 @@ func run() int {
 		return 1
 	}
 
-	geom, store, err := openConfig(*configPath)
+	h, err := newHost(*configPath, hostOptions{
+		trustedOrigins: splitList(*allowOrigin),
+		allowedHosts:   splitList(*allowHost),
+		imgDir:         *imgDir,
+		verbose:        level == slog.LevelDebug,
+	})
 	if err != nil {
-		slog.Error("loading config", "path", *configPath, "err", err)
+		slog.Error("starting", "config", *configPath, "err", err)
 
 		return 1
 	}
@@ -97,32 +111,11 @@ func run() int {
 
 	warnLoopbackMulticast()
 
-	_, addrs, auto, ifaces := currentNetwork(store)
-	opts := multicast.Options{Verbose: level == slog.LevelDebug}
-	tracker := detections.NewTracker()
-	match := &referee.Match{}
-	trackTeams := func(yellow, blue string) { match.Teams.Record(yellow, blue, time.Now()) }
-	track := func(id uint32, from net.IP) { tracker.Record(id, from, time.Now()) }
-	sockets := &networkSockets{
-		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(opts), multicast.VisionConsumer(geom.Absorb, track)),
-		detections: tracker,
-		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, opts, multicast.RefereeConsumer(trackTeams)),
-		video:      video.NewManager(level == slog.LevelDebug),
-		auto:       auto,
-		ifaces:     ifaces,
-	}
-	sockets.apply(store)
-	wsHub := hub.New()
+	// Reverse lookups can be slow; until they finish, the host is still
+	// reachable by IP, hostname and .local name.
+	go func() { h.policy.AddOwnHosts(ownHostNames(ctx)...) }()
 
-	store.OnChange(func() {
-		// A changed address or interface selection takes effect at once: the
-		// endpoints close their sockets and reopen.
-		sockets.apply(store)
-		match.SetHeightsFile(botHeightsFile(store))
-
-		publishConfigState(wsHub, store)
-		publishNetworkState(wsHub, sockets, match)
-	})
+	geom, store, sockets, match, wsHub, status := h.geom, h.store, h.sockets, h.match, h.hub, h.status
 
 	var wg sync.WaitGroup
 
@@ -148,14 +141,14 @@ func run() int {
 			// follows cables, Wi-Fi, and containers coming and going.
 			sockets.apply(store)
 			match.SetHeightsFile(botHeightsFile(store))
-			publishNetworkState(wsHub, sockets, match)
+			publishStatus(wsHub, status)
 		})
 	})
 	runBackground(&wg, "config file watcher", func() error { return store.Watch(ctx, configWatchInterval) })
 
 	srv := &http.Server{
 		Addr:              *address,
-		Handler:           NewVisionServer(geom, store, wsHub, sockets.video, *imgDir),
+		Handler:           h.handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -190,6 +183,102 @@ func run() int {
 	wg.Wait()
 
 	slog.Info("shutdown complete")
+
+	return 0
+}
+
+// host is everything the process runs, wired together but not yet running:
+// nothing opens a socket or starts a loop until run() starts its background
+// tasks, which is what lets tests build one.
+type host struct {
+	geom    *geometry.Geometry
+	store   *config.Store
+	sockets *networkSockets
+	match   *referee.Match
+	hub     *hub.Hub
+	status  *hostStatus
+	policy  *origins.Policy
+	handler http.Handler
+}
+
+type hostOptions struct {
+	trustedOrigins []string
+	allowedHosts   []string
+	imgDir         string
+	verbose        bool
+}
+
+// newHost opens the config at path and wires the store, geometry, sockets,
+// hub and HTTP handler together. A store change re-points the sockets,
+// switches the origin rules for a competition field, and publishes the
+// config, network and alert topics.
+func newHost(path string, opts hostOptions) (*host, error) {
+	geom, store, err := openConfig(path)
+	if err != nil {
+		return nil, err
+	}
+
+	policy, err := origins.New(origins.Options{TrustedOrigins: opts.trustedOrigins, AllowedHosts: opts.allowedHosts})
+	if err != nil {
+		return nil, fmt.Errorf("-allowOrigin / -allowHost: %w", err)
+	}
+
+	_, addrs, auto, ifaces := currentNetwork(store)
+	mcOpts := multicast.Options{Verbose: opts.verbose}
+	tracker := detections.NewTracker()
+	match := &referee.Match{}
+	trackTeams := func(yellow, blue string) { match.Teams.Record(yellow, blue, time.Now()) }
+	track := func(id uint32, from net.IP) { tracker.Record(id, from, time.Now()) }
+	sockets := &networkSockets{
+		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(mcOpts), multicast.VisionConsumer(geom.Absorb, track)),
+		detections: tracker,
+		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, mcOpts, multicast.RefereeConsumer(trackTeams)),
+		video:      video.NewManager(opts.verbose),
+		auto:       auto,
+		ifaces:     ifaces,
+	}
+	sockets.apply(store)
+	match.SetHeightsFile(botHeightsFile(store))
+
+	wsHub := hub.New(wrapperPacketTopic, configStateTopic, networkStateTopic, alertsStateTopic)
+	status := &hostStatus{store: store, sockets: sockets, match: match}
+	policy.SetStrict(competitionField(store))
+
+	store.OnChange(func() {
+		// A changed address or interface selection takes effect at once: the
+		// endpoints close their sockets and reopen.
+		sockets.apply(store)
+		match.SetHeightsFile(botHeightsFile(store))
+		policy.SetStrict(competitionField(store))
+
+		publishConfigState(wsHub, store)
+		publishStatus(wsHub, status)
+	})
+
+	return &host{
+		geom:    geom,
+		store:   store,
+		sockets: sockets,
+		match:   match,
+		hub:     wsHub,
+		status:  status,
+		policy:  policy,
+		handler: NewVisionServer(geom, store, status, policy, wsHub, sockets.video, opts.imgDir),
+	}, nil
+}
+
+// writeOpenAPI writes the spec to path, for make.
+func writeOpenAPI(path string) int {
+	spec, err := openapiSpec()
+	if err == nil {
+		err = os.WriteFile(path, append(spec, '\n'), 0o644)
+	}
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "writing the OpenAPI spec:", err)
+
+		return 1
+	}
 
 	return 0
 }
@@ -381,49 +470,29 @@ func warnLoopbackMulticast() {
 	}
 }
 
-// networkStateTopic carries each socket's address and what it has heard, plus
-// the host facts the Network page's presets and notes need.
-const networkStateTopic = "network.state"
+// networkStateTopic carries NetworkState, and alertsStateTopic every
+// current alert.
+const (
+	networkStateTopic = "network.state"
+	alertsStateTopic  = "alerts.state"
+)
 
-func publishNetworkState(wsHub *hub.Hub, sockets *networkSockets, match *referee.Match) {
-	now := time.Now()
+// publishStatus publishes the network state and the alerts, which depend on
+// it and on the store.
+func publishStatus(wsHub *hub.Hub, status StatusSource) {
+	publishJSON(wsHub, networkStateTopic, status.Network())
+	publishJSON(wsHub, alertsStateTopic, status.Alerts())
+}
 
-	sockets.mu.Lock()
-	auto, ifaces := sockets.auto, sockets.ifaces
-	sockets.mu.Unlock()
-
-	loopback, loopbackMulticast, _ := multicast.LoopbackMulticast()
-
-	data, err := json.Marshal(struct {
-		Vision                multicast.Status      `json:"vision"`
-		GC                    multicast.Status      `json:"gc"`
-		Cameras               []detections.Source   `json:"cameras"`
-		Referee               referee.State         `json:"referee"`
-		AutoInterfaces        bool                  `json:"autoInterfaces"`
-		Interfaces            []multicast.Interface `json:"interfaces"`
-		Loopback              string                `json:"loopback"`
-		LoopbackMulticast     bool                  `json:"loopbackMulticast"`
-		UnprivilegedPortStart int                   `json:"unprivilegedPortStart"`
-		Root                  bool                  `json:"root"`
-	}{
-		Vision:                sockets.vision.Status(now),
-		GC:                    sockets.gc.Status(now),
-		Cameras:               sockets.detections.Sources(now),
-		Referee:               match.State(),
-		AutoInterfaces:        auto,
-		Interfaces:            ifaces,
-		Loopback:              loopback,
-		LoopbackMulticast:     loopbackMulticast,
-		UnprivilegedPortStart: multicast.UnprivilegedPortStart(),
-		Root:                  os.Geteuid() == 0,
-	})
+func publishJSON(wsHub *hub.Hub, topic string, v any) {
+	data, err := json.Marshal(v)
 	if err != nil {
-		slog.Error("marshalling network state", "err", err)
+		slog.Error("marshalling websocket topic", "topic", topic, "err", err)
 
 		return
 	}
 
-	wsHub.Publish(networkStateTopic, data)
+	wsHub.Publish(topic, data)
 }
 
 // hostNetwork is doc's network block. The store only holds validated
@@ -516,6 +585,52 @@ func outboundIP() (string, error) {
 	}
 
 	return addr.IP.String(), nil
+}
+
+// competitionField is whether the working document is a match setup, which
+// limits browser pages to the -allowOrigin list.
+func competitionField(store *config.Store) bool {
+	doc, _ := store.Working()
+
+	return doc.CompetitionField
+}
+
+// ownHostNames is this machine's hostname and the names its addresses
+// reverse-resolve to, for the API's host check. Lookups that take too long
+// are skipped.
+func ownHostNames(ctx context.Context) []string {
+	names := []string{}
+
+	if name, err := os.Hostname(); err == nil {
+		names = append(names, name, name+".local")
+	}
+
+	addrs, _ := net.InterfaceAddrs()
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	for _, a := range addrs {
+		if ipnet, ok := a.(*net.IPNet); ok {
+			found, _ := net.DefaultResolver.LookupAddr(ctx, ipnet.IP.String())
+			names = append(names, found...)
+		}
+	}
+
+	return names
+}
+
+// splitList splits a comma-separated flag, dropping empty entries.
+func splitList(s string) []string {
+	var out []string
+
+	for _, item := range strings.Split(s, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+
+	return out
 }
 
 // botHeightsFile is the robot height table the cameras read.

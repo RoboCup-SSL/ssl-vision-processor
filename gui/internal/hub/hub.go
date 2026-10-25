@@ -3,21 +3,43 @@
 // back a size-1 channel of it. A slow subscriber sees only the latest value.
 package hub
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
 // Hub fans published data out to subscribers by topic.
 type Hub struct {
-	mu   sync.Mutex
-	subs map[string]map[chan []byte]struct{}
+	mu     sync.Mutex
+	topics []string
+	subs   map[string]map[chan []byte]struct{}
+	latest map[string][]byte
 }
 
-// New returns an empty Hub.
-func New() *Hub {
-	return &Hub{subs: make(map[string]map[chan []byte]struct{})}
+// New returns a Hub for topics, the ones clients may subscribe to.
+func New(topics ...string) *Hub {
+	return &Hub{
+		topics: slices.Sorted(slices.Values(topics)),
+		subs:   make(map[string]map[chan []byte]struct{}),
+		latest: make(map[string][]byte),
+	}
 }
 
-// Subscribe returns a channel of future values published to topic, and an
-// unsubscribe function the caller must call exactly once when done.
+// Topics lists the topics clients may subscribe to.
+func (h *Hub) Topics() []string {
+	return append([]string{}, h.topics...)
+}
+
+// Known reports whether topic is one of the hub's.
+func (h *Hub) Known(topic string) bool {
+	_, ok := slices.BinarySearch(h.topics, topic)
+
+	return ok
+}
+
+// Subscribe returns a channel of values published to topic, starting with
+// the latest one if there is any, and an unsubscribe function the caller must
+// call exactly once when done.
 func (h *Hub) Subscribe(topic string) (<-chan []byte, func()) {
 	ch := make(chan []byte, 1)
 
@@ -26,6 +48,10 @@ func (h *Hub) Subscribe(topic string) (<-chan []byte, func()) {
 		h.subs[topic] = make(map[chan []byte]struct{})
 	}
 	h.subs[topic][ch] = struct{}{}
+
+	if data, ok := h.latest[topic]; ok {
+		ch <- data
+	}
 	h.mu.Unlock()
 
 	unsubscribe := func() {
@@ -45,13 +71,16 @@ func (h *Hub) Subscribe(topic string) (<-chan []byte, func()) {
 	return ch, unsubscribe
 }
 
-// Publish sends data to every current subscriber of topic. A subscriber whose
+// Publish sends data to every current subscriber of topic, and keeps it for
+// later ones. A subscriber whose
 // channel is still holding an unread value has that value replaced, not
 // queued -- matching the size-1, drop-stale semantics the rest of the host
 // uses for anything published faster than a slow reader drains it.
 func (h *Hub) Publish(topic string, data []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	h.latest[topic] = data
 
 	for ch := range h.subs[topic] {
 		sendLatest(ch, data)

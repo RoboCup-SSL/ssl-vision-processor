@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { blankField } from "./geometry.svelte";
 import { config, type CameraDoc, type ConfigDocument } from "./config.svelte";
 import {
   applyPlan,
@@ -17,7 +18,7 @@ function camera(id: number, extra: Partial<CameraDoc> = {}): CameraDoc {
 function doc(cameras: CameraDoc[], layout?: number): ConfigDocument {
   return {
     version: 1,
-    field: { fieldLength: 9000, fieldWidth: 6000 },
+    field: { ...blankField(), fieldLength: 9000, fieldWidth: 6000 },
     optionalFieldLines: {
       goal2Goal: true,
       halfway: true,

@@ -57,8 +57,8 @@ export function slotSlice(doc: ConfigDocument, cameraId: number): FieldSlice {
   return computeFieldSlice(
     cameraId,
     cameraCount(doc),
-    doc.field.fieldLength ?? 0,
-    doc.field.fieldWidth ?? 0,
+    doc.field.fieldLength,
+    doc.field.fieldWidth,
   );
 }
 
@@ -66,8 +66,8 @@ export function slotSlice(doc: ConfigDocument, cameraId: number): FieldSlice {
 // "whole field" when it isn't split at all.
 export function regionLabel(doc: ConfigDocument, cameraId: number): string {
   const s = slotSlice(doc, cameraId);
-  const length = doc.field.fieldLength ?? 0;
-  const width = doc.field.fieldWidth ?? 0;
+  const length = doc.field.fieldLength;
+  const width = doc.field.fieldWidth;
   const parts: string[] = [];
 
   if (s.maxX - s.minX < length) parts.push(s.minX + s.maxX < 0 ? "−x" : "+x");

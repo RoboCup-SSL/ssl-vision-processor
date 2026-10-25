@@ -92,7 +92,7 @@ type Status struct {
 	// Mode is how the receiver was opened: "multicast" joined the group,
 	// "port" listens on the port for anything sent there (broadcast, or
 	// unicast to this host).
-	Mode      string     `json:"mode"`
+	Mode      string     `json:"mode" enum:"multicast,port"`
 	Heard     uint64     `json:"heard"`
 	LastHeard *time.Time `json:"lastHeard,omitempty"`
 	Source    string     `json:"source,omitempty"`

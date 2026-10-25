@@ -62,18 +62,22 @@
 
   // Multicast badges: the address each host socket is open on, green while
   // packets arrive there. Until the first network.state lands, the configured
-  // address stands in.
-  let configured = $derived(networkFromDoc());
+  // address stands in, once the document (and the schema's fallbacks) has
+  // loaded.
+  let configured = $derived(config.doc ? networkFromDoc() : undefined);
   let sockets = $derived([
     {
       label: "Vision",
       status: network.state?.vision,
-      fallback: `${configured.vision_ip}:${String(configured.vision_port)}`,
+      fallback:
+        configured &&
+        `${configured.vision_ip}:${String(configured.vision_port)}`,
     },
     {
       label: "Game Controller",
       status: network.state?.gc,
-      fallback: `${configured.gc_ip}:${String(configured.gc_port)}`,
+      fallback:
+        configured && `${configured.gc_ip}:${String(configured.gc_port)}`,
     },
   ]);
 
@@ -135,7 +139,9 @@
                   ? "green"
                   : "gray"}
             >
-              {socket.label} ({socket.status?.address ?? socket.fallback})
+              {@const address = socket.status?.address ?? socket.fallback}
+              {socket.label}{#if address}
+                ({address}){/if}
             </Badge>
           </a>
         {/each}
@@ -237,6 +243,12 @@
               >
             </DropdownGroup>
             <DropdownGroup>
+              <DropdownItem
+                class={ITEM_CLASS}
+                href={links.apiDocs}
+                target="_blank"
+                rel="noopener noreferrer">API Reference ↗︎</DropdownItem
+              >
               <DropdownItem
                 class={ITEM_CLASS}
                 href={links.repository}

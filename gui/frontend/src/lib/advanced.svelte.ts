@@ -1,8 +1,9 @@
 // vision_processor's thresholds: and tracking: settings, edited in vision.yml's
-// defaults so every camera shares them. Defaults and restart-only keys are
-// from src/Resources.cpp (applyTunables reloads the rest live).
+// defaults so every camera shares them. Fallbacks, ranges, and which keys need
+// a restart come from the host's schema.
 import { without } from "./util";
 import { config } from "./config.svelte";
+import { setting } from "./schema.svelte";
 import type { advanced } from "./text/advanced";
 
 // Every setting has a label and notes in text/advanced.ts.
@@ -13,6 +14,32 @@ export type Block = "thresholds" | "tracking";
 export interface AdvancedSetting {
   block: Block;
   key: AdvancedKey;
+}
+
+// How each card groups the settings.
+export const ADVANCED: Record<
+  "blobs" | "tolerances" | "tracking",
+  AdvancedSetting[]
+> = {
+  blobs: [
+    { block: "thresholds", key: "circularity" },
+    { block: "thresholds", key: "score" },
+    { block: "thresholds", key: "min_confidence" },
+    { block: "thresholds", key: "resampling_factor" },
+    { block: "thresholds", key: "blobs" },
+  ],
+  tolerances: [
+    { block: "thresholds", key: "min_cam_edge_distance" },
+    { block: "thresholds", key: "clipping_tolerance" },
+    { block: "thresholds", key: "geometry_tolerance" },
+  ],
+  tracking: [
+    { block: "tracking", key: "min_tracking_radius" },
+    { block: "tracking", key: "max_bot_acceleration" },
+  ],
+};
+
+export interface AdvancedSpec {
   // vision_processor's fallback when the key is unset.
   fallback: number;
   // The slider's range; the number box takes anything valid.
@@ -20,109 +47,22 @@ export interface AdvancedSetting {
   max: number;
   step: number;
   unit?: string;
-  // Read only at startup (Resources' constructor), not on reload.
-  restart?: boolean;
+  // Read only at startup, not on reload.
+  restart: boolean;
 }
 
-export const ADVANCED: Record<
-  "blobs" | "tolerances" | "tracking",
-  AdvancedSetting[]
-> = {
-  blobs: [
-    {
-      block: "thresholds",
-      key: "circularity",
-      fallback: 15,
-      min: 0,
-      max: 60,
-      step: 0.5,
-    },
-    {
-      block: "thresholds",
-      key: "score",
-      fallback: 5,
-      min: 0,
-      max: 20,
-      step: 0.5,
-    },
-    {
-      block: "thresholds",
-      key: "min_confidence",
-      fallback: 0.2,
-      min: 0,
-      max: 1,
-      step: 0.01,
-    },
-    {
-      block: "thresholds",
-      key: "resampling_factor",
-      fallback: 1,
-      min: 0.25,
-      max: 2,
-      step: 0.05,
-      unit: "×",
-    },
-    {
-      block: "thresholds",
-      key: "blobs",
-      fallback: 2000,
-      min: 100,
-      max: 10000,
-      step: 100,
-      restart: true,
-    },
-  ],
-  tolerances: [
-    {
-      block: "thresholds",
-      key: "min_cam_edge_distance",
-      fallback: 170,
-      min: 0,
-      max: 500,
-      step: 5,
-      unit: "mm",
-    },
-    {
-      block: "thresholds",
-      key: "clipping_tolerance",
-      fallback: 10,
-      min: 0,
-      max: 50,
-      step: 1,
-      unit: "mm",
-    },
-    {
-      block: "thresholds",
-      key: "geometry_tolerance",
-      fallback: 10,
-      min: 0,
-      max: 100,
-      step: 1,
-      unit: "mm",
-      restart: true,
-    },
-  ],
-  tracking: [
-    {
-      block: "tracking",
-      key: "min_tracking_radius",
-      fallback: 20,
-      min: 0,
-      max: 200,
-      step: 5,
-      unit: "mm",
-    },
-    {
-      block: "tracking",
-      key: "max_bot_acceleration",
-      fallback: 6.5,
-      min: 0,
-      max: 20,
-      step: 0.5,
-      unit: "m/s²",
-    },
-  ],
-};
+// What the schema says about s.
+export function advancedSpec(s: AdvancedSetting): AdvancedSpec {
+  const spec = setting(`${s.block}.${s.key}`);
+  const range = spec.range ?? { min: 0, max: 100, step: 1 };
+
+  return {
+    fallback: spec.default as number,
+    ...range,
+    unit: spec.unit,
+    restart: spec.apply === "restart",
+  };
+}
 
 function block(name: Block): Record<string, unknown> | undefined {
   const b = config.doc?.defaults?.[name];

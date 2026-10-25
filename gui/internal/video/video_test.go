@@ -453,7 +453,7 @@ func TestHandleWebSocketRejectsBadRequests(t *testing.T) {
 	m.Configure(map[int]Stream{0: {Active: true, Address: "224.5.23.100:10100"}}, nil)
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /ws/video/{id}", HandleWebSocket(m))
+	mux.Handle("GET /ws/video/{id}", HandleWebSocket(m, nil))
 
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
