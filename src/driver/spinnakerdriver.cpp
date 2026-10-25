@@ -209,9 +209,12 @@ void SpinnakerDriver::selectPixelFormat() {
 		} catch (Spinnaker::Exception &e) {
 			FATAL("Could not select pixel format " << entry << ": " << e.GetErrorMessage());
 		}
-		// Raw8 cameras report the Bayer pattern separately, "BayerRG8" style entries name it
-		const std::string pattern = entry != "Raw8" ? entry.substr(0, entry.size() - 1)
-				: IsReadable(pCam->PixelColorFilter) ? pCam->PixelColorFilter.ToString().c_str() : "";
+		// "BayerRG8" style entries name the Bayer pattern, Raw8 cameras report it separately
+		std::string pattern;
+		if(entry != "Raw8")
+			pattern = entry.substr(0, entry.size() - 1); // Without the bit depth
+		else if(IsReadable(pCam->PixelColorFilter))
+			pattern = pCam->PixelColorFilter.ToString().c_str();
 		const auto match = std::find(patterns.begin(), patterns.end(), pattern);
 		if(match != patterns.end()) {
 			pixelFormat = bayerFormats[static_cast<size_t>(match - patterns.begin())];
