@@ -17,7 +17,7 @@
 #include "driver/cameradriver.h"
 #include <opencv2/videoio.hpp>
 
-OpenCVDriver::OpenCVDriver(const CameraConfig& config): capture(config.path, cv::CAP_ANY, {cv::CAP_PROP_HW_ACCELERATION, cv::VIDEO_ACCELERATION_ANY}), name(config.path) {
+OpenCVDriver::OpenCVDriver(const CameraConfig& config): capture(config.device, cv::CAP_ANY, {cv::CAP_PROP_HW_ACCELERATION, cv::VIDEO_ACCELERATION_ANY}), name(config.device) {
 	std::replace(name.begin(), name.end(), '/', '_');
 
 	// Use compressed data stream to unlock the highest resolution - framerate combination on USB2 cameras
