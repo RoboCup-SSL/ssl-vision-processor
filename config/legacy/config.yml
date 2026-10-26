@@ -12,10 +12,11 @@ camera:
   # Existing: SPINNAKER (FLIR cameras), MVIMPACT (Bluefox3 cameras), OPENCV(files, v4l2 cameras)
   #driver: SPINNAKER
 
-  # Spinnaker, mvIMPACT or OpenCV(v4l2) camera id
+  # Spinnaker, mvIMPACT or OpenCV(v4l2) camera id. Spinnaker numbers cameras by ascending serial number.
   #id: 0
-  # OpenCV camera device, image or video file path (if unset id is used instead)
-  #path: /dev/video0
+  # Camera to open instead of id (formerly "path"): OpenCV camera device, image or video file path; Spinnaker
+  # serial number (build/spinnaker_probe --list). Recommended for several cameras on one host, as ids shift when one is missing.
+  #device: /dev/video0
 
   # Camera resolution as reported by the camera. VisionProcessor might use half (true color) resolution internally with SPINNAKER and MVIMPACT.
   # 0 = highest resolution supported by the camera

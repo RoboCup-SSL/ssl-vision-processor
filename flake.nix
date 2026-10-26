@@ -78,6 +78,7 @@
               # pulls in -- two copies of ffmpeg's global state in one process.
               ffmpeg_8          # libavformat libavcodec libavutil
               protobuf
+              libusb1           # Spinnaker's GenTL producer (Spinnaker SDK itself is not packaged)
 
               opencl-headers    # CL/cl.h
               opencl-clhpp      # CL/opencl.hpp (CL_HPP_TARGET_OPENCL_VERSION=300)
@@ -121,6 +122,43 @@
           amd = shell.overrideAttrs {
             OCL_ICD_VENDORS = "${amdOpenCL}/etc/OpenCL/vendors";
           };
+
+          # NVIDIA GPUs through the host's driver, for `nix develop .#nvidia`.
+          # Its userspace must match the host's kernel module, so it can't come
+          # from nixpkgs: link only the driver's own libraries (not the distro's
+          # lib dir) at shell entry. pocl stays registered as the fallback.
+          nvidia = shell.overrideAttrs (old: {
+            shellHook = old.shellHook + ''
+              nv_lib=""
+              for d in /run/opengl-driver/lib /usr/lib/x86_64-linux-gnu /usr/lib64 /usr/lib; do
+                if [ -e "$d/libnvidia-opencl.so.1" ]; then nv_lib="$d"; break; fi
+              done
+
+              if [ -z "$nv_lib" ]; then
+                echo "NVIDIA: no host libnvidia-opencl.so.1 found, using pocl only"
+              else
+                nv_dir="''${XDG_CACHE_HOME:-$HOME/.cache}/vision-processor/nvidia"
+                rm -rf "$nv_dir" && mkdir -p "$nv_dir/lib" "$nv_dir/vendors"
+                for f in "$nv_lib"/libnvidia-*.so* "$nv_lib"/libcuda*.so*; do
+                  [ -e "$f" ] && ln -s "$f" "$nv_dir/lib/"
+                done
+                echo "$nv_dir/lib/libnvidia-opencl.so.1" > "$nv_dir/vendors/nvidia.icd"
+                cp ${openclRuntime}/etc/OpenCL/vendors/*.icd "$nv_dir/vendors/"
+                export OCL_ICD_VENDORS="$nv_dir/vendors"
+                export LD_LIBRARY_PATH="$nv_dir/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+                # A driver update without a reboot leaves the old kernel module
+                # loaded; OpenCL then finds no NVIDIA platform.
+                nv_user=$(readlink -f "$nv_lib/libnvidia-opencl.so.1" | sed 's/.*\.so\.//')
+                nv_kernel=$(sed -n 's/.*Kernel Module *\([0-9.]*\).*/\1/p' /proc/driver/nvidia/version 2>/dev/null)
+                if [ -n "$nv_kernel" ] && [ "$nv_user" != "$nv_kernel" ]; then
+                  echo "NVIDIA: userspace $nv_user but kernel module $nv_kernel loaded, reboot to fix"
+                else
+                  echo "NVIDIA: host driver $nv_user from $nv_lib"
+                fi
+              fi
+            '';
+          });
         }
       );
     };
