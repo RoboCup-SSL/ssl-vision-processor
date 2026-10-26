@@ -1,7 +1,7 @@
-// Overview page (config/OverviewPanel.svelte): the current match's teams and
+// Team Assignment page (config/TeamAssignmentPanel.svelte): the current match's teams and
 // the robot height used for each. `backticks` show as code.
 
-export const overview = {
+export const teamAssignment = {
   teams: {
     title: "Teams",
     notApplied:

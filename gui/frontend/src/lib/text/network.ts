@@ -7,7 +7,7 @@ export const network = {
   heading: "Network",
   // `backticks` show as code.
   intro:
-    "Shared by the host and every vision_processor (vision.yml's `defaults.network`). The host reopens its sockets as soon as a change applies. vision_processors read these only at startup, so restart them after a change.",
+    "Vision and game controller are shared by the host and every vision_processor (vision.yml's `defaults.network`); vision_processors read them only at startup, so restart them after a change. The autoref tracker is only the host's (vision.yml's `tracker`). The host reopens its sockets as soon as a change applies.",
   reopening: (address: string): string => `Reopening on ${address}…`,
 
   interfaces: {
@@ -25,11 +25,11 @@ export const network = {
     notIPv4: "Not an IPv4 address.",
     zeroAddress: "0.0.0.0 isn't a destination.",
     portRange: "Must be 1 to 65535.",
-    sameAddress:
-      "Vision and game controller can't use the same address and port.",
+    sameAddress: (a: string, b: string): string =>
+      `${a} and ${b} can't use the same address and port.`,
   },
 
-  kind: { vision: "vision", gc: "game controller" },
+  kind: { vision: "vision", gc: "game controller", tracker: "autoref tracker" },
 
   // Other well known SSL UDP ports, for "Normally ...'s port" notes.
   knownPorts: {
@@ -69,6 +69,7 @@ export const network = {
     from: (source: string): string => ` from ${source}`,
     visionWhat: "detection packets",
     gcWhat: "referee messages",
+    trackerWhat: "tracker packets",
     overriding: (cameras: number[]): string =>
       `${plural(cameras.length, "Camera")} ${cameras.join(", ")} override${cameras.length === 1 ? "s" : ""} these in their own config, so their vision_processor uses different groups than the host.`,
   },

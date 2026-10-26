@@ -251,8 +251,8 @@ func TestValidateChecksTeamOverrides(t *testing.T) {
 	after := doc.clone()
 	after.Teams.Overrides["Custom FC"] = TeamOverride{Height: &tall}
 	for _, c := range Diff(doc, after) {
-		if c.Section != SectionOverview {
-			t.Errorf("%s: section %s, want %s", c.Path, c.Section, SectionOverview)
+		if c.Section != SectionTeamAssignment {
+			t.Errorf("%s: section %s, want %s", c.Path, c.Section, SectionTeamAssignment)
 		}
 	}
 }
@@ -275,7 +275,7 @@ func TestValidateChecksColorOverridesAndClassifiesCompetition(t *testing.T) {
 	after := doc.clone()
 	after.CompetitionField = true
 	changes := Diff(doc, after)
-	if len(changes) != 1 || changes[0].Path != "competition_field" || changes[0].Section != SectionOverview {
-		t.Fatalf("changes = %+v, want competition_field in overview", changes)
+	if len(changes) != 1 || changes[0].Path != "competition_field" || changes[0].Section != SectionTeamAssignment {
+		t.Fatalf("changes = %+v, want competition_field in team_assignment", changes)
 	}
 }

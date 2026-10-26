@@ -14,9 +14,9 @@
   let { changes }: Props = $props();
 
   const SECTION_ORDER: Section[] = [
-    "overview",
+    "team_assignment",
     "network",
-    "field",
+    "field_dimensions",
     "layout",
     "advanced",
     "camera",

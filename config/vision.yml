@@ -148,6 +148,13 @@ cameras:
     # 270 degrees clockwise; mirror flips it). Only the GUI reads it.
     # display: { rotate: 0, mirror: false }
 
+# The group autorefs send their tracker output to (TrackerWrapperPacket). Only
+# the GUI host listens, for the Live Field page; vision_processor doesn't read
+# it. Unset keys take the standard group.
+# tracker:
+#   ip: 224.5.23.2
+#   port: 10010
+
 # Settings for the GUI host alone.
 # host:
 #   interfaces:

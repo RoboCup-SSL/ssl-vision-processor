@@ -53,10 +53,18 @@ Node 22 (`.nvmrc`); the nix dev shell provides it.
   bookmarks work. The tab bar is links styled with Flowbite's tab theme rather
   than its Tabs component, which can't leave every tab unselected on a page
   that isn't a tab.
-- `src/lib/FieldEditor.svelte` is the Field Dimensions editor. It edits
+- `src/lib/FieldDimensionsEditor.svelte` is the Field Dimensions editor. It edits
   `config.doc.field` in the working document; `src/lib/geometry.svelte.ts`
   holds what the host derives from it (the field markings) and the rulebook
   presets.
+- `src/lib/live/` is the Live Field page. `LiveFieldPanel.svelte` subscribes
+  to `live_field.frames` and `wrapper_packet.out`; `FieldCanvas.svelte` draws
+  on two canvases, the field (redrawn on resize or a geometry change) and
+  what's on it (at most once per animation frame). `model.ts` reduces
+  detection and tracked frames to one shape in mm, `sources.ts` lists and
+  picks sources, `draw.ts` draws, `patterns.ts` is the standard robot
+  pattern copied from `src/pattern.h`, and `liveView.svelte.ts` keeps the
+  view settings in localStorage.
 - `src/lib/config/GeometryPanel.svelte` is the Geometry category's panel. It
   embeds `src/lib/CornerPicker.svelte`, which edits the selected camera's
   `seed` in the working document (`config.svelte.ts`).

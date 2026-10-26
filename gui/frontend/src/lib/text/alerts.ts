@@ -15,7 +15,7 @@ export const alerts = {
   // Action buttons.
   howToFix: "How to fix",
   pages: {
-    overview: "Overview",
+    teamAssignment: "Team Assignment",
     layout: "Camera Layout",
     geometry: "Geometry",
     network: "Network",
@@ -41,7 +41,11 @@ export const alerts = {
     `${label} socket: ${problem}`,
   socketDetail: (address: string): string =>
     `On ${address}. The host retries every 5 s.`,
-  socketLabels: { vision: "Vision", gc: "Game controller" },
+  socketLabels: {
+    vision: "Vision",
+    gc: "Game controller",
+    tracker: "Autoref tracker",
+  },
   visionSilent: "No detections heard",
   gcSilent: "No game controller heard",
   silentDetail: (address: string, everHeard: boolean): string =>

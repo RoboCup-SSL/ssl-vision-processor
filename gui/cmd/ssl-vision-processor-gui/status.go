@@ -7,15 +7,18 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/alerts"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/livefield"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/referee"
 )
 
 // StatusSource is the live host state the API serves beside the store's:
-// what the sockets hear, and the alerts derived from it all.
+// what the sockets hear, the alerts derived from it all, and the latest
+// detections and tracked frames.
 type StatusSource interface {
 	Network() NetworkState
 	Alerts() []alerts.Alert
+	LiveField() livefield.Snapshot
 }
 
 // NetworkState is each socket's address and what it has heard, plus the host
@@ -24,6 +27,7 @@ type StatusSource interface {
 type NetworkState struct {
 	Vision                multicast.Status      `json:"vision"`
 	GC                    multicast.Status      `json:"gc"`
+	Tracker               multicast.Status      `json:"tracker"`
 	Cameras               []detections.Source   `json:"cameras"`
 	Referee               referee.State         `json:"referee"`
 	AutoInterfaces        bool                  `json:"autoInterfaces"`
@@ -39,6 +43,7 @@ type hostStatus struct {
 	store   *config.Store
 	sockets *networkSockets
 	match   *referee.Match
+	live    *livefield.Feed
 }
 
 func (h *hostStatus) Network() NetworkState {
@@ -53,6 +58,7 @@ func (h *hostStatus) Network() NetworkState {
 	return NetworkState{
 		Vision:                h.sockets.vision.Status(now),
 		GC:                    h.sockets.gc.Status(now),
+		Tracker:               h.sockets.tracker.Status(now),
 		Cameras:               nonNil(h.sockets.detections.Sources(now)),
 		Referee:               h.match.State(),
 		AutoInterfaces:        auto,
@@ -71,6 +77,7 @@ func (h *hostStatus) Alerts() []alerts.Alert {
 	return alerts.Collect(doc, h.store.State(), alerts.Network{
 		Vision:            n.Vision,
 		GC:                n.GC,
+		Tracker:           n.Tracker,
 		Sources:           n.Cameras,
 		Referee:           n.Referee,
 		Loopback:          n.Loopback,
@@ -85,4 +92,8 @@ func nonNil[T any](s []T) []T {
 	}
 
 	return s
+}
+
+func (h *hostStatus) LiveField() livefield.Snapshot {
+	return h.live.Snapshot(time.Now())
 }

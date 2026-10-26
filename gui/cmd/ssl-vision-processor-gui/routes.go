@@ -72,6 +72,7 @@ func (s *VisionServer) addRoutes(mux *http.ServeMux, a *api.API) {
 
 	api.Route(a, "GET /api/geometry", api.Doc{Tags: tagField}, s.getGeometry)
 	api.Route(a, "GET /api/geometry/presets", api.Doc{Tags: tagField}, s.fieldPresets)
+	api.Route(a, "GET /api/live_field", api.Doc{Tags: tagField}, s.getLiveField)
 
 	api.Route(a, "GET /api/camera/devices", api.Doc{Tags: tagHost}, s.cameraDevices)
 	api.Route(a, "GET /api/processes", api.Doc{Tags: tagHost}, s.processes)

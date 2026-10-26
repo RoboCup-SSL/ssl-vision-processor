@@ -1,8 +1,10 @@
-// The vision and game controller addresses. They live in
-// vision.yml's defaults.network (the same block every vision_processor reads
-// from its generated config.yml), so editing them goes through config.doc like
-// any other setting; the host reopens its sockets as soon as the edit lands.
-// Socket status arrives separately, once a second, on the network.state topic.
+// The vision, game controller and autoref tracker addresses. Vision and game
+// controller live in vision.yml's defaults.network (the same block every
+// vision_processor reads from its generated config.yml); the tracker, which
+// only the host listens to, in the top-level tracker block. Editing them goes
+// through config.doc like any other setting; the host reopens its sockets as
+// soon as the edit lands. Socket status arrives separately, once a second, on
+// the network.state topic.
 import { config } from "./config.svelte";
 import { topic } from "./wrapper-bus";
 import { fallback } from "./schema.svelte";
@@ -24,6 +26,8 @@ export interface NetworkConfig {
   vision_port: number;
   gc_ip: string;
   gc_port: number;
+  tracker_ip: string;
+  tracker_port: number;
 }
 
 export type NetworkKey = keyof NetworkConfig;
@@ -58,11 +62,15 @@ export function networkFromDoc(): NetworkConfig {
       ? b[key]
       : (fallback(`network.${key}`) as number);
 
+  const tracker = config.doc?.tracker;
+
   return {
     vision_ip: str("vision_ip"),
     vision_port: num("vision_port"),
     gc_ip: str("gc_ip"),
     gc_port: num("gc_port"),
+    tracker_ip: tracker?.ip ?? STANDARD.tracker.ip,
+    tracker_port: tracker?.port ?? STANDARD.tracker.port,
   };
 }
 
@@ -72,6 +80,13 @@ export function writeNetwork<K extends NetworkKey>(
 ): void {
   const doc = config.doc;
   if (!doc) return;
+
+  if (key === "tracker_ip" || key === "tracker_port") {
+    const field = key === "tracker_ip" ? "ip" : "port";
+    doc.tracker = { ...doc.tracker, [field]: value };
+
+    return;
+  }
 
   doc.defaults ??= {};
   doc.defaults["network"] = { ...(block() ?? {}), [key]: value };
@@ -121,7 +136,7 @@ function parseIPv4(ip: string): number[] | null {
   return octets.some((o) => o > 255) ? null : octets;
 }
 
-export type Kind = "vision" | "gc";
+export type Kind = "vision" | "gc" | "tracker";
 
 const KIND_LABEL: Record<Kind, string> = text.kind;
 
@@ -129,7 +144,13 @@ const KIND_LABEL: Record<Kind, string> = text.kind;
 export const STANDARD: Record<Kind, { ip: string; port: number }> = {
   vision: { ip: "224.5.23.2", port: 10006 },
   gc: { ip: "224.5.23.1", port: 10003 },
+  tracker: { ip: "224.5.23.2", port: 10010 },
 };
+
+const KINDS = Object.keys(STANDARD) as Kind[];
+
+// Each standard group once: vision and the tracker share one.
+const STANDARD_IPS = [...new Set(KINDS.map((k) => STANDARD[k].ip))];
 
 const BACKUP_OFFSET = 10;
 
@@ -202,7 +223,6 @@ export function addressAdvice(
   if (!octets) return advice;
 
   const [a = 0, b = 0, c = 0, d = 0] = octets;
-  const other: Kind = kind === "vision" ? "gc" : "vision";
 
   if (a === 127) {
     advice.warnings.push(text.address.loopback);
@@ -213,13 +233,19 @@ export function addressAdvice(
       advice.warnings.push(text.address.sourceSpecific);
     }
 
-    if (ip === STANDARD[other].ip) {
+    // Vision and the tracker share a standard group, so only another kind's
+    // group that isn't also this kind's own is worth a note.
+    const other = KINDS.find(
+      (k) => k !== kind && ip === STANDARD[k].ip && ip !== STANDARD[kind].ip,
+    );
+
+    if (other) {
       advice.notes.push(text.address.otherStandard(KIND_LABEL[other]));
     } else if (ip !== STANDARD[kind].ip) {
       advice.notes.push(text.address.nonStandard);
     }
 
-    for (const std of [STANDARD.vision.ip, STANDARD.gc.ip]) {
+    for (const std of STANDARD_IPS) {
       const stdOctets = parseIPv4(std);
       if (ip !== std && stdOctets && low23(octets) === low23(stdOctets)) {
         advice.notes.push(text.address.sameMac(std));

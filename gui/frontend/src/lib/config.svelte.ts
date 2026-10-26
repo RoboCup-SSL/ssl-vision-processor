@@ -309,13 +309,13 @@ export function formatValue(value: unknown): string {
 }
 
 export const SECTION_LABELS: Record<Section, string> = {
-  field: "Field Dimensions",
+  field_dimensions: "Field Dimensions",
   camera: "Camera Settings",
   geometry: "Geometry",
   color: "Color",
   network: "Network",
   layout: "Camera Layout",
   advanced: "Advanced",
-  overview: "Overview",
+  team_assignment: "Team Assignment",
   other: "Other settings",
 };

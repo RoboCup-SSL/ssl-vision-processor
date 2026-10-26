@@ -209,12 +209,14 @@ func TestDiffClassifiesSections(t *testing.T) {
 	after.Cameras[0].Calibration.Camera["tz"] = 4100
 	after.Defaults["network"] = map[string]any{"vision_port": 10010}
 	after.Cameras[0].Config["camera"].(map[string]any)["gain"] = 4.0
+	trackerPort := 10020
+	after.Tracker = &Tracker{Port: &trackerPort}
 
 	want := map[string]struct {
 		section string
 		camera  int // -1 for none
 	}{
-		"field.field_width":                  {SectionField, -1},
+		"field.field_width":                  {SectionFieldDimensions, -1},
 		"cameras[0].seed.line_corners":       {SectionGeometry, 0},
 		"cameras[0].config.color.orange":     {SectionColor, 0},
 		"defaults.color.reference_force":     {SectionColor, -1},
@@ -222,6 +224,7 @@ func TestDiffClassifiesSections(t *testing.T) {
 		"cameras[0].calibration.camera.tz":   {SectionGeometry, 0},
 		"defaults.network":                   {SectionNetwork, -1},
 		"cameras[0].config.camera.gain":      {SectionCamera, 0},
+		"tracker":                            {SectionNetwork, -1},
 	}
 
 	changes := Diff(before, after)

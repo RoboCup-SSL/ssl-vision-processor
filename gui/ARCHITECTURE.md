@@ -45,7 +45,7 @@ HTTP and a WebSocket instead, covered under HTTP API and WebSocket protocol belo
 
 ## Process layout
 
-`ssl-vision-processor-gui` is one process with five concurrent responsibilities, wired together in
+`ssl-vision-processor-gui` is one process with seven concurrent responsibilities, wired together in
 `cmd/ssl-vision-processor-gui/main.go`.
 
 ```mermaid
@@ -54,14 +54,18 @@ graph TD
     http["HTTP server\ngoroutine"]
     vision["vision multicast\ngoroutine"]
     gc["game controller multicast\ngoroutine"]
+    tracker["autoref tracker multicast\ngoroutine"]
     publish["geometry publish loop\ngoroutine, 1Hz"]
     watch["vision.yml watcher\ngoroutine, 1Hz"]
+    live["live field publish loop\ngoroutine, 60Hz while watched"]
 
     main --> http
     main --> vision
     main --> gc
+    main --> tracker
     main --> publish
     main --> watch
+    main --> live
     vision -- "Absorb(calib)" --> Geometry
     publish -- "Encoded()" --> Geometry
     http -- "reads/writes" --> Store
@@ -69,6 +73,7 @@ graph TD
     Store -- "ApplyConfig / SetLocked" --> Geometry
     Store -- "SetAddress" --> vision
     Store -- "SetAddress" --> gc
+    Store -- "SetAddress" --> tracker
 ```
 
 The goroutines share one `*config.Store` and one `*geometry.Geometry`, each guarded by its own mutex. The store
@@ -83,9 +88,10 @@ before returning.
 | `cmd/ssl-vision-processor-gui`               | Flags, wiring, HTTP handlers and routes.                                                                                                |
 | `internal/config`                            | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files.             |
 | `internal/geometry`                          | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state.                                         |
-| `internal/multicast`                         | The vision, game controller, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
+| `internal/multicast`                         | The vision, game controller, autoref tracker, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
 | `internal/api`                               | Typed route registration and the OpenAPI 3.1 spec reflected from the handlers' own types and doc comments.                              |
 | `internal/hub`                               | In-process topic pub/sub and the `/ws` WebSocket handler.                                                                               |
+| `internal/livefield`                         | The latest detection frame per camera and tracked frame per autoref, for the Live Field page.                                           |
 | `internal/detections`                        | Which camera_ids the vision socket hears, from which address, at what rate. Feeds the Camera Layout page.                               |
 | `internal/referee`                           | The current match's teams, from the game controller, and their robot heights from `bot_heights_file`.                                   |
 | `internal/snapshot`                          | Debug image listing and serving.                                                                                                        |
@@ -178,6 +184,11 @@ warns about addresses that aren't multicast or broadcast, and notes non-standard
 `ip_unprivileged_port_start`) choices when extra tooltips are on. vision_processor reads the same block, but only
 at startup.
 
+The autoref tracker socket uses the top-level `tracker` block (`ip`, `port`, default 224.5.23.2:10010) instead,
+since no vision_processor listens for tracker output. It is never rendered into a camera's `config.yml`. It may
+share the vision group's IP, which is the standard setup, but not its address and port. A silent tracker socket
+raises no alert, since running without an autoref is normal; one that can't open does.
+
 Which interfaces the host's own sockets use is `host.interfaces`, a section no vision_processor reads, since
 interface names only mean something on one machine. `auto` (the default) uses interfaces that are up, have
 carrier, support multicast, and have an IPv4 address, and skips loopback and virtual ones (Docker and VM bridges,
@@ -246,7 +257,7 @@ doesn't model the whole document: PUT replaces it, so a key the client dropped i
 
 Some document keys only matter to this GUI and no vision_processor reads them: a camera's `display` (video
 orientation) and `seed.goalSideMarker` (which corner marker was picked). Other clients should leave them as they
-are. `teams` and `competitionField` are read by the host's alerts. Each `Change` in `config.state` has both `path`
+are. `teams` and `competitionField` are read by the host's alerts, and `tracker` by its tracker socket. Each `Change` in `config.state` has both `path`
 (vision.yml's spelling, `field.field_width`) and `jsonPath` (the JSON document's, `field.fieldWidth`); in both,
 `cameras[N]` is the camera with camera_id N, not a list index. `section` is the GUI page the change belongs to. Protobuf messages appear in two spellings: `/api/geometry` and
 `wrapper_packet.out` use canonical protojson (`pixelImageWidth`), while the document's `models` and
@@ -294,10 +305,16 @@ and the connection stays open.
 and per camera calibration status. It is published on every change and once per second, since live calibration
 status comes from the network rather than the store.
 `network.state` carries each multicast socket's address and what it has heard there: vision detection packets
-(the host's own looped back geometry doesn't count) and game controller referee messages. It is published once per
+(the host's own looped back geometry doesn't count), game controller referee messages, and autoref tracker packets. It is published once per
 second and on every config change.
 `processes.state` carries the vision_processors the host runs (`-vp`), on every state change and once per
 second; an empty list without `-vp`.
+`live_field.frames` carries the latest detection frame from each camera (by camera_id and sender) and the latest
+tracked frame from each autoref (by the uuid it sends), as canonical protojson inside a small envelope with each
+source's rate and receive time and the host's clock (`at`), so a client can tell a source's age without trusting the
+senders' clocks. Detections are in mm, tracked frames in m. A source silent for a second is listed without a frame,
+and dropped after 30 s. It is published at up to 60 Hz, only while someone subscribes and something new arrived (and
+once a second otherwise); `GET /api/live_field` returns the same snapshot.
 `alerts.state` carries every problem the host can see (`internal/alerts`), on the same schedule: a stable `id`,
 a `code`, a `severity` (`error`, `warning`, `caution`), an optional `cameraId`, the facts behind it as `params`,
 and a plain English `message`. The host decides which alerts exist and how serious they are; a client words and

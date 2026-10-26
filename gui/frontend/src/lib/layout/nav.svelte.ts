@@ -25,7 +25,7 @@ export const nav = $state<{
   selectedCategoryId: string;
 }>({
   selectedInstanceId: null,
-  selectedCategoryId: "field",
+  selectedCategoryId: "field_dimensions",
 });
 
 // The URL hash mirrors nav, so pages are links: "#0/geometry" is camera 0's
@@ -73,7 +73,7 @@ $effect.root(() => {
       (c) => c.id === nav.selectedCategoryId,
     );
     if (current && !isCategoryVisible(current))
-      nav.selectedCategoryId = "field";
+      nav.selectedCategoryId = "field_dimensions";
   });
 
   $effect(() => {
@@ -101,23 +101,25 @@ export function selectedCategory(): ConfigCategory {
   const found = CONFIG_CATEGORIES.find((c) => c.id === nav.selectedCategoryId);
   if (found) return found;
 
-  // "field" is always present in CONFIG_CATEGORIES (see configCategories.ts);
+  // "field_dimensions" is always present in CONFIG_CATEGORIES (see configCategories.ts);
   // a thrown error here means that constant was edited to remove it, which
   // is a real bug worth surfacing loudly rather than typing around.
-  const fallback = CONFIG_CATEGORIES.find((c) => c.id === "field");
+  const fallback = CONFIG_CATEGORIES.find((c) => c.id === "field_dimensions");
   if (fallback) return fallback;
 
   // text-ok: an internal invariant, not shown to users.
-  throw new Error("CONFIG_CATEGORIES is missing the 'field' category");
+  throw new Error(
+    "CONFIG_CATEGORIES is missing the 'field_dimensions' category",
+  );
 }
 
 // Category id -> the section of unsaved changes that marks it dirty (an
 // asterisk in the tab bar and sidebar). Shared categories count changes for
 // any camera; per-camera ones only the selected camera's.
 const CATEGORY_SECTIONS: Record<string, Section> = {
-  field: "field",
+  field_dimensions: "field_dimensions",
   layout: "layout",
-  overview: "overview",
+  team_assignment: "team_assignment",
   advanced: "advanced",
   camera: "camera",
   geometry: "geometry",

@@ -48,16 +48,27 @@
     vision_port: portError(draft.vision_port),
     gc_ip: ipv4Error(draft.gc_ip),
     gc_port: portError(draft.gc_port),
+    tracker_ip: ipv4Error(draft.tracker_ip),
+    tracker_port: portError(draft.tracker_port),
   });
 
-  let sharedError = $derived(
-    !errors.vision_ip &&
-      !errors.gc_ip &&
-      draft.vision_ip === draft.gc_ip &&
-      draft.vision_port === draft.gc_port
-      ? text.errors.sameAddress
-      : null,
-  );
+  // The first two groups set to the same address and port.
+  let sharedError = $derived.by(() => {
+    for (const [i, a] of GROUPS.entries()) {
+      for (const b of GROUPS.slice(i + 1)) {
+        if (
+          !errors[a.ipKey] &&
+          !errors[b.ipKey] &&
+          draft[a.ipKey] === draft[b.ipKey] &&
+          draft[a.portKey] === draft[b.portKey]
+        ) {
+          return text.errors.sameAddress(a.title, b.title);
+        }
+      }
+    }
+
+    return null;
+  });
 
   function commit(key: keyof NetworkConfig): void {
     if (errors[key] || sharedError || draft[key] === current[key]) return;
@@ -88,6 +99,13 @@
       portKey: "gc_port",
       what: text.status.gcWhat,
     },
+    {
+      id: "tracker",
+      title: "Autoref tracker",
+      ipKey: "tracker_ip",
+      portKey: "tracker_port",
+      what: text.status.trackerWhat,
+    },
   ] as const;
 
   let groups = $derived(
@@ -100,7 +118,7 @@
 
       return {
         ...g,
-        status: kind === "vision" ? network.state?.vision : network.state?.gc,
+        status: network.state?.[kind],
         addresses,
         ports,
         addressIndex: addresses.findIndex((p) => p.value === ip),

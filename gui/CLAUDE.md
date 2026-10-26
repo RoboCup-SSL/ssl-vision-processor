@@ -48,10 +48,11 @@ internal/
   config/      vision.yml store: working/disk copies, save/load, locked
                calibrations, disk watcher, generated config.yml files
   geometry/    live field template + published calibrations + 1Hz publish loop
-  multicast/   vision + game controller sockets, interface selection,
+  multicast/   vision + game controller + tracker sockets, interface selection,
                reopened on address/interface changes
   api/         typed routes + the OpenAPI spec (/api/openapi.json, /api/docs)
   hub/         topic pub/sub + the /ws handler
+  livefield/   latest detection + autoref tracked frames for the Live Field page
   snapshot/    debug image listing/serving
   video/       live video: RTP H.264 -> fMP4 over /ws/video/{id} for MSE
   v4l/         this host's capture devices, for the camera path picker

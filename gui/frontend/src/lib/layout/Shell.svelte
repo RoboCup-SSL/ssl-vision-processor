@@ -79,6 +79,13 @@
       fallback:
         configured && `${configured.gc_ip}:${String(configured.gc_port)}`,
     },
+    {
+      label: "Autoref Tracker",
+      status: network.state?.tracker,
+      fallback:
+        configured &&
+        `${configured.tracker_ip}:${String(configured.tracker_port)}`,
+    },
   ]);
 
   // Matches the preference checkboxes below: same text, same left inset as

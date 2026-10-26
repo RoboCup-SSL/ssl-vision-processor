@@ -21,12 +21,14 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/livefield"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/logging"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/origins"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/referee"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/supervisor"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/vision"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -138,6 +140,7 @@ func run() int {
 
 	runBackground(&wg, "vision multicast", func() error { return sockets.vision.Run(ctx) })
 	runBackground(&wg, "game controller multicast", func() error { return sockets.gc.Run(ctx) })
+	runBackground(&wg, "tracker multicast", func() error { return sockets.tracker.Run(ctx) })
 	suspend := multicast.NewSuspendDetector()
 
 	runBackground(&wg, "geometry publish loop", func() error {
@@ -163,6 +166,7 @@ func run() int {
 		})
 	})
 	runBackground(&wg, "config file watcher", func() error { return store.Watch(ctx, configWatchInterval) })
+	runBackground(&wg, "live field publish loop", func() error { return publishLiveField(ctx, wsHub, status.live) })
 
 	if h.procs != nil {
 		runBackground(&wg, "vision_processor supervisor", func() error { return h.procs.Run(ctx) })
@@ -249,16 +253,23 @@ func newHost(path string, opts hostOptions) (*host, error) {
 		return nil, fmt.Errorf("-allowOrigin / -allowHost: %w", err)
 	}
 
-	_, addrs, auto, ifaces := currentNetwork(store)
+	doc, addrs, auto, ifaces := currentNetwork(store)
 	mcOpts := multicast.Options{Verbose: opts.verbose}
 	tracker := detections.NewTracker()
 	match := &referee.Match{}
 	trackTeams := func(yellow, blue string) { match.Teams.Record(yellow, blue, time.Now()) }
-	track := func(id uint32, from net.IP) { tracker.Record(id, from, time.Now()) }
+	live := livefield.NewFeed()
+	track := func(d *vision.SSL_DetectionFrame, from net.IP) {
+		now := time.Now()
+		tracker.Record(d.GetCameraId(), from, now)
+		live.RecordDetection(d, from, now)
+	}
+	trackAutoref := func(p *vision.TrackerWrapperPacket, from net.IP) { live.RecordTracked(p, from, time.Now()) }
 	sockets := &networkSockets{
 		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(mcOpts), multicast.VisionConsumer(geom.Absorb, track)),
 		detections: tracker,
 		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, mcOpts, multicast.RefereeConsumer(trackTeams)),
+		tracker:    multicast.NewEndpoint("tracker", doc.TrackerAddress(), ifaces, mcOpts, multicast.TrackerConsumer(trackAutoref)),
 		video:      video.NewManager(opts.verbose),
 		auto:       auto,
 		ifaces:     ifaces,
@@ -266,8 +277,8 @@ func newHost(path string, opts hostOptions) (*host, error) {
 	sockets.apply(store)
 	match.SetHeightsFile(botHeightsFile(store))
 
-	wsHub := hub.New(wrapperPacketTopic, configStateTopic, networkStateTopic, alertsStateTopic, processesStateTopic)
-	status := &hostStatus{store: store, sockets: sockets, match: match}
+	wsHub := hub.New(wrapperPacketTopic, configStateTopic, networkStateTopic, alertsStateTopic, processesStateTopic, liveFieldTopic)
+	status := &hostStatus{store: store, sockets: sockets, match: match, live: live}
 	policy.SetStrict(competitionField(store))
 
 	var procs *supervisor.Supervisor
@@ -451,10 +462,11 @@ func publishConfigState(wsHub *hub.Hub, store *config.Store) {
 	wsHub.Publish(configStateTopic, data)
 }
 
-// networkSockets is the host's two multicast groups.
+// networkSockets is the host's multicast groups.
 type networkSockets struct {
-	vision *multicast.Endpoint
-	gc     *multicast.Endpoint
+	vision  *multicast.Endpoint
+	gc      *multicast.Endpoint
+	tracker *multicast.Endpoint
 	// detections is which camera_ids the vision socket hears, from where.
 	detections *detections.Tracker
 	// video opens each camera's stream only while someone watches it.
@@ -472,18 +484,21 @@ type networkSockets struct {
 func (s *networkSockets) reopen() {
 	s.vision.Reopen()
 	s.gc.Reopen()
+	s.tracker.Reopen()
 	s.video.Reopen()
 }
 
-// apply moves both endpoints to the store's current addresses and interface
+// apply moves every endpoint to the store's current addresses and interface
 // selection. Each endpoint reopens only if something it uses changed.
 func (s *networkSockets) apply(store *config.Store) {
 	doc, addrs, auto, ifaces := currentNetwork(store)
 
 	s.vision.SetAddress(addrs.VisionAddress())
 	s.gc.SetAddress(addrs.GCAddress())
+	s.tracker.SetAddress(doc.TrackerAddress())
 	s.vision.SetInterfaces(ifaces)
 	s.gc.SetInterfaces(ifaces)
+	s.tracker.SetInterfaces(ifaces)
 	s.video.Configure(cameraStreams(doc), ifaces)
 
 	used := []string{}

@@ -4,22 +4,24 @@ Tooltips, warnings, error messages, and help text for the GUI live here, one
 file per page or area. To change what the GUI says, edit these files; you
 don't need to touch the components that show them.
 
-| File              | What's in it                                              |
-| ----------------- | --------------------------------------------------------- |
-| `camera.ts`       | Camera Settings page                                      |
-| `layout.ts`       | Camera Layout page and its confirm dialog                 |
-| `network.ts`      | Network page, address and port advice, socket status      |
-| `geometry.ts`     | Geometry page's calibration card                          |
-| `alerts.ts`       | Alerts page titles and details                            |
-| `docs.ts`         | The Alerts page's "How to fix" resolution docs            |
-| `video.ts`        | Messages over live video                                  |
-| `app.ts`          | Header badges, settings menu prompts, edit conflicts      |
-| `wizard.ts`       | Setup wizard                                              |
-| `color.ts`        | Color page, color picker, and update weights              |
-| `placeholder.ts`  | Unbuilt pages and the Stream page                         |
-| `configFields.ts` | Each config.yml setting's comment, copied from config.yml |
-| `links.ts`        | Every external URL, by name                               |
-| `common.ts`       | Phrases several pages share                               |
+| File                | What's in it                                              |
+| ------------------- | --------------------------------------------------------- |
+| `liveField.ts`      | Live Field page                                           |
+| `teamAssignment.ts` | Team Assignment page: teams and robot heights             |
+| `camera.ts`         | Camera Settings page                                      |
+| `layout.ts`         | Camera Layout page and its confirm dialog                 |
+| `network.ts`        | Network page, address and port advice, socket status      |
+| `geometry.ts`       | Geometry page's calibration card                          |
+| `alerts.ts`         | Alerts page titles and details                            |
+| `docs.ts`           | The Alerts page's "How to fix" resolution docs            |
+| `video.ts`          | Messages over live video                                  |
+| `app.ts`            | Header badges, settings menu prompts, edit conflicts      |
+| `wizard.ts`         | Setup wizard                                              |
+| `color.ts`          | Color page, color picker, and update weights              |
+| `placeholder.ts`    | Unbuilt pages and the Stream page                         |
+| `configFields.ts`   | Each config.yml setting's comment, copied from config.yml |
+| `links.ts`          | Every external URL, by name                               |
+| `common.ts`         | Phrases several pages share                               |
 
 ## Editing
 
