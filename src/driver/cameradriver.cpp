@@ -22,6 +22,9 @@
 #ifdef MVIMPACT_AVAILABLE
 #include "driver/mvimpactdriver.h"
 #endif
+#ifdef DC1394_AVAILABLE
+#include "driver/dc1394driver.h"
+#endif
 
 #include <yaml-cpp/yaml.h>
 
@@ -84,6 +87,11 @@ std::unique_ptr<CameraDriver> openCamera(const CameraConfig& config) {
 #ifdef MVIMPACT_AVAILABLE
 	if(config.driverType == "MVIMPACT")
 		return std::make_unique<MVImpactDriver>(config);
+#endif
+
+#ifdef DC1394_AVAILABLE
+	if(config.driverType == "DC1394")
+		return std::make_unique<DC1394Driver>(config);
 #endif
 
 	if(config.driverType == "OPENCV")
