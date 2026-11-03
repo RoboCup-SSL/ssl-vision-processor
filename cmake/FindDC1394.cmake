@@ -1,0 +1,15 @@
+if (WITH_DC1394)
+    pkg_check_modules(DC1394 libdc1394-2)
+
+    if (DC1394_FOUND)
+        add_definitions( -DDC1394_AVAILABLE )
+        message(STATUS "DC1394 found, activating DC1394 (IIDC FireWire) support.")
+    else()
+        set(DC1394_INCLUDE_DIRS "")
+        set(DC1394_LIBRARIES "")
+    endif ()
+
+else()
+    set(DC1394_INCLUDE_DIRS "")
+    set(DC1394_LIBRARIES "")
+endif (WITH_DC1394)
