@@ -105,7 +105,7 @@ Resources::Resources(const std::string& configPath) : fieldReference(), configPa
 	cameraAmount = geometry["camera_amount"].as<int>(1);
 	cameraHeight = geometry["camera_height"].as<double>(0.0);
 	lineCorners = geometry["line_corners"].as<std::vector<Eigen::Vector2f>>(std::vector<Eigen::Vector2f>());
-	geometryRefinement = geometry["refinement"].as<bool>(true);
+	geometryRefinement = geometry["refinement"].as<bool>(false);
 	fieldLineThreshold = geometry["field_line_threshold"].as<int>(5);
 	minLineSegmentLength = geometry["min_line_segment_length"].as<double>(10.0);
 	maxLineSegmentOffset = geometry["max_line_segment_offset"].as<double>(10.0);

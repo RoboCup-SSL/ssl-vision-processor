@@ -22,6 +22,9 @@
 #ifdef MVIMPACT_AVAILABLE
 #include "driver/mvimpactdriver.h"
 #endif
+#ifdef DC1394_AVAILABLE
+#include "driver/dc1394driver.h"
+#endif
 
 #include <yaml-cpp/yaml.h>
 
@@ -39,7 +42,8 @@ CameraConfig::CameraConfig(const YAML::Node &cam) {
 	driverType = cam["driver"].as<std::string>("SPINNAKER");
 
 	hardwareId = cam["id"].as<int>(0);
-	path = cam["path"].as<std::string>("/dev/video" + std::to_string(this->hardwareId));
+	// "path" is the former name of "device"
+	device = cam["device"].as<std::string>(cam["path"].as<std::string>(driverType == "OPENCV" ? "/dev/video" + std::to_string(this->hardwareId) : ""));
 
 	width = cam["width"].as<int>(0);
 	height = cam["height"].as<int>(0);
@@ -84,6 +88,11 @@ std::unique_ptr<CameraDriver> openCamera(const CameraConfig& config) {
 #ifdef MVIMPACT_AVAILABLE
 	if(config.driverType == "MVIMPACT")
 		return std::make_unique<MVImpactDriver>(config);
+#endif
+
+#ifdef DC1394_AVAILABLE
+	if(config.driverType == "DC1394")
+		return std::make_unique<DC1394Driver>(config);
 #endif
 
 	if(config.driverType == "OPENCV")

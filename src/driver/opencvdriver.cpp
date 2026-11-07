@@ -23,12 +23,12 @@
 static constexpr double OPENCV_AUTO_EXPOSURE_ON = 0.75;
 static constexpr double OPENCV_AUTO_EXPOSURE_OFF = 0.25;
 
-OpenCVDriver::OpenCVDriver(const CameraConfig& config): capture(config.path, cv::CAP_ANY, {cv::CAP_PROP_HW_ACCELERATION, cv::VIDEO_ACCELERATION_ANY}), name(config.path) {
+OpenCVDriver::OpenCVDriver(const CameraConfig& config): capture(config.device, cv::CAP_ANY, {cv::CAP_PROP_HW_ACCELERATION, cv::VIDEO_ACCELERATION_ANY}), name(config.device) {
 	std::replace(name.begin(), name.end(), '/', '_');
 
 	// Usually a wrong path or a camera busy in another program; later calls would throw.
 	if(!capture.isOpened())
-		FATAL("Could not open camera " << config.path << ": no OpenCV backend can open it. Check the path, and whether another program is using the camera (fuser -v " << config.path << ").");
+		FATAL("Could not open camera " << config.device << ": no OpenCV backend can open it. Check the path, and whether another program is using the camera (fuser -v " << config.device << ").");
 
 	// Use compressed data stream to unlock the highest resolution - framerate combination on USB2 cameras
 	capture.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
