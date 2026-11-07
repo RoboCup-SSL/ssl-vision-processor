@@ -1,0 +1,167 @@
+// A camera's camera: block (vision_processor's src/driver/cameradriver.cpp),
+// as the Camera Settings tab edits it. Values shown are effective ones: the
+// C++ fallbacks (from the host's schema), then vision.yml's defaults.camera, then the camera's own
+// config.camera. Edits go into the camera's own block, like the color panel:
+// a key is written when it differs from what the camera would inherit, and
+// removed when it's set back.
+//
+// vision_processor reads camera: only at startup, so nothing here takes
+// effect until it restarts.
+import { config, cameraDoc } from "./config.svelte";
+import { fallback, schema } from "./schema.svelte";
+import type { VideoDevice } from "./apiTypes";
+
+export type Driver = "SPINNAKER" | "MVIMPACT" | "OPENCV";
+
+export type WhiteBalance = "OUTDOOR" | "INDOOR" | { red: number; blue: number };
+
+export interface CameraSettings {
+  driver: Driver;
+  id: number;
+  // Unset means /dev/video{id}.
+  path?: string;
+  width: number;
+  height: number;
+  exposure: number;
+  gain: number;
+  gamma: number;
+  white_balance: WhiteBalance;
+}
+
+export type CameraKey = keyof CameraSettings;
+
+// What each driver does with the block: the host's schema, plus a label.
+export interface DriverInfo {
+  label: string;
+  // Selected by index in the SDK's camera list, or (OpenCV) by path.
+  selectsBy: "id" | "path";
+  gamma: boolean;
+  // Separate OUTDOOR and INDOOR auto white balance profiles.
+  wbProfiles: boolean;
+}
+
+const DRIVER_LABELS: Record<Driver, string> = {
+  SPINNAKER: "Spinnaker (FLIR)",
+  MVIMPACT: "mvIMPACT (Bluefox3)",
+  OPENCV: "OpenCV (V4L2 cameras, files)",
+};
+
+export function drivers(): Record<Driver, DriverInfo> {
+  return Object.fromEntries(
+    (schema.value?.drivers ?? []).map((d) => [
+      d.id,
+      {
+        label: DRIVER_LABELS[d.id as Driver],
+        selectsBy: d.selectsBy,
+        gamma: d.gamma,
+        wbProfiles: d.whiteBalanceProfiles,
+      },
+    ]),
+  ) as Record<Driver, DriverInfo>;
+}
+
+// Keys with a fixed fallback; path's depends on id (/dev/video{id}).
+const FALLBACK_KEYS = [
+  "driver",
+  "id",
+  "width",
+  "height",
+  "exposure",
+  "gain",
+  "gamma",
+  "white_balance",
+] as const;
+
+// vision_processor's fallbacks for keys the block leaves out.
+function cppDefaults(): CameraSettings {
+  return Object.fromEntries(
+    FALLBACK_KEYS.map((key) => [key, fallback(`camera.${key}`)]),
+  ) as unknown as CameraSettings;
+}
+
+type Block = Record<string, unknown>;
+
+function asBlock(value: unknown): Block {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Block)
+    : {};
+}
+
+function inheritedBlock(): Block {
+  return asBlock(config.doc?.defaults?.["camera"]);
+}
+
+function ownBlock(cameraId: number): Block {
+  return asBlock(asBlock(cameraDoc(cameraId)?.config)["camera"]);
+}
+
+function inheritedValue(key: CameraKey): unknown {
+  const block = inheritedBlock();
+
+  return key in block ? block[key] : (fallback(`camera.${key}`) ?? undefined);
+}
+
+export function cameraSettings(cameraId: number): CameraSettings {
+  return {
+    ...cppDefaults(),
+    ...inheritedBlock(),
+    ...ownBlock(cameraId),
+  };
+}
+
+// Sets one key for the camera. undefined removes the camera's override, so
+// it inherits again.
+export function setCameraKey<K extends CameraKey>(
+  cameraId: number,
+  key: K,
+  value: CameraSettings[K] | undefined,
+): void {
+  const camera = cameraDoc(cameraId);
+  if (!camera) return;
+
+  const own = ownBlock(cameraId);
+  const same = JSON.stringify(value) === JSON.stringify(inheritedValue(key));
+
+  // Back to what it would inherit anyway: drop the override, so undoing an
+  // edit leaves the file as it was.
+  if (value === undefined || same) {
+    if (!(key in own)) return;
+
+    writeBlock(
+      cameraId,
+      Object.fromEntries(Object.entries(own).filter(([k]) => k !== key)),
+    );
+
+    return;
+  }
+
+  if (JSON.stringify(own[key]) === JSON.stringify(value)) return;
+
+  writeBlock(cameraId, { ...own, [key]: value });
+}
+
+function writeBlock(cameraId: number, block: Block): void {
+  const camera = cameraDoc(cameraId);
+  if (!camera) return;
+
+  camera.config ??= {};
+
+  if (Object.keys(block).length === 0) {
+    delete camera.config["camera"];
+  } else {
+    camera.config["camera"] = block;
+  }
+}
+
+// A capture device on the host, from GET /api/camera/devices.
+export type { VideoDevice } from "./apiTypes";
+
+export async function loadVideoDevices(): Promise<VideoDevice[]> {
+  try {
+    const response = await fetch("/api/camera/devices");
+
+    return response.ok ? ((await response.json()) as VideoDevice[]) : [];
+  } catch {
+    return [];
+  }
+}

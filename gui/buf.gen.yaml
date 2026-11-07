@@ -1,0 +1,41 @@
+version: v2
+
+# The .proto files live in the proto/ git submodule, shared with the C++ and
+# (for now) Python builds. buf reads them in place, so there is no vendored copy
+# to drift.
+inputs:
+  - directory: ../proto/proto
+    paths:
+      - ../proto/proto/vision
+      - ../proto/proto/gamecontroller
+    exclude_paths:
+      - ../proto/proto/vision/legacy
+
+# The SSL .proto files carry no go_package option, so managed mode has to supply
+# one. Combined with paths=source_relative below, proto/<dir> generates into
+# internal/<dir>: proto/vision/*.proto -> internal/vision/*.pb.go.
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/RoboCup-SSL/ssl-vision-processor/gui/internal
+
+# Local plugins, not buf.build remotes: generation needs no network beyond the
+# already-checked-out proto/ submodule. Versions come from go.mod's `tool`
+# directive and frontend/package.json's devDependency, not a pin here, so
+# generated code never drifts from whatever protobuf runtime version the rest
+# of the code actually builds against.
+plugins:
+  - local: [go, tool, protoc-gen-go]
+    out: internal
+    opt:
+      - paths=source_relative
+
+  # json_types emits the canonical protojson shape of each message, which is
+  # what the Go side sends over the wire. 64-bit fields come out as strings
+  # there, and these types say so.
+  - local: ./frontend/node_modules/.bin/protoc-gen-es
+    out: frontend/src/proto
+    opt:
+      - target=ts
+      - json_types=true
