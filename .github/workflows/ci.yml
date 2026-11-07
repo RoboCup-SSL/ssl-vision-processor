@@ -24,15 +24,36 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      # The dev shell pins eigen_5. Ubuntu ships 3.4.0 through at least 26.04
-      # LTS, which lacks Matrix::canonicalEulerAngles() -- so this cannot be an
-      # apt-based job without patching the source.
       - name: Build all targets
         run: |
           nix develop --command bash -c '
             cmake -B build .
             make -C build -j"$(nproc)" vision_processor geometry_benchmark blob_benchmark
           '
+
+  build-apt:
+    name: Build (Ubuntu 24.04, apt)
+    # Pinned, not ubuntu-latest: 24.04 is the release target, and its packages
+    # (protobuf 3.21, OpenCV 4.6, ffmpeg 6.1) are far older than nixpkgs'.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # setup.sh's Debian package list, minus its runtime-only and Python
+      # packages. Keep the two in sync.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libyaml-cpp-dev \
+            ocl-icd-opencl-dev libeigen3-dev libopencv-dev protobuf-compiler libprotobuf-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libdc1394-dev
+
+      - name: Build all targets
+        run: |
+          cmake -B build .
+          make -C build -j"$(nproc)" vision_processor geometry_benchmark blob_benchmark
 
   python:
     name: Python (wrapper_backend)

@@ -10,6 +10,6 @@ build:
   stage: build
   script:
     - apt -qq update
-    - DEBIAN_FRONTEND=noninteractive apt -y install --no-install-recommends build-essential cmake pkg-config libyaml-cpp-dev ocl-icd-opencl-dev libeigen3-dev libopencv-dev protobuf-compiler libprotobuf-dev ffmpeg libavcodec-dev libavformat-dev libavutil-dev > /dev/null
+    - DEBIAN_FRONTEND=noninteractive apt -y install --no-install-recommends build-essential cmake pkg-config libyaml-cpp-dev ocl-icd-opencl-dev libeigen3-dev libopencv-dev protobuf-compiler libprotobuf-dev ffmpeg libavcodec-dev libavformat-dev libavutil-dev libdc1394-dev > /dev/null
     - cmake -B build .
     - make -C build -j vision_processor

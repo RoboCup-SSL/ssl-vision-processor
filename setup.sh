@@ -59,12 +59,12 @@ fi
 # Determine distribution/package manager
 if [[ -f /etc/arch-release ]]; then
     echo -e "\e[92m »  Arch based distribution\e[39m"
-    packages="gcc make cmake pkgconf eigen opencv yaml-cpp opencl-clhpp python-protobuf python-yaml $opencl_arch"
+    packages="gcc make cmake pkgconf eigen opencv yaml-cpp opencl-clhpp libdc1394 python-protobuf python-yaml $opencl_arch"
     check_cmd="pacman -Qi $packages"
     install_cmd="sudo pacman -S $packages"
 elif [[ -f /etc/debian_version ]]; then
     echo -e "\e[92m »  Debian based distribution\e[39m"
-    packages="build-essential cmake pkg-config libyaml-cpp-dev ocl-icd-opencl-dev libeigen3-dev libopencv-dev protobuf-compiler libprotobuf-dev ffmpeg libavcodec-dev libavformat-dev libavutil-dev python3-protobuf python3-yaml $opencl_debian"
+    packages="build-essential cmake pkg-config libyaml-cpp-dev ocl-icd-opencl-dev libeigen3-dev libopencv-dev protobuf-compiler libprotobuf-dev ffmpeg libavcodec-dev libavformat-dev libavutil-dev libdc1394-dev python3-protobuf python3-yaml $opencl_debian"
     check_cmd="dpkg -s $packages"
     install_cmd="sudo apt install --no-install-recommends $packages"
 else
