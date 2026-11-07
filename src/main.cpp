@@ -21,6 +21,7 @@
 #include "CameraModel.h"
 #include "proto/vision/ssl_vision_geometry.pb.h"
 #include "proto/vision/ssl_vision_wrapper.pb.h"
+#include "config.h"
 #include "Resources.h"
 #include "calib/GeomModel.h"
 #include "pattern.h"
@@ -249,10 +250,12 @@ void sig_stop(int sig_num) {
 }
 
 int main(int argc, char* argv[]) {
+	init_config(argc > 1 ? argv[1] : "config.yml");
 	Resources r(argc > 1 ? argv[1] : "config.yml");
 	cl::Kernel blobList = r.openCl->compile(kernel_blobList_cl);
 
 	uint32_t frameId = 0;
+	double lastConfigSendTime = 0.0;
 	double lastDebugSaveTime = 0.0;
 	CLArray matchArray(sizeof(CLMatch) * r.maxBlobs);
 	CLArray counter(sizeof(cl_int)*3);
@@ -419,6 +422,16 @@ int main(int argc, char* argv[]) {
 				if(frameId == 100)
 					VP_LOG("Saved sample image");
 			}
+		}
+
+		/* Send config once per second. */
+		if((realStartTime - lastConfigSendTime) > 1.0) {
+			SSL_WrapperPacket wrapper;
+			wrapper.set_source(SSL_SOURCE_VISION_PROCESSOR);
+			wrapper.mutable_config()->CopyFrom(config);
+			r.socket->send(wrapper);
+
+			lastConfigSendTime = realStartTime;
 		}
 	}
 
