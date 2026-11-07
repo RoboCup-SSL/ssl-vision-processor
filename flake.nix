@@ -54,6 +54,7 @@
               # pulls in -- two copies of ffmpeg's global state in one process.
               ffmpeg_8          # libavformat libavcodec libavutil
               protobuf
+              libusb1           # Spinnaker's GenTL producer (Spinnaker SDK itself is not packaged)
 
               opencl-headers    # CL/cl.h
               opencl-clhpp      # CL/opencl.hpp (CL_HPP_TARGET_OPENCL_VERSION=300)
