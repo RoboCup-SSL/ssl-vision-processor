@@ -37,6 +37,7 @@ const (
 	CodeTeamDefaultHeight = "team_default_height"
 	CodeLoopbackMulticast = "loopback_multicast_off"
 	CodeSenderConflict    = "sender_conflict"
+	CodeFirstRun          = "first_run_not_publishing"
 )
 
 // Alert is one problem.
@@ -69,7 +70,7 @@ func Codes() []string {
 	codes := append([]string{
 		CodeRenderFailed, CodeCameraIDConflict, CodeRegionUncovered, CodeCameraUnplaced, CodeFileChanged,
 		CodeSocketProblem, CodeSocketSilent, CodeHeightsUnreadable, CodeTeamDefaultHeight, CodeLoopbackMulticast,
-		CodeSenderConflict,
+		CodeSenderConflict, CodeFirstRun,
 	}, config.WarningCodes...)
 
 	slices.Sort(codes)
@@ -108,6 +109,13 @@ func Collect(doc config.Document, state config.State, net Network) []Alert {
 	out := []Alert{}
 
 	add := func(a Alert) { out = append(out, a) }
+
+	if doc.FirstRun {
+		add(Alert{
+			ID: "first-run", Code: CodeFirstRun, Severity: Warning,
+			Message: "Nothing is published on the network until the configuration is saved for the first time.",
+		})
+	}
 
 	for _, id := range sortedKeys(state.RenderErrors) {
 		add(Alert{

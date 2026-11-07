@@ -35,7 +35,11 @@ const fileHeader = `# vision-processor-gui configuration. Edit freely: the GUI w
 
 // Document is one vision.yml.
 type Document struct {
-	Version            int                          `yaml:"version" json:"version"`
+	Version int `yaml:"version" json:"version"`
+	// FirstRun marks a config the host created that nobody has saved yet: the
+	// host publishes nothing until a person has confirmed the field by saving.
+	// The host owns it; an edit can't change it, and the first save removes it.
+	FirstRun           bool                         `yaml:"first_run,omitempty" json:"firstRun,omitempty"`
 	Field              geometry.FieldConfig         `yaml:"field" json:"field"`
 	OptionalFieldLines geometry.OptionalLinesConfig `yaml:"optional_field_lines" json:"optionalFieldLines"`
 	// Models is SSL_GeometryModels in protojson (proto field names).
@@ -176,7 +180,8 @@ func (d Document) InterfaceSelection() (auto bool, skip []string) {
 type Camera struct {
 	CameraID int    `yaml:"camera_id" json:"cameraId"`
 	Instance string `yaml:"instance,omitempty" json:"instance,omitempty"`
-	// ConfigPath is a host-local config.yml to regenerate from this document
+	// ConfigPath is a host-local config.yml, a file name in the config folder,
+	// to regenerate from this document
 	// for a vision_processor on the same machine. Empty for remote instances.
 	ConfigPath string `yaml:"config_path,omitempty" json:"configPath,omitempty"`
 	// Config overrides Defaults, same config.yml layout, deep-merged.
@@ -310,6 +315,8 @@ func (d Document) Validate() error {
 	if _, err := d.ModelsProto(); err != nil {
 		add(err)
 	}
+
+	add(d.validateFileNames())
 
 	n, err := d.Network()
 	if err == nil {
@@ -717,8 +724,7 @@ func deepCopy(v any) any {
 const DefaultBotHeightsFile = "robot-heights.yml"
 
 // BotHeightsFile is the robot height table the cameras read, from Defaults'
-// bot_heights_file. Like vision_processor, a relative path is relative to
-// the working directory.
+// bot_heights_file, relative to the config folder.
 func (d Document) BotHeightsFile() string {
 	if path, ok := d.Defaults["bot_heights_file"].(string); ok && path != "" {
 		return path

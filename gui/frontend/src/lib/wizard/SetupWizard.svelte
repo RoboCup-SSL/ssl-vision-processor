@@ -1,8 +1,11 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { Modal, Stepper, Button } from "flowbite-svelte";
+  import { config } from "../config.svelte";
   import {
     wizard,
     finishWizard,
+    openWizard,
     nextStep,
     previousStep,
     WIZARD_STEPS,
@@ -29,6 +32,17 @@
   // Finish), so the generic Back/Next footer only applies to the steps after
   // it.
   let showFooterNav = $derived(wizard.step !== "start");
+
+  // A new config is what the wizard is for, so it opens by itself. Once per
+  // page load, so closing it to look around sticks.
+  let openedForFirstRun = false;
+
+  $effect(() => {
+    if (config.state?.firstRun && config.doc && !openedForFirstRun) {
+      openedForFirstRun = true;
+      untrack(openWizard);
+    }
+  });
   let isLastStep = $derived(
     wizard.step === WIZARD_STEPS[WIZARD_STEPS.length - 1],
   );

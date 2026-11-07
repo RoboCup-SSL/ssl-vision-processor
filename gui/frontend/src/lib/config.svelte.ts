@@ -245,15 +245,15 @@ export async function saveConfig(
   );
 }
 
-export async function saveConfigAs(path: string): Promise<void> {
+export async function saveConfigAs(name: string): Promise<void> {
   await flushEdits();
   await guarded(() =>
-    post("/api/config/save-as", { revision: config.revision, path }),
+    post("/api/config/save-as", { revision: config.revision, name }),
   );
 }
 
-export async function loadConfigFrom(path: string): Promise<void> {
-  await guarded(() => post("/api/config/load", { path }));
+export async function loadConfigFrom(name: string): Promise<void> {
+  await guarded(() => post("/api/config/load", { name }));
 }
 
 // Accepts vision.yml as it is on disk, discarding unsaved edits.

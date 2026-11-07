@@ -83,7 +83,7 @@ func testStore(t *testing.T) (*Store, *fakeLive, string) {
 
 	dir := t.TempDir()
 	doc := loadFixture(t)
-	doc.Cameras[0].ConfigPath = filepath.Join(dir, "config-0.yml")
+	doc.Cameras[0].ConfigPath = "config-0.yml"
 
 	data, err := Marshal(doc)
 	if err != nil {
@@ -354,25 +354,81 @@ func TestStatusWarnings(t *testing.T) {
 	}
 }
 
-func TestSaveAsSwitchesThePathAndRefusesPresets(t *testing.T) {
+func TestSaveAsSwitchesThePath(t *testing.T) {
 	s, _, path := testStore(t)
 	_, rev := s.Working()
 
-	if err := s.SaveAs(rev, filepath.Join(filepath.Dir(path), "geometry-divB.yml")); !IsValidation(err) {
-		t.Fatalf("SaveAs(preset) = %v, want a validation error", err)
-	}
-
-	newPath := filepath.Join(filepath.Dir(path), "other.yml")
-	if err := s.SaveAs(rev, newPath); err != nil {
+	if err := s.SaveAs(rev, "other.yml"); err != nil {
 		t.Fatalf("SaveAs: %v", err)
 	}
 
-	if got := s.State().Path; got != newPath {
-		t.Fatalf("path = %q, want %q", got, newPath)
+	newPath := filepath.Join(filepath.Dir(path), "other.yml")
+	if state := s.State(); state.Path != newPath || state.File != "other.yml" {
+		t.Fatalf("path = %q, file = %q, want %q", state.Path, state.File, newPath)
 	}
 
 	if _, err := os.Stat(newPath); err != nil {
 		t.Fatalf("SaveAs did not write: %v", err)
+	}
+}
+
+// Everything the API can reach has to stay in the one flat folder.
+func TestSaveAsAndLoadStayInTheConfigFolder(t *testing.T) {
+	s, _, path := testStore(t)
+	dir := filepath.Dir(path)
+	_, rev := s.Working()
+
+	outside := filepath.Join(t.TempDir(), "outside.yml")
+
+	if err := os.WriteFile(outside, []byte("not a config"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Symlink(outside, filepath.Join(dir, "link.yml")); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, name := range []string{outside, "../outside.yml", "sub/outside.yml", ".hidden.yml", "outside.txt", "link.yml"} {
+		if err := s.SaveAs(rev, name); !IsValidation(err) {
+			t.Errorf("SaveAs(%q) = %v, want a validation error", name, err)
+		}
+
+		if err := s.Load(name); !IsValidation(err) {
+			t.Errorf("Load(%q) = %v, want a validation error", name, err)
+		}
+	}
+
+	if got := s.State().Path; got != path {
+		t.Errorf("path = %q, want it unchanged", got)
+	}
+
+	if data, _ := os.ReadFile(outside); string(data) != "not a config" {
+		t.Errorf("the file outside was changed: %q", data)
+	}
+}
+
+func TestSaveAsWontOverwriteFilesTheConfigUses(t *testing.T) {
+	s, _, _ := testStore(t)
+	_, rev := s.Working()
+
+	for _, name := range []string{"config-0.yml", "robot-heights.yml"} {
+		if err := s.SaveAs(rev, name); !IsValidation(err) {
+			t.Errorf("SaveAs(%q) = %v, want a validation error", name, err)
+		}
+	}
+}
+
+func TestAConfigPathCantBeTheConfigItself(t *testing.T) {
+	s, _, path := testStore(t)
+	doc, rev := s.Working()
+	doc.Cameras[0].ConfigPath = filepath.Base(path)
+
+	if _, err := s.Update(rev, doc); !IsValidation(err) {
+		t.Fatalf("Update = %v, want a validation error", err)
+	}
+
+	if data, _ := os.ReadFile(path); !strings.Contains(string(data), "field_length") {
+		t.Errorf("the config was overwritten:\n%s", data)
 	}
 }
 
@@ -413,5 +469,113 @@ func writeExternal(t *testing.T, path, old, replacement string) {
 
 	if err := os.WriteFile(path, []byte(edited), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
+// firstRunStore is testStore on a config the host has just created.
+func firstRunStore(t *testing.T) (*Store, string) {
+	t.Helper()
+
+	s, _, path := testStore(t)
+	doc, _ := s.Working()
+	doc.FirstRun = true
+
+	data, err := Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Reload(); err != nil {
+		t.Fatal(err)
+	}
+
+	return s, path
+}
+
+func TestAnEditCantChangeFirstRun(t *testing.T) {
+	s, _ := firstRunStore(t)
+
+	doc, rev := s.Working()
+	doc.FirstRun = false
+
+	rev, err := s.Update(rev, doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !s.FirstRun() {
+		t.Error("an edit cleared first run")
+	}
+
+	s2, _, _ := testStore(t)
+	doc, rev = s2.Working()
+	doc.FirstRun = true
+
+	if _, err := s2.Update(rev, doc); err != nil {
+		t.Fatal(err)
+	}
+
+	if s2.FirstRun() {
+		t.Error("an edit set first run")
+	}
+}
+
+func TestSavingEndsFirstRunAndDropsItFromTheFile(t *testing.T) {
+	s, path := firstRunStore(t)
+
+	if changes := s.State().Changes; len(changes) != 0 {
+		t.Fatalf("changes = %+v, want none: first run isn't an edit", changes)
+	}
+
+	_, rev := s.Working()
+	if err := s.Save(rev, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if s.FirstRun() || s.State().FirstRun {
+		t.Error("still a first run after saving")
+	}
+
+	if changes := s.State().Changes; len(changes) != 0 {
+		t.Errorf("changes = %+v, want none after saving", changes)
+	}
+
+	if data, _ := os.ReadFile(path); strings.Contains(string(data), "first_run") {
+		t.Errorf("first_run is still in the file:\n%s", data)
+	}
+}
+
+func TestSaveAsEndsFirstRun(t *testing.T) {
+	s, _ := firstRunStore(t)
+
+	_, rev := s.Working()
+	if err := s.SaveAs(rev, "other.yml"); err != nil {
+		t.Fatal(err)
+	}
+
+	if s.FirstRun() {
+		t.Error("still a first run after Save As")
+	}
+}
+
+// Publishing starts only once the confirmation has actually reached the disk.
+func TestAFailedSaveKeepsFirstRun(t *testing.T) {
+	s, path := firstRunStore(t)
+
+	if err := os.Chmod(path, 0o444); err != nil {
+		t.Fatal(err)
+	}
+
+	_, rev := s.Working()
+	if err := s.Save(rev, false); err == nil {
+		t.Fatal("Save over a read-only file: want an error")
+	}
+
+	if !s.FirstRun() {
+		t.Error("a failed save ended first run")
 	}
 }

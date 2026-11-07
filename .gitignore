@@ -12,6 +12,8 @@
 /gui/openapi.json
 /gui/frontend/src/lib/generated
 /gui/internal/api/viewer
+# Copied in by gui/Makefile for -readme (the .yml copies are ignored below).
+/gui/internal/defaults/data/README.md
 __pycache__
 
 # Cam viewer

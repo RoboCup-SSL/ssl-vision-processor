@@ -2,6 +2,7 @@ package geometry
 
 import (
 	"context"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -14,9 +15,14 @@ import (
 func testGeometry(t *testing.T) *Geometry {
 	t.Helper()
 
-	field, optional, models, err := LoadFieldFile("testdata/geometry.yml")
+	data, err := os.ReadFile("testdata/geometry.yml")
 	if err != nil {
-		t.Fatalf("LoadFieldFile: %v", err)
+		t.Fatal(err)
+	}
+
+	field, optional, models, err := ParseFieldFile(data, "testdata/geometry.yml")
+	if err != nil {
+		t.Fatalf("ParseFieldFile: %v", err)
 	}
 
 	g, err := New(field, optional, models)

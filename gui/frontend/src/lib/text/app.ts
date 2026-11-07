@@ -40,6 +40,10 @@ export const app = {
   dialogs: {
     writesTo: (path: string): string => `Writes to \`${path}\`.`,
     noChanges: "No unsaved changes.",
+    firstRunNote:
+      "This is a new configuration. Saving it starts publishing on the network.",
+    saveAndPublish: "Save and start publishing",
+    fileName: "File name in the config folder",
     saveAsNote: "The GUI edits and watches the new file from then on.",
     loadDiscards: (changes: number): string =>
       `Loading discards ${String(changes)} unsaved ${plural(changes, "change")}, and applies the loaded file live.`,

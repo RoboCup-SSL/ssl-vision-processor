@@ -21,17 +21,20 @@
   const MODAL_CLASS = "fixed inset-0 m-auto";
 
   let changes = $derived(config.state?.changes ?? []);
+  // A first save is worth making even with nothing changed: it confirms the
+  // default field and starts publishing.
+  let firstRun = $derived(config.state?.firstRun ?? false);
   let external = $derived(config.state?.external);
   let externalKey = $derived(external ? JSON.stringify(external) : "");
   let externalOpen = $derived(
     externalKey !== "" && externalKey !== fileDialogs.dismissedExternal,
   );
 
-  let pathInput = $state("");
+  let nameInput = $state("");
 
   $effect(() => {
     if (fileDialogs.saveAs || fileDialogs.load) {
-      pathInput = config.state?.path ?? "";
+      nameInput = config.state?.file ?? "";
     }
   });
 
@@ -54,16 +57,16 @@
   }
 
   async function confirmSaveAs(): Promise<void> {
-    if (!pathInput) return;
+    if (!nameInput) return;
 
-    await saveConfigAs(pathInput);
+    await saveConfigAs(nameInput);
     if (!config.error) fileDialogs.saveAs = false;
   }
 
   async function confirmLoad(): Promise<void> {
-    if (!pathInput) return;
+    if (!nameInput) return;
 
-    await loadConfigFrom(pathInput);
+    await loadConfigFrom(nameInput);
     if (!config.error) fileDialogs.load = false;
   }
 
@@ -105,6 +108,12 @@
     <RichText text={text.writesTo(config.state?.path ?? "")} />
   </P>
 
+  {#if firstRun}
+    <StatusAlert color="yellow" class="p-2 text-sm">
+      {text.firstRunNote}
+    </StatusAlert>
+  {/if}
+
   {#if changes.length === 0}
     <P class="text-sm">{text.noChanges}</P>
   {:else}
@@ -121,11 +130,15 @@
       }}>Cancel</Button
     >
     <Button
-      disabled={changes.length === 0 || config.busy}
+      disabled={(changes.length === 0 && !firstRun) || config.busy}
       onclick={confirmSave}
     >
-      Save {changes.length}
-      {plural(changes.length, "change")}
+      {#if firstRun}
+        {text.saveAndPublish}
+      {:else}
+        Save {changes.length}
+        {plural(changes.length, "change")}
+      {/if}
     </Button>
   </div>
 </Modal>
@@ -137,12 +150,12 @@
   class={MODAL_CLASS}
 >
   <div class="flex flex-col gap-1">
-    <Label for="save-as-path">Path on the host</Label>
+    <Label for="save-as-name">{text.fileName}</Label>
     <Input
-      id="save-as-path"
+      id="save-as-name"
       type="text"
       class="font-mono"
-      bind:value={pathInput}
+      bind:value={nameInput}
       placeholder="vision.yml"
     />
   </div>
@@ -159,7 +172,7 @@
         fileDialogs.saveAs = false;
       }}>Cancel</Button
     >
-    <Button disabled={!pathInput || config.busy} onclick={confirmSaveAs}
+    <Button disabled={!nameInput || config.busy} onclick={confirmSaveAs}
       >Save</Button
     >
   </div>
@@ -172,12 +185,12 @@
   class={MODAL_CLASS}
 >
   <div class="flex flex-col gap-1">
-    <Label for="load-path">Path on the host</Label>
+    <Label for="load-name">{text.fileName}</Label>
     <Input
-      id="load-path"
+      id="load-name"
       type="text"
       class="font-mono"
-      bind:value={pathInput}
+      bind:value={nameInput}
       placeholder="vision.yml"
     />
   </div>
@@ -201,7 +214,7 @@
         fileDialogs.load = false;
       }}>Cancel</Button
     >
-    <Button disabled={!pathInput || config.busy} onclick={confirmLoad}
+    <Button disabled={!nameInput || config.busy} onclick={confirmLoad}
       >Load</Button
     >
   </div>

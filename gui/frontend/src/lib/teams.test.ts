@@ -44,6 +44,8 @@ function hear(teams: { yellow: string; blue: string } | null): void {
 function unsavedChanges(...paths: string[]): void {
   config.state = {
     path: "vision.yml",
+    file: "vision.yml",
+    firstRun: false,
     revision: 1,
     changes: paths.map(
       (path): Change => ({

@@ -25,23 +25,49 @@ SHA256SUM = $(shell command -v sha256sum >/dev/null 2>&1 && echo sha256sum || ec
 .DEFAULT_GOAL := help
 
 .PHONY: help run install test check e2e vet build go-test frontend-test fmt-check generate-check \
-	multicast-note e2e-if-chrome npm proto redoc comments openapi frontend generate clean
+	multicast-note e2e-if-chrome npm proto defaults redoc comments openapi frontend generate clean release release-check
 
 ## Running
 
 help: ## List these targets
 	@awk 'BEGIN { FS = ":.*## " } \
 		/^## / { printf "\n%s\n", substr($$0, 4) } \
-		/^[a-z][a-z0-9-]*:.*## / { printf "  make %-10s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+		/^[a-z][a-z0-9-]*:.*## / { printf "  make %-13s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-# Run from the repo root, as vision_processor is: the host's defaults
-# (vision.yml, the presets in config/legacy/, img/, logs/) are relative to it.
+# Run from the repo root, as vision_processor is, keeping everything in it
+# rather than the installed default folders. ARGS come last, so they win.
 run: frontend ## Build everything and run the host from the repo root; flags go in ARGS="..."
 	go build -o bin/$(BINARY) ./cmd/$(BINARY)
-	cd .. && gui/bin/$(BINARY) $(ARGS)
+	cd .. && gui/bin/$(BINARY) -configDir . -imgDir img -logFile logs/vision-processor-gui.log $(ARGS)
 
 install: frontend ## go install the host
 	go install -v ./cmd/$(BINARY)
+
+## Releasing
+
+# Static, so it runs on any Linux. CGO_ENABLED=0 has to be explicit: under nix a
+# default build links glibc through a /nix/store interpreter that doesn't exist
+# anywhere else.
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+GOARCH ?= $(shell go env GOARCH)
+RELEASE_DIR = bin/release
+RELEASE_BIN = $(RELEASE_DIR)/$(BINARY)-$(VERSION)-linux-$(GOARCH)
+RELEASE_TAR = $(RELEASE_BIN).tar.gz
+
+release: frontend ## Build the static release binary and its tarball, in bin/release
+	rm -rf $(RELEASE_DIR)
+	mkdir -p $(RELEASE_BIN)
+	CGO_ENABLED=0 GOARCH=$(GOARCH) go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" \
+		-o $(RELEASE_BIN)/$(BINARY) ./cmd/$(BINARY)
+	cp README.md ../LICENSE.md $(RELEASE_BIN)/
+	scripts/third-party-notices.sh > $(RELEASE_BIN)/THIRD_PARTY_NOTICES.txt
+	tar -czf $(RELEASE_TAR) -C $(RELEASE_DIR) $(notdir $(RELEASE_BIN))
+	cp $(RELEASE_BIN)/$(BINARY) $(RELEASE_BIN)-bin
+	cd $(RELEASE_DIR) && $(SHA256SUM) $(notdir $(RELEASE_TAR)) $(notdir $(RELEASE_BIN))-bin > SHA256SUMS
+	@echo "$(RELEASE_TAR)"
+
+release-check: release ## Run the release binary as a new user would: no arguments, an empty home
+	scripts/release-check.sh $(RELEASE_BIN)/$(BINARY) $(VERSION)
 
 ## Checking
 
@@ -114,6 +140,25 @@ npm: $(NPM) ## Install the frontend's npm packages
 
 proto: .proto ## Generate the protobuf bindings (Go and TypeScript)
 
+# The files the binary embeds so it runs from anywhere (internal/defaults), and
+# the README it prints with -readme.
+# Copied rather than committed, since go:embed can't reach outside this module;
+# a test checks they match. install, not cp: the sources may be chmod 444.
+DEFAULTS_DIR = internal/defaults/data
+DEFAULTS = $(DEFAULTS_DIR)/geometry-divA.yml $(DEFAULTS_DIR)/geometry-divB.yml $(DEFAULTS_DIR)/robot-heights.yml \
+	$(DEFAULTS_DIR)/README.md
+
+$(DEFAULTS_DIR)/geometry-%.yml: ../config/legacy/geometry-%.yml
+	install -m 644 $< $@
+
+$(DEFAULTS_DIR)/robot-heights.yml: ../robot-heights.yml
+	install -m 644 $< $@
+
+$(DEFAULTS_DIR)/README.md: README.md
+	install -m 644 $< $@
+
+defaults: $(DEFAULTS) ## Copy the files the binary embeds
+
 # The API docs viewer: Redoc's standalone bundle (MIT), embedded in the binary
 # so /api/docs works on a venue network with no internet. Fetched at a pinned
 # version rather than committed; REDOC_SHA256 catches a changed download. The
@@ -147,8 +192,8 @@ comments: $(COMMENTS)
 
 # The API's OpenAPI spec, written by the host itself (-openapi) from its Go
 # code. Not committed; the host also serves it at /api/openapi.json. Compiling
-# the host embeds the docs viewer, hence the stamp.
-openapi.json: .proto $(REDOC_STAMP) $(COMMENTS) $(GO_SOURCES)
+# the host embeds the defaults and the docs viewer, hence those prerequisites.
+openapi.json: .proto $(DEFAULTS) $(REDOC_STAMP) $(COMMENTS) $(GO_SOURCES)
 	go run ./cmd/$(BINARY) -openapi $@
 
 openapi: openapi.json ## Write the API's OpenAPI spec to openapi.json
@@ -179,6 +224,6 @@ generate: .proto ## Regenerate the committed alert codes file
 
 clean: ## Remove everything built, generated or fetched
 	rm -rf bin frontend/dist frontend/src/proto frontend/src/lib/generated internal/vision internal/gamecontroller \
-		internal/api/viewer $(COMMENTS) openapi.json .frontend .proto
+		internal/api/viewer $(COMMENTS) $(DEFAULTS) openapi.json .frontend .proto
 	mkdir -p frontend/dist
 	touch frontend/dist/.gitkeep

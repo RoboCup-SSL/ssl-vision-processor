@@ -9,23 +9,27 @@ Replaces `python/geom_publisher.py` for anyone running it. Does not replace it
 in `setup.sh` or for `python/dataset.py` / `overlap_benchmark.py` / `replay.py`,
 which still import it directly — do not delete `geom_publisher.py`.
 
+User-facing setup is in `README.md`; contributor setup is in `DEVELOPMENT.md`.
+
 ## Commands
 
 All run from `gui/`.
 
 ```
-make           # list the targets
-make run       # build everything, run the host from the repo root on :8085 (ARGS="..." for flags)
-make test      # go test -race + the frontend's checks and unit tests
-make check     # everything CI checks: gofmt, vet, tests, generated files, browser tests
-make e2e       # Playwright browser tests (frontend/e2e/): real host, installed Google Chrome
-make generate  # rewrite the one committed generated file: the alert codes
-make clean     # remove everything built, generated or fetched
+make               # list the targets
+make run           # build everything, run the host from the repo root on :8085 (ARGS="..." for flags)
+make test          # go test -race + the frontend's checks and unit tests
+make check         # everything CI checks: gofmt, vet, tests, generated files, browser tests
+make e2e           # Playwright browser tests (frontend/e2e/): real host, installed Google Chrome
+make generate      # rewrite the one committed generated file: the alert codes
+make release-check # build the static release, run it as a new user would
+make clean         # remove everything built, generated or fetched
 ```
 
 Every target builds what it needs first: npm packages (reinstalled when
 `package-lock.json` changes), the protobuf bindings, the Redoc bundle, the
-OpenAPI spec and the TS types generated from it, and the frontend.
+OpenAPI spec and the TS types generated from it, the embedded defaults, and
+the frontend.
 
 `proto` (and so every target) needs `git submodule update --init` to have
 been run at least once, but no
@@ -43,10 +47,11 @@ cd frontend && npm run dev   # Vite HMR on :5173, proxies /api and /ws to :8085
 ## Repository layout
 
 ```
-cmd/ssl-vision-processor-gui/   entry point: flags, wiring, HTTP server
+cmd/ssl-vision-processor-gui/   entry point: flags, paths, wiring, HTTP server
 internal/
   config/      vision.yml store: working/disk copies, save/load, locked
                calibrations, disk watcher, generated config.yml files
+  defaults/    embedded rulebook fields and robot heights; make copies them in
   geometry/    live field template + published calibrations + 1Hz publish loop
   multicast/   vision + game controller + tracker sockets, interface selection,
                reopened on address/interface changes
@@ -172,8 +177,23 @@ transport until vision_processor accepts config over the network:
 `camera_amount` (`layout.camera_count`, else the number of cameras rounded
 up to a power of 2) and `line_corners` (from the seed). This
 supersedes the old line-splice writers, which existed to preserve the file's
-comments -- irrelevant once the file is generated. Importing one keeps the
-original as `<file>.orig`.
+comments -- irrelevant once the file is generated.
+
+**Every config file lives in one flat folder, `-configDir`.** The API has no
+auth, and could otherwise write anywhere the host can. `Store.Load` and
+`Store.SaveAs` take a file name, and `Document.Validate` checks `config_path`
+and `bot_heights_file`; all go through `config.ValidName`. Don't add a new file
+reference that skips it, and remember `Load` is a write path too: it changes
+where the next save goes.
+
+**The binary needs nothing beside it.** `internal/defaults` embeds the rulebook
+fields and robot heights. A default build under nix links a `/nix/store`
+interpreter, so anything shipped goes through `make release` (`CGO_ENABLED=0`).
+
+**A new config publishes nothing until the first save** (`first_run: true`). The
+host owns the flag: `Store.update` keeps it whatever an edit says, and
+`writeLocked` clears it only once the file is written. Read it from
+`config.state`, since clearing it bumps no revision.
 
 **`-vp` supervises local vision_processors; a test stand-in, not the
 deployment model.** `internal/supervisor` observes the store (`Sync` on every
@@ -293,9 +313,10 @@ Real multicast is tested over loopback (`internal/multicast/loopback_test.go`,
 these skip until `../scripts/lo-multicast.sh on`; under `CI` they fail
 instead, and the workflow turns it on first.
 
-`make e2e` runs `frontend/e2e/` with Playwright against the real host on a
-scratch copy of `internal/config/testdata/vision.yml`, in the
-installed Google Chrome (no browser download). `serve.mjs` moves that host to
+`make e2e` runs `frontend/e2e/` with Playwright against the real host (two of
+them: `first-run.spec.ts` has its own, on a first-run config) on a scratch copy
+of `internal/config/testdata/vision.yml`, in the installed Google Chrome (no
+browser download). `serve.mjs` moves that host to
 a random private multicast group and ports: on the league defaults it would
 publish the fixture's calibration (camera under the field) to any real host
 on the network, which once wedged a live camera for days. Never run a host on

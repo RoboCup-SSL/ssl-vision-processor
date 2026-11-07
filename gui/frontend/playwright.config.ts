@@ -5,6 +5,8 @@
 import { defineConfig } from "@playwright/test";
 
 const PORT = 8096;
+// A second host, on a config that's still a first run (first-run.spec.ts).
+const FIRST_RUN_PORT = 8097;
 
 export default defineConfig({
   testDir: "e2e",
@@ -19,11 +21,20 @@ export default defineConfig({
     channel: "chrome",
     trace: "retain-on-failure",
   },
-  webServer: {
-    command: `node e2e/serve.mjs ${String(PORT)}`,
-    url: `http://127.0.0.1:${String(PORT)}/api/health`,
-    reuseExistingServer: false,
-    timeout: 30_000,
-    stdout: "pipe",
-  },
+  webServer: [
+    {
+      command: `node e2e/serve.mjs ${String(PORT)}`,
+      url: `http://127.0.0.1:${String(PORT)}/api/health`,
+      reuseExistingServer: false,
+      timeout: 30_000,
+      stdout: "pipe",
+    },
+    {
+      command: `node e2e/serve.mjs ${String(FIRST_RUN_PORT)} --first-run`,
+      url: `http://127.0.0.1:${String(FIRST_RUN_PORT)}/api/health`,
+      reuseExistingServer: false,
+      timeout: 30_000,
+      stdout: "pipe",
+    },
+  ],
 });

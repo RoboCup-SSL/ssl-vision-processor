@@ -1,8 +1,7 @@
 // Starts the Go host for the e2e tests on a scratch copy of the server test
 // fixture, so a test can never write to a tracked file, with sample debug
 // snapshots for camera 0. The binary is
-// GUI_BIN, which `make e2e` builds. Runs from the repo root so the rulebook
-// presets (config/legacy/) resolve.
+// GUI_BIN, which `make e2e` builds.
 import { spawn } from "node:child_process";
 import {
   copyFileSync,
@@ -16,6 +15,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const port = process.argv[2] ?? "8096";
+// A config the host would have just created itself, for the first run tests.
+const firstRun = process.argv[3] === "--first-run";
 const bin = process.env["GUI_BIN"];
 
 if (!bin) {
@@ -27,6 +28,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../..");
 const dir = mkdtempSync(join(tmpdir(), "vision-gui-e2e-"));
 const config = join(dir, "vision.yml");
+copyFileSync(join(repo, "robot-heights.yml"), join(dir, "robot-heights.yml"));
 
 // The fixture uses the league's default vision and game controller groups,
 // where this host would publish the fixture's calibrations to every real
@@ -49,7 +51,7 @@ if (isolated === fixture) {
   process.exit(1);
 }
 
-writeFileSync(config, isolated);
+writeFileSync(config, firstRun ? `${isolated}\nfirst_run: true\n` : isolated);
 console.error(
   `e2e host: vision ${group}:${String(base)}, game controller ${group}:${String(base + 1)}`,
 );
@@ -67,8 +69,10 @@ const host = spawn(
   [
     "-address",
     `127.0.0.1:${port}`,
-    "-config",
-    config,
+    "-configDir",
+    dir,
+    "-configFile",
+    "vision.yml",
     "-imgDir",
     img,
     "-logFile",

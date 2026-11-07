@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/vision"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -19,16 +18,12 @@ type optionalLines struct {
 	Penalty      *bool `yaml:"penalty"`
 }
 
-// Load reads path and returns the wrapper packet, the optional-line toggles
-// (not a proto field, so callers wanting to inspect or re-save them need it
-// separately), and whatever top-level YAML keys aren't "optional_field_lines"
-// or "field" (e.g. "models") so a later save can put them back unchanged.
-func Load(path string) (*vision.SSL_WrapperPacket, optionalLines, map[string]any, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, optionalLines{}, nil, fmt.Errorf("read %s: %w", path, err)
-	}
-
+// parseFile parses a geometry-*.yml (name is only for errors) and returns the
+// wrapper packet, the optional-line toggles (not a proto field, so callers
+// wanting to inspect or re-save them need it separately), and whatever
+// top-level YAML keys aren't "optional_field_lines" or "field" (e.g. "models")
+// so a later save can put them back unchanged.
+func parseFile(data []byte, path string) (*vision.SSL_WrapperPacket, optionalLines, map[string]any, error) {
 	var raw map[string]any
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, optionalLines{}, nil, fmt.Errorf("parse %s: %w", path, err)

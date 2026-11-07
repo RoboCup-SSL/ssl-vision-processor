@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/defaults"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
@@ -39,27 +40,28 @@ var address = flag.String("address", ":8085", "The address on which the vision p
 // there are no flags for them.
 
 // vision.yml holds everything the host owns: the field template, shared and
-// per-camera vision_processor settings, and locked calibrations.
-var configPath = flag.String("config", "vision.yml", "Host configuration file (field, cameras, calibrations), default: vision.yml")
+// per-camera vision_processor settings, and locked calibrations. It lives in
+// one flat folder; see config.ValidName.
+var configDir = flag.String("configDir", "", "Folder holding every config file, created if missing. Default: $XDG_CONFIG_HOME or ~/.config, then rcssl/vision-processor-gui")
+var configFile = flag.String("configFile", "vision.yml", "Config file (field, cameras, calibrations): a file name in -configDir, created if missing. Default: vision.yml")
 
-// Used only when -config doesn't exist yet, to build it from a pre-vision.yml
-// setup. Without -importGeometry the field comes from -geometryPreset.
-var importGeometry = flag.String("importGeometry", "geometry.yml", "Legacy field geometry file to import into a new -config, default: geometry.yml")
-var importConfig = flag.String("importConfig", "config.yml", "Legacy vision_processor config.yml to import into a new -config as its camera, default: config.yml")
-var geometryPreset = flag.String("geometryPreset", "config/legacy/geometry-divB.yml", "Field preset for a new -config when there's no -importGeometry, default: config/legacy/geometry-divB.yml")
 var allowOrigin = flag.String("allowOrigin", "", "Comma-separated origins (scheme://host:port) whose browser pages may use the API on a competition field, besides the host's own; * for any. In a lab, pages from this network are allowed anyway. Default: none")
 var allowHost = flag.String("allowHost", "", "Comma-separated extra names this host is reached by, e.g. a DNS alias; * to turn the check off. Its IPs, hostname, .local name and reverse-DNS names are always accepted. Default: none")
 var openapiOut = flag.String("openapi", "", "Write the API's OpenAPI spec to this path and exit (make builds openapi.json with it)")
-var imgDir = flag.String("imgDir", "img", "Directory the vision processor writes debug snapshot images to, default: img")
+var imgDir = flag.String("imgDir", "", "Directory the vision processor writes debug snapshot images to. Default: $XDG_STATE_HOME or ~/.local/state, then rcssl/vision-processor-gui/img; with -vp, img in -configDir")
 var logLevelFlag = flag.String("logLevel", "Info", "Log Level: Debug, Info, Warn, Error. Default: Info")
 
 // Until vision_processor takes config over the network: run it for each camera
 // with a config_path, restarting it when a setting it reads only at startup
-// changes. -legacy is the shortest way to drive one existing config.yml.
+// changes.
 var vpCommand = flag.String("vp", "", "Run this vision_processor (binary, then any arguments; the config path is appended) for each camera with a config_path, restarting it when a startup-only setting changes. Default: none, run them yourself")
-var legacyConfig = flag.String("legacy", "", "Drive this legacy vision_processor config.yml: shorthand for -importConfig it and, unless -config is given, -config <it>.vision.yml. The GUI regenerates the file in place; the original is kept as <it>.orig")
 
-var logFile = flag.String("logFile", "logs/vision-processor-gui.log", "Rotating log file to write alongside stderr, empty to disable. Default: logs/vision-processor-gui.log")
+var logFile = flag.String("logFile", "", "Rotating log file to write alongside stderr, empty to disable. Default: $XDG_STATE_HOME or ~/.local/state, then rcssl/vision-processor-gui/logs/vision-processor-gui.log")
+var showVersion = flag.Bool("version", false, "Print the version and exit")
+var showReadme = flag.Bool("readme", false, "Print the user guide (setup, file locations, network, troubleshooting) and exit")
+
+// version is set at build time (make release); see the Makefile's LDFLAGS.
+var version = "dev"
 
 func main() {
 	// Deferred cleanup (closeLog) must run even on a fatal startup error, which
@@ -71,8 +73,26 @@ func main() {
 func run() int {
 	flag.Parse()
 
+	if *showVersion {
+		fmt.Println("ssl-vision-processor-gui", version)
+
+		return 0
+	}
+
+	if *showReadme {
+		return printReadme()
+	}
+
 	if *openapiOut != "" {
 		return writeOpenAPI(*openapiOut)
+	}
+
+	// Resolved before Setup, which needs the log file.
+	p, err := resolvePaths(givenPaths())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+
+		return 1
 	}
 
 	// Parsed before Setup so that the level is known when the handler is built,
@@ -82,7 +102,7 @@ func run() int {
 
 	closeLog, logErr := logging.Setup(logging.Config{
 		Level: level,
-		File:  *logFile,
+		File:  p.logFile,
 	})
 	defer closeLog()
 
@@ -94,35 +114,35 @@ func run() int {
 		slog.Warn("file logging disabled", "err", logErr)
 	}
 
-	slog.Info("Init VP GUI")
+	slog.Info("Init VP GUI", "version", version)
+	logPaths(p)
 
-	if *legacyConfig != "" {
-		*importConfig = *legacyConfig
-		if !flagSet("config") {
-			*configPath = strings.TrimSuffix(*legacyConfig, filepath.Ext(*legacyConfig)) + ".vision.yml"
-		}
+	if err := makeDirs(p); err != nil {
+		slog.Error("creating folders", "err", err)
+
+		return 1
 	}
 
-	if err := bootstrapConfig(*configPath, *importGeometry, *importConfig, *geometryPreset); err != nil {
+	if err := bootstrapConfig(p.configDir, p.configFile); err != nil {
 		slog.Error("creating config file", "err", err)
 
 		return 1
 	}
 
-	h, err := newHost(*configPath, hostOptions{
+	h, err := newHost(p.config(), hostOptions{
 		trustedOrigins: splitList(*allowOrigin),
 		allowedHosts:   splitList(*allowHost),
-		imgDir:         *imgDir,
+		imgDir:         p.imgDir,
 		verbose:        level == slog.LevelDebug,
 		vpCommand:      strings.Fields(*vpCommand),
 	})
 	if err != nil {
-		slog.Error("starting", "config", *configPath, "err", err)
+		slog.Error("starting", "config", p.config(), "err", err)
 
 		return 1
 	}
 
-	slog.Info("loaded config", "path", *configPath)
+	slog.Info("loaded config", "path", p.config())
 
 	// register Ctrl+C handler
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -145,7 +165,7 @@ func run() int {
 
 	runBackground(&wg, "geometry publish loop", func() error {
 		return geom.Run(ctx, func(encoded []byte) {
-			sockets.vision.Send(encoded)
+			sendGeometry(sockets, store, encoded)
 			publishGeometryToHub(wsHub, geom)
 			// Live calibration and socket state come from the network, not the
 			// store, so they're refreshed on this tick rather than only on
@@ -178,6 +198,8 @@ func run() int {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	serveFailed := make(chan struct{})
+
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("http server init failed", "err", err)
@@ -185,6 +207,7 @@ func run() int {
 			// ListenAndServer always returns, but ErrServerClosed is the graceful shutdown condition
 			// if we got anything else, the system didn't start and the process should die
 			// call stopSignals() now to cancel the context otherwise we continue to block on Ctrl+C
+			close(serveFailed)
 			stopSignals()
 		}
 	}()
@@ -210,7 +233,14 @@ func run() int {
 
 	slog.Info("shutdown complete")
 
-	return 0
+	// A port already in use has to read as a failure, or a service manager's
+	// restart-on-failure never fires.
+	select {
+	case <-serveFailed:
+		return 1
+	default:
+		return 0
+	}
 }
 
 // host is everything the process runs, wired together but not yet running:
@@ -295,6 +325,7 @@ func newHost(path string, opts hostOptions) (*host, error) {
 	if len(opts.vpCommand) > 0 {
 		procs = supervisor.New(supervisor.Options{
 			Command:  opts.vpCommand,
+			Dir:      filepath.Dir(path),
 			OnChange: func() { publishJSON(wsHub, processesStateTopic, procs.Statuses()) },
 			// A calibration solved against the old field is wrong for the new
 			// one, locked or not; withholding it makes the restart recalibrate.
@@ -358,39 +389,21 @@ func writeOpenAPI(path string) int {
 // outside the GUI.
 const configWatchInterval = time.Second
 
-// bootstrapConfig creates path if it doesn't exist yet: imported from the
-// legacy geometry/config files where present, otherwise from preset. Never
-// touches an existing path.
-func bootstrapConfig(path, legacyGeometry, legacyConfig, preset string) error {
+// bootstrapConfig creates the config file from the embedded defaults if it
+// doesn't exist yet, and with it the robot height table vision_processor
+// needs. Never touches an existing config.
+func bootstrapConfig(dir, name string) error {
+	path := filepath.Join(dir, name)
+
 	if _, err := os.Stat(path); err == nil {
 		return nil
 	} else if !os.IsNotExist(err) {
 		return err
 	}
 
-	geometrySource := preset
-	if fileExists(legacyGeometry) {
-		geometrySource = legacyGeometry
-	} else {
-		slog.Warn("no field geometry to import, using the preset; set -importGeometry, or the field in the GUI", "importGeometry", legacyGeometry, "preset", preset)
-	}
-
-	configSource := ""
-	if fileExists(legacyConfig) {
-		configSource = legacyConfig
-	}
-
-	// The imported camera's config_path is the file itself, which the host
-	// then regenerates, comments and all; keep the original.
-	if configSource != "" && !fileExists(configSource+".orig") {
-		if err := copyFile(configSource, configSource+".orig"); err != nil {
-			return fmt.Errorf("back up %s: %w", configSource, err)
-		}
-	}
-
-	doc, err := config.Import(geometrySource, configSource)
+	doc, err := config.Default()
 	if err != nil {
-		return fmt.Errorf("import %s / %q: %w", geometrySource, configSource, err)
+		return fmt.Errorf("default config: %w", err)
 	}
 
 	data, err := config.Marshal(doc)
@@ -402,7 +415,69 @@ func bootstrapConfig(path, legacyGeometry, legacyConfig, preset string) error {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 
-	slog.Info("created config file", "path", path, "geometry", geometrySource, "config", configSource)
+	slog.Info("created config file", "path", path)
+
+	return writeRobotHeights(filepath.Join(dir, defaults.RobotHeightsFile))
+}
+
+// writeRobotHeights writes the embedded table to path unless one is there.
+func writeRobotHeights(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
+
+	data, err := defaults.RobotHeights()
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+
+	return nil
+}
+
+// printReadme writes the embedded user guide to stdout, for -readme. The binary
+// is often all someone has, so the guide travels with it and always matches
+// its version.
+func printReadme() int {
+	readme, err := defaults.Readme()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+
+		return 1
+	}
+
+	os.Stdout.Write(readme)
+
+	return 0
+}
+
+// givenPaths collects the path flags. A flag not given is nil, so an empty
+// -logFile can mean no log file.
+func givenPaths() pathFlags {
+	f := pathFlags{configDir: *configDir, configFile: *configFile, supervising: *vpCommand != ""}
+
+	if flagSet("logFile") {
+		f.logFile = logFile
+	}
+
+	if flagSet("imgDir") {
+		f.imgDir = imgDir
+	}
+
+	return f
+}
+
+// makeDirs creates the config folder and image directory. The log directory
+// is logging.Setup's, which only warns if it can't.
+func makeDirs(p paths) error {
+	for _, dir := range []string{p.configDir, p.imgDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -438,15 +513,6 @@ func openConfig(path string) (*geometry.Geometry, *config.Store, error) {
 	return geom, store, nil
 }
 
-func copyFile(from, to string) error {
-	data, err := os.ReadFile(from)
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(to, data, 0o644)
-}
-
 // flagSet reports whether the named flag was given on the command line.
 func flagSet(name string) bool {
 	set := false
@@ -458,12 +524,6 @@ func flagSet(name string) bool {
 	})
 
 	return set
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-
-	return err == nil
 }
 
 // configStateTopic carries config.Store's State to the frontend.
@@ -629,6 +689,15 @@ func withSend(opts multicast.Options) multicast.Options {
 // (see gui/frontend/src/App.svelte).
 const wrapperPacketTopic = "wrapper_packet.out"
 
+// sendGeometry publishes the geometry on the vision group, unless this is a
+// first run: a host somebody is only trying out has no business telling a real
+// network what the field looks like.
+func sendGeometry(sockets *networkSockets, store *config.Store, encoded []byte) {
+	if !store.FirstRun() {
+		sockets.vision.Send(encoded)
+	}
+}
+
 // publishGeometryToHub re-encodes the current geometry as protojson and
 // publishes it to the browser-facing hub. Called once per publish tick
 // alongside the raw-bytes multicast send, so both destinations stay in sync.
@@ -748,5 +817,5 @@ func splitList(s string) []string {
 func botHeightsFile(store *config.Store) string {
 	doc, _ := store.Working()
 
-	return doc.BotHeightsFile()
+	return store.InDir(doc.BotHeightsFile())
 }

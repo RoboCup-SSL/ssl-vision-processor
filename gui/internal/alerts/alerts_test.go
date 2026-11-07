@@ -82,6 +82,9 @@ func TestCollect(t *testing.T) {
 		"team not in table": {func(_ *config.Document, _ *config.State, n *Network) {
 			n.Referee.Yellow.Name = "C"
 		}, "team-height-yellow", "team_default_height/warning"},
+		"first run": {func(d *config.Document, _ *config.State, _ *Network) {
+			d.FirstRun = true
+		}, "first-run", "first_run_not_publishing/warning"},
 		"heights unreadable": {func(_ *config.Document, _ *config.State, n *Network) {
 			n.Referee.HeightsError = "no such file"
 		}, "heights-unreadable", "heights_unreadable/warning"},

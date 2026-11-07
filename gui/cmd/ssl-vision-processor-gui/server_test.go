@@ -164,7 +164,7 @@ func TestHealthReturnsOK(t *testing.T) {
 	}
 
 	// json.Encoder.Encode terminates every value with a newline.
-	if got, want := rec.Body.String(), "{\"status\":\"ok\"}\n"; got != want {
+	if got, want := rec.Body.String(), "{\"status\":\"ok\",\"version\":\"dev\"}\n"; got != want {
 		t.Errorf("body = %q, want %q", got, want)
 	}
 }
@@ -457,18 +457,53 @@ func TestReloadAcceptsTheFileOnDisk(t *testing.T) {
 func TestLoadOfAMissingFileReturns400(t *testing.T) {
 	h, _ := testServer(t)
 
-	if rec := do(t, h, http.MethodPost, "/api/config/load", loadRequest{Path: "/nonexistent/vision.yml"}); rec.Code != http.StatusBadRequest {
+	if rec := do(t, h, http.MethodPost, "/api/config/load", loadRequest{Name: "nonexistent.yml"}); rec.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", rec.Code)
 	}
 }
 
-func TestSaveAsRejectsAPresetTarget(t *testing.T) {
+// A path through the API must not get out of the config folder, by either
+// route: load would otherwise make a later save write wherever it came from.
+func TestSaveAsAndLoadRejectPaths(t *testing.T) {
 	h, path := testServer(t)
 	rev := getConfig(t, h).State.Revision
-	target := filepath.Join(filepath.Dir(path), "geometry-divA.yml")
+	outside := filepath.Join(t.TempDir(), "outside.yml")
 
-	if rec := do(t, h, http.MethodPost, "/api/config/save-as", saveAsRequest{Revision: rev, Path: target}); rec.Code != http.StatusBadRequest {
+	for _, name := range []string{outside, "../outside.yml", "sub/outside.yml"} {
+		if rec := do(t, h, http.MethodPost, "/api/config/save-as", saveAsRequest{Revision: rev, Name: name}); rec.Code != http.StatusBadRequest {
+			t.Errorf("save-as %q: status = %d, want 400", name, rec.Code)
+		}
+
+		if rec := do(t, h, http.MethodPost, "/api/config/load", loadRequest{Name: name}); rec.Code != http.StatusBadRequest {
+			t.Errorf("load %q: status = %d, want 400", name, rec.Code)
+		}
+	}
+
+	if _, err := os.Stat(outside); err == nil {
+		t.Errorf("save-as wrote outside the config folder")
+	}
+
+	if got := getConfig(t, h).State.Path; got != path {
+		t.Errorf("path = %q, want it unchanged", got)
+	}
+}
+
+// The other way to reach the disk: a camera's config_path, which the host
+// renders a file to.
+func TestPutConfigRejectsAConfigPathOutsideTheFolder(t *testing.T) {
+	h, _ := testServer(t)
+	resp := getConfig(t, h)
+	outside := filepath.Join(t.TempDir(), "outside.yml")
+
+	doc := resp.Document
+	doc.Cameras[0].ConfigPath = outside
+
+	if rec := do(t, h, http.MethodPut, "/api/config", putConfigRequest{Revision: resp.State.Revision, Document: doc}); rec.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", rec.Code)
+	}
+
+	if _, err := os.Stat(outside); err == nil {
+		t.Errorf("rendered outside the config folder")
 	}
 }
 
@@ -514,7 +549,9 @@ func TestUnlockCalibrationRemovesItLiveAndFromTheDocument(t *testing.T) {
 	}
 }
 
-func TestGetFieldPresetsDegradesGracefullyWhenFilesAreMissing(t *testing.T) {
+// The test's working directory has no config/legacy/, so this also shows the
+// presets need nothing on disk.
+func TestGetFieldPresetsServesTheEmbeddedRulebook(t *testing.T) {
 	h, _ := testServer(t)
 	rec := do(t, h, http.MethodGet, "/api/geometry/presets", nil)
 
@@ -522,8 +559,13 @@ func TestGetFieldPresetsDegradesGracefullyWhenFilesAreMissing(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
 
-	if strings.TrimSpace(rec.Body.String()) != "[]" {
-		t.Errorf("body = %q, want an empty array (no presets reachable from this cwd)", rec.Body.String())
+	var presets []fieldPresetResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &presets); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(presets) != 2 || presets[0].Field.FieldLength != 12000 || presets[1].Field.FieldLength != 9000 {
+		t.Errorf("presets = %+v, want Division A (12 m) and B (9 m)", presets)
 	}
 }
 
@@ -636,8 +678,8 @@ func TestConfigFilesListsTheCurrentFile(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	if len(files) != 1 || files[0].Path != path || !files[0].Current {
-		t.Errorf("files = %+v, want just %s as current", files, path)
+	if name := filepath.Base(path); len(files) != 1 || files[0].Name != name || !files[0].Current {
+		t.Errorf("files = %+v, want just %s as current", files, name)
 	}
 }
 

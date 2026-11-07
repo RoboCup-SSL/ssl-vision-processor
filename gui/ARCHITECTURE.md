@@ -87,6 +87,7 @@ before returning.
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `cmd/ssl-vision-processor-gui`               | Flags, wiring, HTTP handlers and routes.                                                                                                |
 | `internal/config`                            | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files.             |
+| `internal/defaults`                          | Files embedded in the binary so it needs nothing beside it: the rulebook fields and the robot height table.                             |
 | `internal/geometry`                          | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state.                                         |
 | `internal/multicast`                         | The vision, game controller, autoref tracker, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
 | `internal/api`                               | Typed route registration and the OpenAPI 3.1 spec reflected from the handlers' own types and doc comments.                              |
@@ -184,8 +185,8 @@ starts with a header saying it is generated. `reloadConfigIfChanged()` in `src/R
 `thresholds`, `tracking`, `color`, and `debug` every half second, but never `geometry`, `camera`, `network`, or
 `stream`. Changes to those take effect when the instance restarts.
 
-With `-vp`, the host also runs those instances itself (`internal/supervisor`), one per `config_path`, from its own
-working directory. It watches the store like any other subscriber: on each change it renders every camera's
+With `-vp`, the host also runs those instances itself (`internal/supervisor`), one per `config_path`, from the
+config folder. It watches the store like any other subscriber: on each change it renders every camera's
 config and compares it with what each process was started with. A difference in a setting the schema marks `live`
 or `host` needs nothing more, since the file is already rewritten; any other difference (startup-only, derived,
 or unknown) restarts the process once edits have been quiet for a second, so a slider drag restarts it once.
@@ -195,8 +196,27 @@ process that exits on its own is started again: after 1 s for a clean exit, doub
 stopping the process and starting it again, the host unlocks the camera's calibration and drops the one it last
 received, since vision_processor skips calibrating when the geometry packet already holds one for its camera.
 `processes.state` and `GET /api/processes` carry each one's state, pending restart keys, last exit, and last
-lines of output; `POST /api/processes/{id}/restart` restarts one at once. `-legacy <file>` imports a
-`config.yml` into `<file>.vision.yml` so one existing file can be driven directly.
+lines of output; `POST /api/processes/{id}/restart` restarts one at once.
+
+### Files on disk
+
+`-configDir` is one flat folder holding every config file. The API has no authentication and can reach the disk, so
+everything it names is checked by `config.ValidName`: one path component, not hidden, ending in `.yml` or `.yaml`.
+`Store.Load` and `Store.SaveAs` take a name rather than a path, and refuse symlinks, since `Load` switches the file
+a later save writes to. `Document.Validate` applies the same check to `config_path` and `bot_heights_file`, on every
+parse and edit, because rendering writes a file wherever `config_path` says. A config also can't render over itself
+or Save As over a file it uses. Flags can name anything, since whoever starts the process already has that access.
+
+A host with no config creates one from `internal/defaults`, which embeds the rulebook fields and robot height table
+so the binary needs nothing beside it. The Makefile copies those in, since `go:embed` can't reach outside the
+module, and a test checks the copies match their sources.
+
+The new config has `first_run: true`. While it's set, the host sends no geometry on the vision group, so running the
+binary to try it can't tell a real network about a field nobody has confirmed. Everything else works, and the
+browser still gets live updates. The first successful Save or Save As removes the key. The host owns it: edits can't
+change it, so it never appears in the change list, and a save that fails to reach the disk leaves it set. Clearing
+it bumps no revision, so the GUI reads it from `config.state`. Its wizard opens on a first run and ends in the save
+dialog, which allows saving with no changes so the defaults can be accepted.
 
 The host's own sockets use the shared `defaults.network` block (`vision_ip`, `vision_port`, `gc_ip`, `gc_port`),
 with vision_processor's defaults for missing keys. Each is a `multicast.Endpoint`. When an edit changes an
@@ -238,7 +258,7 @@ would misread instead of refusing: an unknown driver (fatal at startup) and any 
 OUTDOOR or INDOOR (it treats every other string as INDOOR).
 
 `camera.exposure` is µs in `vision.yml` for every driver. The host converts it when it writes `config.yml`
-(`internal/config/exposure.go`) and when it imports one: SPINNAKER and MVIMPACT read milliseconds, and OPENCV
+(`internal/config/exposure.go`): SPINNAKER and MVIMPACT read milliseconds, and OPENCV
 sends the value × 1000 to V4L2's `exposure_time_absolute`, which counts 100 µs. Format version 1 stored the file's
 unit; a version 1 document is migrated on load and saved as version 2.
 
@@ -375,7 +395,7 @@ The host's cost is about 1% of a core per watched stream; the browser's H.264 de
 `internal/vision`, `internal/gamecontroller`, and `frontend/src/proto` are `buf generate` output and are not
 committed. `buf.gen.yaml` uses local plugins (`go tool protoc-gen-go`, `protoc-gen-es` from the frontend's own
 `node_modules`), so generation needs no network beyond the already checked out `proto/` submodule. `gui/Makefile`
-regenerates them as an ordinary build prerequisite. See `gui/README.md` for the exact commands.
+regenerates them as an ordinary build prerequisite. See `gui/DEVELOPMENT.md` for the exact commands.
 
 ## Not yet built
 

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -48,13 +47,13 @@ func TestFakeVisionProcessor(t *testing.T) {
 func TestEditRestartsSupervisedVisionProcessor(t *testing.T) {
 	t.Setenv("FAKE_VISION_PROCESSOR", "1")
 
-	cfg := filepath.Join(t.TempDir(), "cam0.yml")
 	h, srv := testHostWith(t, hostOptions{
 		imgDir:    t.TempDir(),
 		vpCommand: []string{os.Args[0], "-test.run=^TestFakeVisionProcessor$", "--"},
 	}, func(d *config.Document) {
-		d.Cameras[0].ConfigPath = cfg
+		d.Cameras[0].ConfigPath = "cam0.yml"
 	})
+	cfg := h.store.InDir("cam0.yml")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -143,13 +142,13 @@ func TestRestartUnsupervisedIs404(t *testing.T) {
 func TestFieldChangeUnlocksAndRestarts(t *testing.T) {
 	t.Setenv("FAKE_VISION_PROCESSOR", "1")
 
-	cfg := filepath.Join(t.TempDir(), "cam0.yml")
 	h, srv := testHostWith(t, hostOptions{
 		imgDir:    t.TempDir(),
 		vpCommand: []string{os.Args[0], "-test.run=^TestFakeVisionProcessor$", "--"},
 	}, func(d *config.Document) {
-		d.Cameras[0].ConfigPath = cfg
+		d.Cameras[0].ConfigPath = "cam0.yml"
 	})
+	cfg := h.store.InDir("cam0.yml")
 
 	if doc, _ := h.store.Working(); doc.Cameras[0].Calibration == nil {
 		t.Fatal("fixture camera 0 has no locked calibration")

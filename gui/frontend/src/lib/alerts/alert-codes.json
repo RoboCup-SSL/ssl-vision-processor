@@ -4,6 +4,7 @@
   "camera_unplaced",
   "field_changed",
   "file_changed",
+  "first_run_not_publishing",
   "heights_unreadable",
   "loopback_multicast_off",
   "region_uncovered",

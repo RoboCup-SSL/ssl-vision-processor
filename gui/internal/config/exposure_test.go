@@ -1,8 +1,6 @@
 package config
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -42,24 +40,6 @@ func TestRenderConvertsExposureForTheDriver(t *testing.T) {
 		if data, _ := Render(doc, doc.Cameras[0], "vision.yml"); !strings.Contains(string(data), "exposure: 0\n") {
 			t.Errorf("%s auto: got\n%s", driver, data)
 		}
-	}
-}
-
-func TestImportConvertsExposureToMicros(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.yml")
-
-	if err := os.WriteFile(path, []byte("camera:\n  driver: OPENCV\n  exposure: 0.066\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	camera, _, _, err := importConfig(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if got := cameraBlockOf(t, camera.Config)["exposure"]; got != 6600 {
-		t.Errorf("exposure = %v, want 6600 µs", got)
 	}
 }
 

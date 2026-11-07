@@ -1,134 +1,185 @@
-# gui
+# vision_processor GUI
 
-Go host and browser UI for vision_processor. Owns `vision.yml` (the field geometry, per camera settings, and
-locked calibrations), absorbs camera calibrations from
-vision_processor instances over multicast, and serves the frontend, a JSON API, and a WebSocket for live updates,
-all on one port. See [ARCHITECTURE.md](ARCHITECTURE.md) for how it fits together and why it is built this way.
+A browser interface for setting up and running [vision_processor](../README.md), the SSL's shared vision system.
+It holds your field geometry and camera settings, locks in camera calibrations, shows live video and the live
+field, and publishes the field geometry to the rest of the league's software.
 
-This document covers development on `gui` itself. For running vision_processor at a venue, see the root
-[README.md](../README.md). For the frontend's own layout and scripts, see
-[frontend/README.md](frontend/README.md).
+It is one self-contained program: download it and run it. It needs no installation, no root, and no other files.
 
-## Requirements
+Working on the GUI itself? See [DEVELOPMENT.md](DEVELOPMENT.md).
 
-The root `flake.nix` provides everything needed: `go`, `buf`, `nodejs_22`, and the C++ toolchain for the rest of
-the repo. Run `nix develop` from the repo root before any command below, and `git submodule update --init` once
-for the protobuf definitions in `proto/`.
+## Quick start
 
-Without nix, you need `buf` on your `PATH`, a Go toolchain matching the `go` directive in `gui/go.mod`, and
-Node 22 (`frontend/.nvmrc`). `protoc-gen-go` and `protoc-gen-es` do not need to be installed separately:
-`go tool protoc-gen-go` is resolved from `gui/go.mod`'s `tool` directive, and `protoc-gen-es` is a
-`frontend/package.json` devDependency.
+These steps are for 64-bit Linux, tested on Ubuntu 24.04.
 
-The browser tests (`make e2e`, part of `make check`) drive the installed Google Chrome, which nix doesn't
-provide; `make check` skips them when it isn't found. The socket and video tests need multicast on loopback
-(`../scripts/lo-multicast.sh on`, root, until reboot) and skip without it.
+1. Download the `.tar.gz` for your machine from the
+   [releases page](https://github.com/RoboCup-SSL/ssl-vision-processor/releases), along with `SHA256SUMS`. Then
+   check the download and unpack it:
 
-## Commands
+   ```sh
+   sha256sum --check --ignore-missing SHA256SUMS
+   tar -xzf ssl-vision-processor-gui-*-linux-amd64.tar.gz
+   cd ssl-vision-processor-gui-*-linux-amd64
+   ```
 
-Run these from `gui/`; `make` alone lists them. Each builds whatever it needs first: npm packages (reinstalled
-when `frontend/package-lock.json` changes), the protobuf bindings, the API docs viewer, the OpenAPI spec and the
-TypeScript types generated from it, and the frontend. None of those are committed.
+2. Run it:
 
-| Command         | Effect                                                                                          |
-| --------------- | ----------------------------------------------------------------------------------------------- |
-| `make run`      | Build everything and run the host from the repo root on `:8085`. Flags go in `ARGS="..."`.      |
-| `make test`     | `go test -race` for every package, and the frontend's type checks, lint, unit tests and format. |
-| `make check`    | Everything CI checks: gofmt, vet, the tests, the committed generated file, the browser tests.   |
-| `make e2e`      | Playwright browser tests: the real host in the installed Google Chrome.                         |
-| `make vet`      | `go vet` for every package.                                                                     |
-| `make build`    | `go build` for every package, without installing.                                               |
-| `make install`  | `go install` the host.                                                                          |
-| `make openapi`  | Write the API's OpenAPI spec to `openapi.json`.                                                 |
-| `make generate` | Regenerate the one committed generated file, `frontend/src/lib/alerts/alert-codes.json`.        |
-| `make clean`    | Remove everything built, generated or fetched.                                                  |
+   ```sh
+   ./ssl-vision-processor-gui
+   ```
 
-## Configuration
+   It prints where it keeps everything, then the address to open:
 
-The host reads and writes one file, `-config` (default `vision.yml`). Edits made in the browser apply live and
-are written to the file only on Save, after a confirmation that lists every change. The host watches the file,
-so a hand edit prompts the browser to load it or overwrite it.
+   ```
+   INF paths configDir=/home/you/.config/rcssl/vision-processor-gui configFile=vision.yml
+   INF paths logFile=/home/you/.local/state/rcssl/vision-processor-gui/logs/vision-processor-gui.log
+   INF paths imgDir=/home/you/.local/state/rcssl/vision-processor-gui/img
+   INF UI is available url=http://192.168.1.20:8085
+   ```
 
-`config/vision.yml` at the repo root is a commented reference; copying it is the quickest start. If
-`-config` does not exist yet, the host creates it on startup. It imports `-importGeometry` (default
-`geometry.yml`) and `-importConfig` (default `config.yml`) when they exist, and otherwise starts from
-`-geometryPreset` (default `config/legacy/geometry-divB.yml`). An imported `config.yml` becomes a camera with that file as its `config_path`, so the host
-regenerates it from `vision.yml` from then on. The original is kept beside it as `<file>.orig`.
+3. Open that address in a browser. The setup wizard opens by itself: choose your division, or enter your field's
+   dimensions if you have a non-standard field size.
 
-### Running vision_processor from the host
+4. Save when the wizard asks. **The GUI publishes nothing on the network until this first save**, so you can try
+   it on a live network without disturbing anyone. Until then, an alert reminds you that it isn't publishing.
 
-Until vision_processor takes its config over the network, the host can run it too. With `-vp`, it starts one
-vision_processor per camera with a `config_path` (`-vp` is the command; the config path is appended), from the
-host's working directory. Settings vision_processor hot reloads (thresholds, tracking, color, debug) only rewrite
-the file. A change to any other setting (camera, geometry, network, stream) restarts it once edits stop for a
-second. The Camera Settings page shows its state and output and has a Restart button. A crash is retried, waiting
-longer each time; a clean exit, such as a video file ending, is started again after a second.
+The program stops when you close the terminal or press Ctrl+C, and picks up where it left off the next time you
+run it. It doesn't start by itself when the machine boots; packages with a system service are planned.
 
-`-legacy` drives one existing `config.yml`: it imports it into `<file>.vision.yml` beside it (unless `-config` is
-given) and regenerates it from then on. For a bench test, from the repo root:
+## Where things are
 
-```
-make run ARGS="-legacy config-camtest.yml -vp build/vision_processor"
+| What                   | Default location                                                                     | Change it with |
+| ---------------------- | ------------------------------------------------------------------------------------ | -------------- |
+| Config folder          | `~/.config/rcssl/vision-processor-gui/`                                              | `-configDir`   |
+| Your configuration     | `vision.yml` in the config folder                                                    | `-configFile`  |
+| Robot height table     | `robot-heights.yml` in the config folder                                             | `vision.yml`   |
+| Log file               | `~/.local/state/rcssl/vision-processor-gui/logs/vision-processor-gui.log`, rotated   | `-logFile`     |
+| Debug snapshot images  | `~/.local/state/rcssl/vision-processor-gui/img/`                                     | `-imgDir`      |
+
+`XDG_CONFIG_HOME` and `XDG_STATE_HOME` replace `~/.config` and `~/.local/state` if you have them set.
+
+**Back up the config folder.** `vision.yml` holds your field, camera settings, and locked calibrations.
+
+To keep a whole setup together, for example on a USB stick, point everything at one place:
+
+```sh
+./ssl-vision-processor-gui -configDir ./setup -logFile ./setup/logs/gui.log -imgDir ./setup/img
 ```
 
-Stop any vision_processor already using the camera first. A restart recalibrates geometry unless the camera's
-calibration is locked.
+To start over, stop the program and delete or rename `vision.yml`. The next run creates a new one and starts the
+wizard again.
 
-The vision and game controller multicast addresses are in the same file, under `defaults.network`; the autoref
-tracker address, which only the host listens to, is under `tracker`. All three are set on the Network page,
-which the address badges in the header open. Changing one reopens the host's
-sockets at once. The same page chooses which network interfaces the host uses, automatically or by unticking
-the ones to skip; that choice is stored under `host.interfaces` and applies to this host only. There are no
-command line flags for any of these.
-`make proto` needs no network beyond the checked out `proto/` submodule: both of `buf.gen.yaml`'s plugins are
-local, not buf.build remotes. The npm packages and the docs viewer come from npm.
+### How configuration is saved
 
-For frontend only work with hot reload:
+Edits in the browser apply immediately, but are written to `vision.yml` only when you save. Saving lists every
+change first. If `vision.yml` changes on disk while the GUI is running, it asks whether to load that version or
+overwrite it. Saving rewrites the file, so comments you add by hand are lost.
 
+Every config file lives directly in the config folder, with no subfolders. Save As and Load take a file name, not
+a path, and `config_path` and `bot_heights_file` in `vision.yml` must also be plain file names. A `vision.yml` that
+names a full path won't load until you change it.
+
+## Options
+
+Every option is optional. `-h` lists them all.
+
+| Option         | Default              | What it does                                                                       |
+| -------------- | -------------------- | ---------------------------------------------------------------------------------- |
+| `-address`     | `:8085`              | Address and port for the GUI. `127.0.0.1:8085` allows this machine only.           |
+| `-configDir`   | see above            | The config folder. Created if missing.                                             |
+| `-configFile`  | `vision.yml`         | The file to use in the config folder: a file name, not a path. Created if missing. |
+| `-logFile`     | see above            | Rotating log file. `-logFile ""` turns it off.                                     |
+| `-imgDir`      | see above            | Where the GUI looks for vision_processor's debug images.                           |
+| `-logLevel`    | `Info`               | `Debug`, `Info`, `Warn`, or `Error`.                                               |
+| `-allowOrigin` | none                 | Other web pages allowed to use the API on a competition field.                     |
+| `-allowHost`   | none                 | Extra names this machine is reached by, such as a DNS alias.                       |
+| `-version`     |                      | Print the version and exit.                                                        |
+| `-readme`      |                      | Print this guide and exit, e.g. `./ssl-vision-processor-gui -readme \| less`.      |
+
+## Network setup
+
+Multicast addresses are set on the GUI's Network page; these are the defaults.
+
+| Traffic                 | Address                                         | Direction  |
+| ----------------------- | ----------------------------------------------- | ---------- |
+| GUI in a browser        | TCP `8085`                                      | In         |
+| Vision (geometry, detections) | UDP `224.5.23.2:10006`                    | In and out |
+| Game controller         | UDP `224.5.23.1:10003`                          | In         |
+| Autoref tracker         | UDP `224.5.23.2:10010`                          | In         |
+| Live video, per camera  | UDP `224.5.23.100:10100` for camera 0, `.101` for camera 1, and so on | In |
+
+The GUI uses every network interface that is up, has a cable or link, supports multicast, and has an IPv4 address.
+It skips loopback, Docker and VM bridges, and VPNs. The Network page lets you exclude interfaces.
+
+Three settings can trip you up on a stock Ubuntu machine. All need root, so the GUI can't change them for you.
+
+**Firewall.** Ubuntu's `ufw` is usually off, but if `sudo ufw status` says it's active, allow the GUI's traffic:
+
+```sh
+sudo ufw allow 8085/tcp
+sudo ufw allow 10003,10006,10010,10100/udp
 ```
-make frontend           # once, for the generated code
-cd frontend && npm run dev
+
+**Live video stutters or breaks up.** Linux's default network receive buffer is too small for a video keyframe,
+and the GUI gets no warning when it's capped. Raise the limit and keep it across reboots:
+
+```sh
+echo 'net.core.rmem_max=4194304' | sudo tee /etc/sysctl.d/60-rcssl-multicast.conf
+sudo sysctl --system
 ```
 
-This proxies `/api` and `/ws` to the Go host, so `gui`'s own server still needs to be running (`make run` in a
-second terminal) for the page to show anything.
+**Nothing is heard with vision_processor on the same machine and no network cable.** Traffic then has to go over
+loopback, where Ubuntu turns multicast off. The GUI logs this at startup. Turn it on, which lasts until the next
+reboot:
 
-## Repository layout
-
-```
-cmd/ssl-vision-processor-gui/   entry point: flags, wiring, HTTP server
-internal/
-  config/      vision.yml: working document, save and load, locked calibrations, disk watcher,
-               generated config.yml files
-  geometry/    live field template, published calibrations, the 1Hz publish loop
-  multicast/   vision, game controller and tracker sockets, interface selection
-  hub/         topic pub/sub and the /ws handler
-  livefield/   latest detections and autoref tracker frames, for the Live Field page
-  snapshot/    debug image listing and serving
-  video/       live video, relayed to the browser
-  supervisor/  runs and restarts local vision_processors (-vp)
-  v4l/         this host's capture devices
-  logging/     slog setup
-  vision/      generated protobuf bindings, not committed
-  gamecontroller/  generated protobuf bindings, not committed
-frontend/      Svelte 5, TypeScript, and Vite, embedded via //go:embed
-buf.gen.yaml   buf configuration for the two packages above
+```sh
+sudo ip link set lo multicast on
 ```
 
-## Testing
+### Browser
 
-`go test -race` runs on every package. This code is concurrent by construction: a mutex guarded `Geometry` and a
-multi goroutine WebSocket hub. Tests that exercise a file write (`internal/config`, `cmd/.../server_test.go`)
-copy their fixture into `t.TempDir()` first and never operate on the checked in `testdata/` files directly.
+Live video needs H.264 support. Google Chrome includes it. Chromium and Firefox on Linux rely on the system's
+FFmpeg libraries, so if video stays blank there, try Chrome first.
 
-`go test ./...` from `gui/` will try to compile stray Go source inside `frontend/node_modules`. Use
-`go test ./cmd/... ./internal/... ./frontend`, which is what `Makefile` and CI both do.
+## Security
 
-## Live video
+⚠️ **The GUI has no login.** Anyone who can reach its port can change the running configuration and overwrite
+files in the config folder, including locked calibrations. It can't write outside that folder through the API.
 
-The Camera Settings tab shows the selected camera's live video beside its `camera:` settings (driver, device,
-resolution, exposure, gain, gamma, white balance). Those settings apply when the camera's vision_processor
-restarts. The Stream page also shows the selected camera's live video. The host relays the vision_processor's H.264 stream to
-the browser without re-encoding, and only while someone watches. The browser needs H.264 support: Google Chrome
-bundles it, while Chromium and Firefox on Linux use the system's FFmpeg libraries. The stream cycles through the
-vision_processor's views unless its `stream.raw_feed` is set.
+Run it only on a network you trust, or use `-address 127.0.0.1:8085` to allow this machine only. Marking a setup
+as a competition field limits which web pages can use the API, but that only applies to browsers.
+
+## Cameras
+
+This download is the GUI only. It doesn't include vision_processor, which does the camera processing. For now you
+build that from source: see the [main README](../README.md). The GUI finds running vision_processors through the
+multicast traffic they send, wherever they run.
+
+Camera settings changed in the GUI reach a vision_processor through a generated config file, so that only works
+for one on the same machine. To use it, add `config_path: <file name>` to the camera in `vision.yml`, then start
+vision_processor with that file from the config folder. Delivering settings over the network is planned.
+
+Debug snapshots also need vision_processor on the same machine, with `-imgDir` pointing at its `img/` folder.
+
+## Troubleshooting
+
+Check the GUI's Alerts page first; most alerts have a how-to. The printed log file has the details.
+
+| Problem                                      | Likely cause and fix                                                                            |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `http server init failed` and it exits       | Something else is using the port, often another copy of the GUI. Stop it, or use another `-address`. |
+| `no default config folder, set -configDir`   | `HOME` isn't set, as in some service environments. Set `-configDir`, `-logFile`, and `-imgDir`. |
+| Page doesn't load from another machine       | Firewall; see [Network setup](#network-setup). Check the address the GUI printed.               |
+| "This host doesn't answer to..."             | You're using a name the GUI doesn't know. Add it with `-allowHost`.                             |
+| Nothing is published                         | First run: save once. Then check the Alerts page.                                               |
+| Your old settings seem to be gone            | The GUI no longer reads `vision.yml` from the current folder. Pass `-configDir .` from that folder. |
+| `config_path: ... want a file name`          | `vision.yml` names a full path. Move the file to the config folder and use only its name.       |
+
+## Upgrading
+
+Stop the program and replace the binary. Your configuration is kept in the config folder. `-version` shows which
+version you have.
+
+## License
+
+Apache 2.0; see `LICENSE.md`. The release's `THIRD_PARTY_NOTICES.txt` lists the licenses of everything bundled.

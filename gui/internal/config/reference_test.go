@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
+	"gopkg.in/yaml.v3"
 )
 
 // The read-only reference files at the repo root's config/, which users copy.
@@ -21,21 +24,28 @@ func TestReferenceVisionYMLParses(t *testing.T) {
 	}
 }
 
-func TestReferenceLegacyFilesImport(t *testing.T) {
-	for _, pair := range [][2]string{
-		{"geometry-divA.yml", "config.yml"},
-		{"geometry-divB.yml", "config.yml"},
-		{"geometry-divB.yml", "config-minimal.yml"},
-	} {
-		t.Run(pair[0]+"+"+pair[1], func(t *testing.T) {
-			_, err := Import(
-				filepath.Join(referenceDir, "legacy", pair[0]),
-				filepath.Join(referenceDir, "legacy", pair[1]),
-			)
-			if err != nil {
-				t.Fatalf("Import: %v", err)
-			}
-		})
+func TestReferenceLegacyFilesParse(t *testing.T) {
+	for _, name := range []string{"geometry-divA.yml", "geometry-divB.yml"} {
+		data, err := os.ReadFile(filepath.Join(referenceDir, "legacy", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, _, _, err := geometry.ParseFieldFile(data, name); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+
+	for _, name := range []string{"config.yml", "config-minimal.yml"} {
+		data, err := os.ReadFile(filepath.Join(referenceDir, "legacy", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var raw map[string]any
+		if err := yaml.Unmarshal(data, &raw); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
 	}
 }
 

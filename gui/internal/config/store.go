@@ -30,13 +30,6 @@ var (
 	ErrUnknownCamera = errors.New("no such camera")
 )
 
-// readOnlyFiles are rulebook presets a save must never overwrite, matched by
-// base filename wherever they live.
-var readOnlyFiles = map[string]bool{
-	"geometry-divA.yml": true,
-	"geometry-divB.yml": true,
-}
-
 // Applier is the live system a Store pushes the working document into.
 // *geometry.Geometry implements it.
 type Applier interface {
@@ -51,7 +44,9 @@ type Applier interface {
 // Edits change only working; Save writes working to disk. A watcher notices
 // when the file changes underneath and records it for the user to resolve.
 type Store struct {
-	mu         sync.Mutex
+	mu sync.Mutex
+	// dir is the config folder: where relative file names resolve.
+	dir        string
 	path       string
 	disk       Document
 	diskHash   string
@@ -79,8 +74,14 @@ type fileStamp struct {
 
 // State is the store's status as the GUI sees it.
 type State struct {
-	Path     string `json:"path"`
-	Revision int64  `json:"revision"`
+	// Path is where the config file is on the host, for showing to people.
+	Path string `json:"path"`
+	// File is its name in the config folder, what Load and SaveAs take.
+	File string `json:"file"`
+	// FirstRun is whether the host is holding back publishing until the first
+	// save. Clearing it changes no revision, so it's reported here.
+	FirstRun bool  `json:"firstRun"`
+	Revision int64 `json:"revision"`
 	// Changes are what saving would write: disk -> working.
 	Changes []Change `json:"changes"`
 	// External is set while the file on disk differs from what was last
@@ -100,13 +101,27 @@ type ExternalState struct {
 // Open loads path, applies it to live, and renders every local camera's
 // config.yml.
 func Open(path string, live Applier) (*Store, error) {
-	s := &Store{path: path, live: live}
+	s := &Store{dir: filepath.Dir(path), path: path, live: live}
 
 	if err := s.loadLocked(path); err != nil {
 		return nil, err
 	}
 
 	return s, nil
+}
+
+// FirstRun reports whether the config hasn't been saved since the host created
+// it.
+func (s *Store) FirstRun() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.working.FirstRun
+}
+
+// InDir is the full path of a file in the config folder.
+func (s *Store) InDir(name string) string {
+	return filepath.Join(s.dir, name)
 }
 
 // OnChange registers fn to run (without the store's lock held) after any
@@ -136,27 +151,25 @@ func (s *Store) Working() (Document, int64) {
 	return s.working.clone(), s.revision
 }
 
-// File is a YAML file beside the one the store edits.
+// File is a YAML file in the config folder.
 type File struct {
-	Path string `json:"path"`
+	// Name is the file's name in the config folder.
+	Name string `json:"name"`
 	// Current is the file the store loads from and saves to.
 	Current bool `json:"current"`
-	// ReadOnly files (rulebook presets, no write permission) can't be saved
-	// over.
+	// ReadOnly files (no write permission) can't be saved over.
 	ReadOnly bool `json:"readOnly"`
 }
 
-// Files lists the .yml and .yaml files in the current file's directory:
-// candidates for Load and SaveAs. Generated config.yml files are listed
-// too; they don't parse as a vision.yml, so Load refuses them.
+// Files lists the .yml and .yaml files in the config folder: candidates for
+// Load and SaveAs. Generated config.yml files are listed too; they don't parse
+// as a vision.yml, so Load refuses them.
 func (s *Store) Files() ([]File, error) {
 	s.mu.Lock()
-	current := s.path
+	current := filepath.Base(s.path)
 	s.mu.Unlock()
 
-	dir := filepath.Dir(current)
-
-	entries, err := os.ReadDir(dir)
+	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return nil, err
 	}
@@ -168,14 +181,13 @@ func (s *Store) Files() ([]File, error) {
 			continue
 		}
 
-		path := filepath.Join(dir, e.Name())
-		readOnly := readOnlyFiles[e.Name()]
+		readOnly := false
 
 		if info, err := e.Info(); err == nil && info.Mode().Perm()&0o222 == 0 {
 			readOnly = true
 		}
 
-		files = append(files, File{Path: path, Current: path == current, ReadOnly: readOnly})
+		files = append(files, File{Name: e.Name(), Current: e.Name() == current, ReadOnly: readOnly})
 	}
 
 	return files, nil
@@ -213,6 +225,12 @@ func (s *Store) update(rev int64, doc Document) (int64, error) {
 	if rev != s.revision {
 		return 0, ErrStale
 	}
+
+	if err := checkNotOverActive(doc, s.path); err != nil {
+		return 0, err
+	}
+
+	doc.FirstRun = s.working.FirstRun
 
 	if err := s.apply(doc); err != nil {
 		return 0, err
@@ -265,7 +283,21 @@ func (s *Store) apply(doc Document) error {
 		return err
 	}
 
-	s.renderErrs = renderAll(doc, s.path)
+	s.renderErrs = renderAll(doc, s.dir, s.path)
+
+	return nil
+}
+
+// checkNotOverActive refuses a document that would render a camera's config.yml
+// over the config file itself.
+func checkNotOverActive(doc Document, path string) error {
+	name := filepath.Base(path)
+
+	for _, c := range doc.Cameras {
+		if c.ConfigPath == name {
+			return &ValidationError{fmt.Errorf("cameras[%d].config_path: %q is this config file", c.CameraID, name)}
+		}
+	}
 
 	return nil
 }
@@ -299,10 +331,10 @@ func (s *Store) save(rev int64, force bool) error {
 	return s.writeLocked(s.path)
 }
 
-// SaveAs writes the working document to path and makes path the file this
-// store loads from, saves to, and watches.
-func (s *Store) SaveAs(rev int64, path string) error {
-	err := s.saveAs(rev, path)
+// SaveAs writes the working document to name, a file in the config folder, and
+// makes it the file this store loads from, saves to, and watches.
+func (s *Store) SaveAs(rev int64, name string) error {
+	err := s.saveAs(rev, name)
 	if err == nil {
 		s.notify()
 	}
@@ -310,7 +342,12 @@ func (s *Store) SaveAs(rev int64, path string) error {
 	return err
 }
 
-func (s *Store) saveAs(rev int64, path string) error {
+func (s *Store) saveAs(rev int64, name string) error {
+	path, err := resolve(s.dir, name)
+	if err != nil {
+		return err
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -318,12 +355,16 @@ func (s *Store) saveAs(rev int64, path string) error {
 		return ErrStale
 	}
 
+	if s.working.writesOver(name) {
+		return &ValidationError{fmt.Errorf("%q is used by this config for a camera or the robot height table", name)}
+	}
+
 	if err := s.writeLocked(path); err != nil {
 		return err
 	}
 
 	// Regenerated so each config.yml's header names the new source.
-	s.renderErrs = renderAll(s.working, path)
+	s.renderErrs = renderAll(s.working, s.dir, path)
 
 	return nil
 }
@@ -331,11 +372,12 @@ func (s *Store) saveAs(rev int64, path string) error {
 // writeLocked writes working to path and records it as the disk version.
 // Callers must hold mu.
 func (s *Store) writeLocked(path string) error {
-	if readOnlyFiles[filepath.Base(path)] {
-		return &ValidationError{fmt.Errorf("%s is a read-only rulebook preset", path)}
-	}
+	// Saving is the confirmation a first run waits for, once it has reached
+	// the disk.
+	saved := s.working
+	saved.FirstRun = false
 
-	data, err := Marshal(s.working)
+	data, err := Marshal(saved)
 	if err != nil {
 		return err
 	}
@@ -346,6 +388,7 @@ func (s *Store) writeLocked(path string) error {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 
+	s.working.FirstRun = false
 	s.path = path
 	s.disk = s.working.clone()
 	s.diskHash = hashBytes(data)
@@ -355,9 +398,18 @@ func (s *Store) writeLocked(path string) error {
 	return nil
 }
 
-// Load replaces both the working and disk documents with path's contents,
-// applies it live, and switches to editing path.
-func (s *Store) Load(path string) error {
+// Load replaces both the working and disk documents with the contents of name,
+// a file in the config folder, applies it live, and switches to editing it.
+func (s *Store) Load(name string) error {
+	path, err := resolve(s.dir, name)
+	if err != nil {
+		return err
+	}
+
+	return s.load(path)
+}
+
+func (s *Store) load(path string) error {
 	s.mu.Lock()
 	err := s.loadLocked(path)
 	s.mu.Unlock()
@@ -376,7 +428,7 @@ func (s *Store) Reload() error {
 	path := s.path
 	s.mu.Unlock()
 
-	return s.Load(path)
+	return s.load(path)
 }
 
 func (s *Store) loadLocked(path string) error {
@@ -389,6 +441,10 @@ func (s *Store) loadLocked(path string) error {
 	doc, err := Parse(data)
 	if err != nil {
 		return &ValidationError{prefixed(path, err)}
+	}
+
+	if err := checkNotOverActive(doc, path); err != nil {
+		return err
 	}
 
 	previousPath := s.path
@@ -488,6 +544,8 @@ func (s *Store) State() State {
 
 	state := State{
 		Path:         s.path,
+		File:         filepath.Base(s.path),
+		FirstRun:     s.working.FirstRun,
 		Revision:     s.revision,
 		Changes:      nonNil(Diff(s.disk, s.working)),
 		Cameras:      make([]CameraStatus, 0, len(s.working.Cameras)),

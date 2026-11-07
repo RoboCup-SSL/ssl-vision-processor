@@ -75,7 +75,7 @@ func (c FieldConfig) Validate() error {
 
 // fieldConfigFrom reads a FieldConfig/OptionalLinesConfig pair out of a
 // decoded field size and its optional-line toggles. Shared by FieldConfig
-// (the live, held Geometry) and LoadPreset (an arbitrary file read fresh,
+// (the live, held Geometry) and ParseFieldFile (a file parsed fresh,
 // with no Geometry involved).
 func fieldConfigFrom(field *vision.SSL_GeometryFieldSize, optional optionalLines) (FieldConfig, OptionalLinesConfig) {
 	return FieldConfig{
@@ -102,12 +102,12 @@ func fieldConfigFrom(field *vision.SSL_GeometryFieldSize, optional optionalLines
 		}
 }
 
-// LoadFieldFile reads a legacy geometry YAML file (geometry-*.yml) fresh --
-// no Geometry instance, no mutation of anything -- and returns its field
-// dimensions, optional-line toggles, and ball models. Used for the rulebook
-// presets and for importing a pre-vision.yml setup.
-func LoadFieldFile(path string) (FieldConfig, OptionalLinesConfig, *vision.SSL_GeometryModels, error) {
-	wrapper, optional, _, err := Load(path)
+// ParseFieldFile parses a geometry YAML file (geometry-*.yml; name is only for
+// errors) fresh -- no Geometry instance, no mutation of anything -- and returns
+// its field dimensions, optional-line toggles, and ball models. Used for the
+// rulebook presets.
+func ParseFieldFile(data []byte, name string) (FieldConfig, OptionalLinesConfig, *vision.SSL_GeometryModels, error) {
+	wrapper, optional, _, err := parseFile(data, name)
 	if err != nil {
 		return FieldConfig{}, OptionalLinesConfig{}, nil, err
 	}
@@ -115,15 +115,6 @@ func LoadFieldFile(path string) (FieldConfig, OptionalLinesConfig, *vision.SSL_G
 	field, opt := fieldConfigFrom(wrapper.GetGeometry().GetField(), optional)
 
 	return field, opt, wrapper.GetGeometry().GetModels(), nil
-}
-
-// LoadPreset is LoadFieldFile without the models, for serving the rulebook
-// presets (config/legacy/geometry-div{A,B}.yml) straight from the same files
-// a human would open, rather than a copy that could drift from them.
-func LoadPreset(path string) (FieldConfig, OptionalLinesConfig, error) {
-	field, opt, _, err := LoadFieldFile(path)
-
-	return field, opt, err
 }
 
 // applyFieldConfig builds a field message from cfg, regenerates its derived

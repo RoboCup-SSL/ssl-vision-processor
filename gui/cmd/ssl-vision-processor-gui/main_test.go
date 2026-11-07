@@ -9,61 +9,37 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 )
 
-func TestBootstrapConfigImportsLegacyFiles(t *testing.T) {
+func TestBootstrapConfigCreatesAParseableDefault(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "vision.yml")
 
-	// A copy, since importing backs the file up beside itself.
-	legacy := filepath.Join(dir, "config.yml")
-	if err := copyFile(configFixture, legacy); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := bootstrapConfig(path, geometryFixture, legacy, "missing-preset.yml"); err != nil {
+	if err := bootstrapConfig(dir, "vision.yml"); err != nil {
 		t.Fatalf("bootstrapConfig: %v", err)
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Join(dir, "vision.yml"))
 	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
+		t.Fatalf("no file created: %v", err)
 	}
 
-	doc, err := config.Parse(data)
-	if err != nil {
+	if _, err := config.Parse(data); err != nil {
 		t.Fatalf("bootstrapped file doesn't parse: %v", err)
 	}
 
-	if len(doc.Cameras) != 1 || doc.Cameras[0].ConfigPath != legacy || doc.Cameras[0].Seed == nil {
-		t.Fatalf("cameras = %+v, want the legacy config imported as camera with its corners", doc.Cameras)
-	}
-
-	original, _ := os.ReadFile(configFixture)
-	if backup, err := os.ReadFile(legacy + ".orig"); err != nil || string(backup) != string(original) {
-		t.Errorf("no backup of the imported config.yml: %v", err)
-	}
-}
-
-func TestBootstrapConfigFallsBackToThePreset(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "vision.yml")
-
-	if err := bootstrapConfig(path, filepath.Join(dir, "none.yml"), filepath.Join(dir, "none.yml"), geometryFixture); err != nil {
-		t.Fatalf("bootstrapConfig: %v", err)
-	}
-
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("no file created: %v", err)
+	heights, err := os.ReadFile(filepath.Join(dir, "robot-heights.yml"))
+	if err != nil || len(heights) == 0 {
+		t.Errorf("no robot height table beside it: %v", err)
 	}
 }
 
 func TestBootstrapConfigLeavesExistingFileAlone(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "vision.yml")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "vision.yml")
 
 	if err := os.WriteFile(path, []byte("already here"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	if err := bootstrapConfig(path, geometryFixture, "", geometryFixture); err != nil {
+	if err := bootstrapConfig(dir, "vision.yml"); err != nil {
 		t.Fatalf("bootstrapConfig: %v", err)
 	}
 

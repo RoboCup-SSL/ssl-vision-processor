@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"testing"
@@ -33,13 +32,18 @@ import (
 func loopbackHost(t *testing.T) (visionGroup, gcGroup string, srv *httptest.Server) {
 	t.Helper()
 
+	_, visionGroup, gcGroup, srv = loopbackHostWith(t)
+
+	return visionGroup, gcGroup, srv
+}
+
+// loopbackHostWith is loopbackHost with edit applied to the config, also
+// returning the host.
+func loopbackHostWith(t *testing.T, edit ...func(*config.Document)) (h *host, visionGroup, gcGroup string, srv *httptest.Server) {
+	t.Helper()
+
 	lo := mctest.RequireLoopback(t)
 	visionGroup, gcGroup = mctest.Group(t), mctest.Group(t)
-
-	heights := filepath.Join(t.TempDir(), "robot-heights.yml")
-	if err := os.WriteFile(heights, []byte("ER-Force: 148\nTIGERs Mannheim: 143\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 
 	var skip []string
 
@@ -49,15 +53,19 @@ func loopbackHost(t *testing.T) (visionGroup, gcGroup string, srv *httptest.Serv
 		}
 	}
 
-	h, srv := testHost(t, func(doc *config.Document) {
+	h, srv = testHost(t, append([]func(*config.Document){func(doc *config.Document) {
 		vHost, vPort := splitGroup(t, visionGroup)
 		gHost, gPort := splitGroup(t, gcGroup)
 		doc.Defaults["network"] = map[string]any{"vision_ip": vHost, "vision_port": vPort, "gc_ip": gHost, "gc_port": gPort}
-		doc.Defaults["bot_heights_file"] = heights
+		doc.Defaults["bot_heights_file"] = "robot-heights.yml"
 
 		auto := false
 		doc.Host = &config.Host{Interfaces: &config.Interfaces{Auto: &auto, Skip: skip}}
-	})
+	}}, edit...)...)
+
+	if err := os.WriteFile(h.store.InDir("robot-heights.yml"), []byte("ER-Force: 148\nTIGERs Mannheim: 143\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{}, 2)
@@ -75,7 +83,45 @@ func loopbackHost(t *testing.T) (visionGroup, gcGroup string, srv *httptest.Serv
 		<-done
 	})
 
-	return visionGroup, gcGroup, srv
+	return h, visionGroup, gcGroup, srv
+}
+
+// A host somebody is only trying out must not tell a real network what the
+// field looks like. Sending is held back until the first save, then starts.
+func TestAFirstRunPublishesNothingUntilSaved(t *testing.T) {
+	h, visionGroup, _, _ := loopbackHostWith(t, func(doc *config.Document) { doc.FirstRun = true })
+	heard := mctest.Listen(t, visionGroup)
+	packet := h.geom.Encoded()
+
+	for range 10 {
+		sendGeometry(h.sockets, h.store, packet)
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	select {
+	case <-heard:
+		t.Fatal("a first run published geometry")
+	default:
+	}
+
+	_, rev := h.store.Working()
+	if err := h.store.Save(rev, false); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.After(3 * time.Second)
+
+	for {
+		sendGeometry(h.sockets, h.store, packet)
+
+		select {
+		case <-heard:
+			return
+		case <-time.After(50 * time.Millisecond):
+		case <-deadline:
+			t.Fatal("nothing published after saving")
+		}
+	}
 }
 
 func TestTheHostHearsDetectionsAndTheReferee(t *testing.T) {

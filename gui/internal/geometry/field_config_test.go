@@ -1,6 +1,7 @@
 package geometry
 
 import (
+	"os"
 	"testing"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/vision"
@@ -90,10 +91,15 @@ func TestApplyConfigReplacesModels(t *testing.T) {
 	}
 }
 
-func TestLoadPresetReadsWithoutAGeometryInstance(t *testing.T) {
-	cfg, opt, err := LoadPreset("testdata/geometry.yml")
+func TestParseFieldFileNeedsNoGeometryInstance(t *testing.T) {
+	data, err := os.ReadFile("testdata/geometry.yml")
 	if err != nil {
-		t.Fatalf("LoadPreset: %v", err)
+		t.Fatal(err)
+	}
+
+	cfg, opt, _, err := ParseFieldFile(data, "testdata/geometry.yml")
+	if err != nil {
+		t.Fatalf("ParseFieldFile: %v", err)
 	}
 
 	if cfg.FieldLength != 9000 {

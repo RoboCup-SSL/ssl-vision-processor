@@ -153,6 +153,13 @@ function present(a: HostAlert): Alert {
         ],
       };
     }
+    case "first_run_not_publishing":
+      return {
+        ...base,
+        title: text.firstRun,
+        detail: text.firstRunDetail,
+        actions: [howTo("first-run")],
+      };
     case "heights_unreadable":
       return {
         ...base,

@@ -6,7 +6,9 @@
 // There's no dedicated save step: finish is a summary/confirm gate, and
 // confirming there is what copies `draft` into the host's working document
 // (see finishWizard below), where it applies live -- persisting it to disk is
-// the normal Save in the settings menu.
+// the normal Save in the settings menu, which a first run opens straight away
+// since saving is also what starts it publishing.
+import { fileDialogs } from "../layout/fileDialogs.svelte";
 import {
   blankField,
   type FieldConfig,
@@ -123,6 +125,8 @@ export function finishWizard(): void {
   }
 
   wizard.open = false;
+
+  if (config.state?.firstRun) fileDialogs.save = true;
 }
 
 export function nextStep(): void {

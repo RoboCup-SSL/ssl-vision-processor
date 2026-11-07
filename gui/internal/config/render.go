@@ -86,9 +86,9 @@ func (p flowPair) MarshalYAML() (any, error) {
 	return node, nil
 }
 
-// renderAll regenerates every camera's config.yml that has a ConfigPath,
-// returning an error message per camera_id that failed.
-func renderAll(doc Document, sourcePath string) map[int]string {
+// renderAll regenerates every camera's config.yml that has a ConfigPath, a file
+// in dir, returning an error message per camera_id that failed.
+func renderAll(doc Document, dir, sourcePath string) map[int]string {
 	failures := map[int]string{}
 
 	for _, c := range doc.Cameras {
@@ -98,7 +98,7 @@ func renderAll(doc Document, sourcePath string) map[int]string {
 
 		data, err := Render(doc, c, sourcePath)
 		if err == nil {
-			_, err = writeIfChanged(c.ConfigPath, data)
+			_, err = writeIfChanged(filepath.Join(dir, c.ConfigPath), data)
 		}
 
 		if err != nil {

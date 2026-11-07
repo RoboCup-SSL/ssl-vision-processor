@@ -9,6 +9,7 @@ import (
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/alerts"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/defaults"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/httpjson"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
@@ -58,11 +59,13 @@ type none = struct{}
 type healthResponse struct {
 	// Status is always "ok".
 	Status string `json:"status"`
+	// Version is the host's build version, "dev" outside a release build.
+	Version string `json:"version"`
 }
 
 // health reports that the host is up and serving.
 func (s *VisionServer) health(*http.Request, none) (healthResponse, error) {
-	return healthResponse{Status: "ok"}, nil
+	return healthResponse{Status: "ok", Version: version}, nil
 }
 
 // topics lists the WebSocket topics /ws accepts.
@@ -189,8 +192,7 @@ func (s *VisionServer) patchConfig(_ *http.Request, in patchConfigRequest) (revi
 	return revisionOf(next), err
 }
 
-// configFiles lists the YAML files beside the current vision.yml, for load
-// and save-as.
+// configFiles lists the YAML files in the config folder, for load and save-as.
 func (s *VisionServer) configFiles(*http.Request, none) ([]config.File, error) {
 	return s.store.Files()
 }
@@ -219,18 +221,18 @@ func (s *VisionServer) save(_ *http.Request, req saveRequest) (revisionResponse,
 type saveAsRequest struct {
 	// Revision must be the current one; a stale one is a 409.
 	Revision int64 `json:"revision"`
-	// Path is the file to write, on the host.
-	Path string `json:"path"`
+	// Name is the file to write: a file name in the config folder, not a path.
+	Name string `json:"name"`
 }
 
-// saveAs writes the working document to another path. The host loads from,
-// saves to, and watches that file from then on.
+// saveAs writes the working document to another file in the config folder. The
+// host loads from, saves to, and watches that file from then on.
 func (s *VisionServer) saveAs(_ *http.Request, req saveAsRequest) (revisionResponse, error) {
-	if req.Path == "" {
-		return revisionResponse{}, &httpjson.Problem{Code: httpjson.CodeInvalid, Message: "path: required", Issues: []string{"path: required"}}
+	if req.Name == "" {
+		return revisionResponse{}, &httpjson.Problem{Code: httpjson.CodeInvalid, Message: "name: required", Issues: []string{"name: required"}}
 	}
 
-	if err := s.store.SaveAs(req.Revision, req.Path); err != nil {
+	if err := s.store.SaveAs(req.Revision, req.Name); err != nil {
 		return revisionResponse{}, err
 	}
 
@@ -239,18 +241,18 @@ func (s *VisionServer) saveAs(_ *http.Request, req saveAsRequest) (revisionRespo
 
 // loadRequest names a vision.yml to load.
 type loadRequest struct {
-	// Path is the file to load, on the host.
-	Path string `json:"path"`
+	// Name is the file to load: a file name in the config folder, not a path.
+	Name string `json:"name"`
 }
 
-// load switches to editing another vision.yml. It replaces the working
+// load switches to editing another vision.yml in the config folder. It replaces the working
 // document, unsaved changes included, and applies it live.
 func (s *VisionServer) load(_ *http.Request, req loadRequest) (revisionResponse, error) {
-	if req.Path == "" {
-		return revisionResponse{}, &httpjson.Problem{Code: httpjson.CodeInvalid, Message: "path: required", Issues: []string{"path: required"}}
+	if req.Name == "" {
+		return revisionResponse{}, &httpjson.Problem{Code: httpjson.CodeInvalid, Message: "name: required", Issues: []string{"name: required"}}
 	}
 
-	if err := s.store.Load(req.Path); err != nil {
+	if err := s.store.Load(req.Name); err != nil {
 		return revisionResponse{}, err
 	}
 
@@ -367,17 +369,6 @@ func respondConfigErr(w http.ResponseWriter, err error, logMsg string, logArgs .
 	}
 }
 
-// fieldPresets are the rulebook defaults, read live from the read-only
-// reference files in the repo's config/ directory, not a copy that could
-// drift from them. Saves refuse to touch these paths.
-var fieldPresets = []struct {
-	Name string
-	Path string
-}{
-	{Name: "Division A", Path: "config/legacy/geometry-divA.yml"},
-	{Name: "Division B", Path: "config/legacy/geometry-divB.yml"},
-}
-
 // fieldPresetResponse is one rulebook field.
 type fieldPresetResponse struct {
 	// Name is the division, e.g. "Division B".
@@ -386,18 +377,19 @@ type fieldPresetResponse struct {
 	OptionalFieldLines geometry.OptionalLinesConfig `json:"optionalFieldLines"`
 }
 
-// fieldPresets lists the rulebook field dimensions, Division A and B. A
-// preset file the host can't read (from the wrong working directory, for one)
-// is left out rather than failing the request.
+// fieldPresets lists the rulebook field dimensions, Division A and B.
 func (s *VisionServer) fieldPresets(*http.Request, none) ([]fieldPresetResponse, error) {
-	presets := make([]fieldPresetResponse, 0, len(fieldPresets))
+	embedded, err := defaults.Presets()
+	if err != nil {
+		return nil, err
+	}
 
-	for _, p := range fieldPresets {
-		field, optional, err := geometry.LoadPreset(p.Path)
+	presets := make([]fieldPresetResponse, 0, len(embedded))
+
+	for _, p := range embedded {
+		field, optional, _, err := geometry.ParseFieldFile(p.Data, p.Name)
 		if err != nil {
-			slog.Warn("skipping unreadable field preset", "name", p.Name, "path", p.Path, "err", err)
-
-			continue
+			return nil, err
 		}
 
 		presets = append(presets, fieldPresetResponse{Name: p.Name, Field: field, OptionalFieldLines: optional})

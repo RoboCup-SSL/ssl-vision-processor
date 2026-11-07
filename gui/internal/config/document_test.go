@@ -140,64 +140,6 @@ func TestValidateRejectsAnOutOfRangeColor(t *testing.T) {
 	}
 }
 
-func TestImportBuildsADocumentFromLegacyFiles(t *testing.T) {
-	doc, err := Import("testdata/legacy-geometry.yml", "testdata/legacy-config.yml")
-	if err != nil {
-		t.Fatalf("Import: %v", err)
-	}
-
-	if doc.Field.FieldLength != 2160 || !doc.OptionalFieldLines.Halfway {
-		t.Errorf("field = %+v, want the legacy geometry", doc.Field)
-	}
-
-	if _, ok := doc.Models["straight_two_phase"]; !ok {
-		t.Errorf("models = %v, want straight_two_phase carried over", doc.Models)
-	}
-
-	if len(doc.Cameras) != 1 {
-		t.Fatalf("cameras = %d, want 1", len(doc.Cameras))
-	}
-
-	c := doc.Cameras[0]
-	if c.CameraID != 1 || c.ConfigPath != "testdata/legacy-config.yml" {
-		t.Errorf("camera_id=%d config_path=%q, want 1 and the legacy file", c.CameraID, c.ConfigPath)
-	}
-
-	if c.Seed == nil || len(c.Seed.LineCorners) != 4 || c.Seed.GoalSideMarker != 2 || c.Seed.Resolution != [2]int{} {
-		t.Errorf("seed = %+v, want 4 corners, marker 2, unknown resolution", c.Seed)
-	}
-
-	geom, _ := c.Config["geometry"].(map[string]any)
-	for _, derived := range []string{"line_corners", "goal_side_marker", "camera_amount"} {
-		if _, ok := geom[derived]; ok {
-			t.Errorf("camera config still has geometry.%s", derived)
-		}
-	}
-
-	if _, ok := c.Config["color"]; !ok {
-		t.Error("color should be per-camera")
-	}
-
-	if _, ok := doc.Defaults["thresholds"]; !ok {
-		t.Error("thresholds should be a shared default")
-	}
-
-	if _, ok := doc.Defaults["tracking"]; ok {
-		t.Error("an empty legacy section should not be carried over")
-	}
-}
-
-func TestImportWithoutAConfigFileMakesCameraZero(t *testing.T) {
-	doc, err := Import("testdata/legacy-geometry.yml", "")
-	if err != nil {
-		t.Fatalf("Import: %v", err)
-	}
-
-	if len(doc.Cameras) != 1 || doc.Cameras[0].CameraID != 0 || doc.Cameras[0].ConfigPath != "" {
-		t.Fatalf("cameras = %+v, want a lone camera 0 with no config_path", doc.Cameras)
-	}
-}
-
 func TestDiffClassifiesSections(t *testing.T) {
 	before := loadFixture(t)
 	after := before.clone()
@@ -315,9 +257,9 @@ func TestRenderMergesDefaultsAndInjectsDerivedKeys(t *testing.T) {
 func TestRenderAllOnlyWritesChangedFiles(t *testing.T) {
 	doc := loadFixture(t)
 	path := filepath.Join(t.TempDir(), "config.yml")
-	doc.Cameras[0].ConfigPath = path
+	doc.Cameras[0].ConfigPath = "config.yml"
 
-	if failures := renderAll(doc, "vision.yml"); len(failures) != 0 {
+	if failures := renderAll(doc, filepath.Dir(path), "vision.yml"); len(failures) != 0 {
 		t.Fatalf("renderAll: %v", failures)
 	}
 
@@ -326,14 +268,14 @@ func TestRenderAllOnlyWritesChangedFiles(t *testing.T) {
 		t.Fatalf("Chtimes: %v", err)
 	}
 
-	renderAll(doc, "vision.yml")
+	renderAll(doc, filepath.Dir(path), "vision.yml")
 
 	if info, _ := os.Stat(path); !info.ModTime().Equal(old) {
 		t.Fatalf("unchanged render rewrote the file")
 	}
 
 	doc.Cameras[0].Config["camera"].(map[string]any)["width"] = 1280
-	renderAll(doc, "vision.yml")
+	renderAll(doc, filepath.Dir(path), "vision.yml")
 
 	if info, _ := os.Stat(path); info.ModTime().Equal(old) {
 		t.Fatalf("changed render did not rewrite the file")
@@ -405,5 +347,84 @@ func TestFixtureCalibrationIsPlausible(t *testing.T) {
 		if err := geometry.CheckCalibration(calib); err != nil {
 			t.Errorf("camera %d: %v", c.CameraID, err)
 		}
+	}
+}
+
+// The document a host with no config starts from has to validate as is, with
+// nothing beside the binary.
+func TestDefaultIsDivisionBWithALoneRemoteCamera(t *testing.T) {
+	doc, err := Default()
+	if err != nil {
+		t.Fatalf("Default: %v", err)
+	}
+
+	if doc.Field.FieldLength != 9000 {
+		t.Errorf("field length = %d, want Division B's 9000", doc.Field.FieldLength)
+	}
+
+	if !doc.FirstRun {
+		t.Error("a new config should be a first run")
+	}
+
+	if len(doc.Cameras) != 1 || doc.Cameras[0].CameraID != 0 || doc.Cameras[0].ConfigPath != "" {
+		t.Errorf("cameras = %+v, want a lone camera 0 with no config_path", doc.Cameras)
+	}
+
+	data, err := Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parsed, err := Parse(data)
+	if err != nil {
+		t.Fatalf("written default doesn't parse: %v", err)
+	}
+
+	if !parsed.FirstRun {
+		t.Error("first_run didn't survive being written")
+	}
+}
+
+// A document can come from the API, so anything it names has to stay in the
+// config folder, whichever way it arrives.
+func TestValidateRefusesPathsInFileNames(t *testing.T) {
+	for name, edit := range map[string]func(*Document){
+		"absolute config_path": func(d *Document) { d.Cameras[0].ConfigPath = "/etc/cron.d/x.yml" },
+		"parent config_path":   func(d *Document) { d.Cameras[0].ConfigPath = "../x.yml" },
+		"nested config_path":   func(d *Document) { d.Cameras[0].ConfigPath = "sub/x.yml" },
+		"config_path type":     func(d *Document) { d.Cameras[0].ConfigPath = "x.txt" },
+		"heights table":        func(d *Document) { d.Cameras[0].ConfigPath = "robot-heights.yml" },
+		"absolute heights":     func(d *Document) { d.Defaults["bot_heights_file"] = "/etc/passwd" },
+		"camera's heights": func(d *Document) {
+			d.Cameras[0].Config["bot_heights_file"] = "../heights.yml"
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			doc := loadFixture(t)
+			edit(&doc)
+
+			if err := doc.Validate(); !IsValidation(err) {
+				t.Errorf("Validate = %v, want a validation error", err)
+			}
+
+			data, err := Marshal(doc)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := Parse(data); !IsValidation(err) {
+				t.Errorf("Parse = %v, want a validation error", err)
+			}
+		})
+	}
+}
+
+func TestValidateAcceptsBareFileNames(t *testing.T) {
+	doc := loadFixture(t)
+	doc.Cameras[0].ConfigPath = "cam0.yml"
+	doc.Defaults["bot_heights_file"] = "heights.yml"
+
+	if err := doc.Validate(); err != nil {
+		t.Errorf("Validate: %v", err)
 	}
 }

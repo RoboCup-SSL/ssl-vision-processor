@@ -127,17 +127,6 @@ func TestDiffClassifiesLayoutChanges(t *testing.T) {
 	}
 }
 
-func TestImportKeepsTheLegacyCameraAmount(t *testing.T) {
-	doc, err := Import("testdata/legacy-geometry.yml", "testdata/legacy-config.yml")
-	if err != nil {
-		t.Fatalf("Import: %v", err)
-	}
-
-	if doc.CameraCount() != 2 {
-		t.Errorf("CameraCount = %d, want the legacy camera_amount 2", doc.CameraCount())
-	}
-}
-
 func hasWarning(s CameraStatus, code string) bool {
 	for _, w := range s.Warnings {
 		if w.Code == code {

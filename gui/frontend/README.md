@@ -1,7 +1,7 @@
 # vision-processor-gui-frontend
 
 Browser UI for the vision-processor GUI. Svelte 5, TypeScript, and Vite. See
-[`gui/README.md`](../README.md) for building it as part of the Go host, and
+[`gui/DEVELOPMENT.md`](../DEVELOPMENT.md) for building it as part of the Go host, and
 [`gui/ARCHITECTURE.md`](../ARCHITECTURE.md) for how the whole system fits
 together. This document covers the frontend's own layout and scripts.
 

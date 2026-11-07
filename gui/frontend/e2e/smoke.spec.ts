@@ -68,7 +68,10 @@ test("loads with the host's alerts", async ({ page }) => {
 test("every page renders", async ({ page }) => {
   const errors = pageErrors(page);
 
+  // Wait for the config to arrive first: nav's URL sync reruns when it does,
+  // and would undo a hash change whose hashchange event hasn't fired yet.
   await page.goto("/#0/team_assignment");
+  await expect(page.locator("main").getByRole("heading").first()).toBeVisible();
 
   for (const hash of PAGES) {
     // Same-document navigation: only the hash changes, as when clicking

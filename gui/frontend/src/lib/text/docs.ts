@@ -112,12 +112,21 @@ export const RESOLUTION_DOCS = {
       "Until vision_processor reads these overrides, also add the team to the height table (bot_heights_file, robot-heights.yml by default) under its exact game controller name, and restart the vision_processors.",
     ],
   },
+  "first-run": {
+    title: "Nothing is published until you save",
+    cause:
+      "The host created this configuration itself, so nobody has confirmed the field yet. Until then it sends nothing to the vision network, so trying out the GUI can't disturb a real setup.",
+    steps: [
+      "Check the field, with the setup wizard if you like.",
+      "Save the configuration from the settings menu. The host starts publishing straight away.",
+    ],
+  },
   "heights-unreadable": {
     title: "The robot height table can't be read",
     cause:
       "vision_processor needs its bot_heights_file to place robots at the right height, and fails to start without it.",
     steps: [
-      "Check the path in vision.yml's defaults.bot_heights_file (robot-heights.yml when unset). A relative path is relative to where vision_processor runs.",
+      "Check the file named by vision.yml's defaults.bot_heights_file (robot-heights.yml when unset) is in the config folder. The host prints that folder at startup.",
       "Check the file is valid YAML: one `team name: height in mm` per line.",
     ],
   },

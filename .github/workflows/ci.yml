@@ -24,9 +24,6 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      # The dev shell pins eigen_5. Ubuntu ships 3.4.0 through at least 26.04
-      # LTS, which lacks Matrix::canonicalEulerAngles() -- so this cannot be an
-      # apt-based job without patching the source.
       - name: Build all targets
         run: |
           nix develop --command bash -c '
@@ -65,6 +62,21 @@ jobs:
             make go-test
             make generate-check
           '
+
+  gui-release:
+    name: Release build (gui)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      # A first run publishes nothing, so this can't disturb anything.
+      - name: Build it and run it as a new user would
+        run: nix develop --command bash -c 'cd gui && make release-check'
 
   frontend:
     name: Frontend (gui/frontend)

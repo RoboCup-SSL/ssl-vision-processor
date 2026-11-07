@@ -54,6 +54,9 @@ export const alerts = {
     `${color} team "${team}" would get a default robot height`,
   colorDefaultHeight: (color: string): string =>
     `${color} robots would get a default robot height`,
+  firstRun: "Not publishing until you save",
+  firstRunDetail:
+    "This is a new configuration. Check the field, then save it to start publishing on the network.",
   heightsUnreadable: (file: string): string =>
     `Can't read the robot height table ${file}`,
   // Two or more senders claiming one thing (gui/internal/peers), by kind.
