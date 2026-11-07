@@ -60,7 +60,10 @@ type Driver struct {
 	// SelectsBy is how the block picks a device: "id", an index in the SDK's
 	// camera list, or "path", a device or file path.
 	SelectsBy string `json:"selectsBy" enum:"id,path"`
-	Gamma     bool   `json:"gamma"`
+	// Serial is whether device can name the camera's serial number, ahead of
+	// the index.
+	Serial bool `json:"serial"`
+	Gamma  bool `json:"gamma"`
 	// WhiteBalanceProfiles is separate OUTDOOR and INDOOR auto profiles.
 	WhiteBalanceProfiles bool `json:"whiteBalanceProfiles"`
 }
@@ -88,7 +91,8 @@ var settings = map[string]Setting{
 
 	"camera.driver":        {Type: TypeString, Default: "SPINNAKER", Apply: ApplyRestart, Enum: CameraDrivers},
 	"camera.id":            {Type: TypeInteger, Default: 0, Apply: ApplyRestart, Minimum: bound(0)},
-	"camera.path":          {Type: TypeString, Apply: ApplyRestart}, // /dev/video{id}
+	"camera.device":        {Type: TypeString, Apply: ApplyRestart}, // OPENCV: /dev/video{id}
+	"camera.path":          {Type: TypeString, Apply: ApplyRestart}, // former name of camera.device
 	"camera.width":         {Type: TypeInteger, Default: 0, Apply: ApplyRestart, Unit: "px", Minimum: bound(0)},
 	"camera.height":        {Type: TypeInteger, Default: 0, Apply: ApplyRestart, Unit: "px", Minimum: bound(0)},
 	"camera.exposure":      {Type: TypeNumber, Default: 0, Apply: ApplyRestart, Minimum: bound(0)},
@@ -145,8 +149,9 @@ var settings = map[string]Setting{
 }
 
 var drivers = []Driver{
-	{ID: "SPINNAKER", SelectsBy: "id", Gamma: true, WhiteBalanceProfiles: true},
+	{ID: "SPINNAKER", SelectsBy: "id", Serial: true, Gamma: true, WhiteBalanceProfiles: true},
 	{ID: "MVIMPACT", SelectsBy: "id"},
+	{ID: "DC1394", SelectsBy: "id", Gamma: true},
 	{ID: "OPENCV", SelectsBy: "path", Gamma: true},
 }
 

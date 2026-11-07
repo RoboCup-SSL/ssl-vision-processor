@@ -9,10 +9,10 @@
 
 camera:
   # Camera driver type. Availability depending on libraries installed.
-  # Existing: SPINNAKER (FLIR cameras), MVIMPACT (Bluefox3 cameras), OPENCV(files, v4l2 cameras)
+  # Existing: SPINNAKER (FLIR cameras), MVIMPACT (Bluefox3 cameras), DC1394 (IIDC FireWire cameras), OPENCV(files, v4l2 cameras)
   #driver: SPINNAKER
 
-  # Spinnaker, mvIMPACT or OpenCV(v4l2) camera id. Spinnaker numbers cameras by ascending serial number.
+  # Spinnaker, mvIMPACT, DC1394 or OpenCV(v4l2) camera id. Spinnaker numbers cameras by ascending serial number.
   #id: 0
   # Camera to open instead of id (formerly "path"): OpenCV camera device, image or video file path; Spinnaker
   # serial number (build/spinnaker_probe --list). Recommended for several cameras on one host, as ids shift when one is missing.

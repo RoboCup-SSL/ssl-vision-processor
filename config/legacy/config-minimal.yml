@@ -12,7 +12,7 @@ camera:
   #id: 0
   # Uncomment if you have a video4linux2 (OPENCV) camera. Set the camera (or video) file path.
   #driver: OPENCV
-  #path: /dev/video0
+  #device: /dev/video0
 
   # Uncomment if your carpet isn't green and you use a Spinnaker camera.
   #white_balance: INDOOR

@@ -64,7 +64,19 @@ func (d Document) EffectiveConfig(id int) (EffectiveConfig, error) {
 		}
 	}
 
-	// cameradriver.cpp's path fallback depends on the id in effect.
+	// cameradriver.cpp reads device, then its former name path, then on
+	// OPENCV falls back to the id in effect.
+	if d, p := out.Settings["camera.device"], out.Settings["camera.path"]; d.Source == SourceFallback {
+		switch {
+		case p.Source != SourceFallback:
+			d.Value, d.Source = p.Value, p.Source
+		case out.Settings["camera.driver"].Value == "OPENCV":
+			d.Value = fmt.Sprintf("/dev/video%v", out.Settings["camera.id"].Value)
+		}
+
+		out.Settings["camera.device"] = d
+	}
+
 	if p := out.Settings["camera.path"]; p.Source == SourceFallback {
 		p.Value = fmt.Sprintf("/dev/video%v", out.Settings["camera.id"].Value)
 		out.Settings["camera.path"] = p

@@ -123,7 +123,7 @@ cameras:
     # This camera's overrides of `defaults`, same layout.
     config:
       camera:
-        path: /dev/v4l/by-id/usb-Example_Camera-video-index0
+        device: /dev/v4l/by-id/usb-Example_Camera-video-index0
         width: 1920
         height: 1080
     # Written by the corner picker: the four field line corners in image

@@ -15,10 +15,14 @@ export const camera = {
   noInstance: SELECT_INSTANCE,
 
   driver: [
-    "SPINNAKER and MVIMPACT need vision_processor built with their SDKs.",
+    "SPINNAKER, MVIMPACT and DC1394 need vision_processor built with their SDKs.",
     "Unset means SPINNAKER.",
   ],
   cameraIndex: ["Position in the SDK's camera list, in detection order."],
+  serial: [
+    "Stays with the camera, where the index shifts when another camera is missing. List them with build/spinnaker_probe --list.",
+    "Unset uses the camera index, which counts up by serial number.",
+  ],
 
   path: {
     notes: [
@@ -102,5 +106,6 @@ export const camera = {
     ],
     channelSpinnaker: "Balance ratio relative to green; 1.0 is neutral.",
     channelMvimpact: "Gain relative to green; 1.0 is neutral.",
+    channelDc1394: "The camera's raw blue and red registers.",
   },
 };

@@ -183,8 +183,10 @@ means the machine slept, and every socket is reopened.
 
 The Camera Settings tab edits each camera's `camera:` block, shown with vision_processor's own fallbacks applied
 (`src/driver/cameradriver.cpp`; an unset driver means SPINNAKER). Controls follow the driver: an index for
-SPINNAKER and MVIMPACT, a path for OPENCV, gamma hidden for MVIMPACT, and the OUTDOOR and INDOOR auto white
-balance profiles only for SPINNAKER. vision_processor reads `camera:` only at startup. Validation rejects what it
+SPINNAKER, MVIMPACT and DC1394, plus a serial number for SPINNAKER, a path for OPENCV, gamma hidden for
+MVIMPACT, and the OUTDOOR and INDOOR auto white balance profiles only for SPINNAKER. The serial and the path are
+both `device`, written in place of its former name `path`, which still reads. vision_processor reads `camera:`
+only at startup. Validation rejects what it
 would misread instead of refusing: an unknown driver (fatal at startup) and any white balance string other than
 OUTDOOR or INDOOR (it treats every other string as INDOOR).
 

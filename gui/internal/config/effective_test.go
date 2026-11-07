@@ -53,6 +53,36 @@ func TestEffectiveConfigPathFallbackFollowsTheID(t *testing.T) {
 	}
 }
 
+func TestEffectiveConfigDevice(t *testing.T) {
+	cases := map[string]struct {
+		camera map[string]any
+		want   EffectiveSetting
+	}{
+		"set":          {map[string]any{"device": "15000001"}, EffectiveSetting{Value: "15000001", Source: SourceCamera, Known: true}},
+		"former name":  {map[string]any{"path": "/dev/video1"}, EffectiveSetting{Value: "/dev/video1", Source: SourceCamera, Known: true}},
+		"wins":         {map[string]any{"device": "/dev/video2", "path": "/dev/video1"}, EffectiveSetting{Value: "/dev/video2", Source: SourceCamera, Known: true}},
+		"opencv unset": {map[string]any{"driver": "OPENCV", "id": 3}, EffectiveSetting{Value: "/dev/video3", Source: SourceFallback, Known: true}},
+		"sdk unset":    {map[string]any{"driver": "SPINNAKER"}, EffectiveSetting{Source: SourceFallback, Known: true}},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			doc := loadFixture(t)
+			doc.Defaults = map[string]any{}
+			doc.Cameras[1].Config = map[string]any{"camera": tc.camera}
+
+			eff, err := doc.EffectiveConfig(1)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := eff.Settings["camera.device"]; !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("camera.device = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestEffectiveConfigUnknownCamera(t *testing.T) {
 	if _, err := loadFixture(t).EffectiveConfig(9); !errors.Is(err, ErrUnknownCamera) {
 		t.Errorf("err = %v, want ErrUnknownCamera", err)

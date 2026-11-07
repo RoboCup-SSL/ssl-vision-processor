@@ -55,19 +55,25 @@
 
   // Device
 
-  let effectivePath = $derived(
-    settings.path ?? `/dev/video${String(settings.id)}`,
-  );
+  let device = $derived(settings.device ?? settings.path);
+
+  let effectivePath = $derived(device ?? `/dev/video${String(settings.id)}`);
+
+  // Writes the current name, retiring the camera's own former one.
+  function setDevice(value: string | undefined): void {
+    set("device", value);
+    set("path", undefined);
+  }
 
   const KIND_LABEL: Record<VideoDevice["kind"], string> = text.path.kind;
 
   let pathNotes = $derived.by((): string[] => {
     const notes = [...text.path.notes];
-    const device = devices.find((d) => d.path === effectivePath);
+    const found = devices.find((d) => d.path === effectivePath);
 
-    if (device?.kind === "by-id") notes.push(text.path.byId);
-    if (device?.kind === "by-path") notes.push(text.path.byPath);
-    if (!device && devices.length > 0 && effectivePath.startsWith("/dev/"))
+    if (found?.kind === "by-id") notes.push(text.path.byId);
+    if (found?.kind === "by-path") notes.push(text.path.byPath);
+    if (!found && devices.length > 0 && effectivePath.startsWith("/dev/"))
       notes.push(text.path.notOnHost);
 
     return notes;
@@ -198,9 +204,11 @@
     settings.driver === "OPENCV"
       ? text.whiteBalance.channelOpencv
       : [
-          settings.driver === "SPINNAKER"
-            ? text.whiteBalance.channelSpinnaker
-            : text.whiteBalance.channelMvimpact,
+          {
+            SPINNAKER: text.whiteBalance.channelSpinnaker,
+            MVIMPACT: text.whiteBalance.channelMvimpact,
+            DC1394: text.whiteBalance.channelDc1394,
+          }[settings.driver],
           PLACEHOLDER_RANGE,
         ],
   );
@@ -281,6 +289,25 @@
                   }}
                 />
               </FormRow>
+              {#if driver.serial}
+                <FormRow label="Serial" for="cam-serial" notes={text.serial}>
+                  <Input
+                    id="cam-serial"
+                    type="text"
+                    size="sm"
+                    class="font-mono"
+                    spellcheck="false"
+                    value={device ?? ""}
+                    placeholder="Unset"
+                    onchange={(e: Event) => {
+                      const v = (
+                        e.currentTarget as HTMLInputElement
+                      ).value.trim();
+                      setDevice(v === "" ? undefined : v);
+                    }}
+                  />
+                </FormRow>
+              {/if}
             {:else}
               <FormRow
                 label="Path"
@@ -294,16 +321,16 @@
                   placeholder=""
                   value={devices.findIndex((d) => d.path === effectivePath)}
                   onchange={(e: Event) => {
-                    const device =
+                    const picked =
                       devices[
                         Number((e.currentTarget as HTMLSelectElement).value)
                       ];
-                    if (device) set("path", device.path);
+                    if (picked) setDevice(picked.path);
                   }}
                 >
-                  {#each devices as device, i (device.path)}
+                  {#each devices as listed, i (listed.path)}
                     <option value={i}>
-                      {device.name} ({KIND_LABEL[device.kind]}) {device.path}
+                      {listed.name} ({KIND_LABEL[listed.kind]}) {listed.path}
                     </option>
                   {/each}
                   <option value={-1} disabled>
@@ -316,13 +343,13 @@
                   size="sm"
                   class="font-mono"
                   spellcheck="false"
-                  value={settings.path ?? ""}
+                  value={device ?? ""}
                   placeholder={`/dev/video${String(settings.id)}`}
                   onchange={(e: Event) => {
                     const v = (
                       e.currentTarget as HTMLInputElement
                     ).value.trim();
-                    set("path", v === "" ? undefined : v);
+                    setDevice(v === "" ? undefined : v);
                   }}
                 />
               </FormRow>
