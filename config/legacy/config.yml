@@ -61,7 +61,7 @@ geometry:
 
   # Enable field line pixel refinement.
   # Disable in cluttered environments when the geometry calibration has failed multiple times in a row.
-  #refinement: true
+  #refinement: false
 
   # Minimum brightness difference to surrounding pixels for the classification as field line pixel (0 - 255)
   #field_line_threshold: 5
