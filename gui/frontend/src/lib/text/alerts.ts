@@ -56,6 +56,15 @@ export const alerts = {
     `${color} robots would get a default robot height`,
   heightsUnreadable: (file: string): string =>
     `Can't read the robot height table ${file}`,
+  // Two or more senders claiming one thing (gui/internal/peers), by kind.
+  senderConflict: {
+    calibration: (camera: number): string =>
+      `Camera ${String(camera)}'s calibration is coming from several senders`,
+    geometry: "Another host is publishing field geometry",
+    referee: "Several game controllers are sending",
+    video: (camera: number): string =>
+      `Camera ${String(camera)}'s video is coming from several senders`,
+  },
   loopback: (iface: string): string => `Multicast is off on ${iface}`,
   loopbackDetail:
     "Only matters when programs on this machine talk over loopback.",

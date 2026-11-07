@@ -1,12 +1,14 @@
 package alerts
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/peers"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/referee"
 )
 
@@ -83,6 +85,33 @@ func TestCollect(t *testing.T) {
 		"heights unreadable": {func(_ *config.Document, _ *config.State, n *Network) {
 			n.Referee.HeightsError = "no such file"
 		}, "heights-unreadable", "heights_unreadable/warning"},
+		"calibration from two senders": {func(_ *config.Document, _ *config.State, n *Network) {
+			n.Conflicts = []peers.Conflict{{Kind: peers.KindCalibration, Subject: "camera 0 calibration", Senders: []peers.Sender{
+				{Address: "10.0.0.1:10006"}, {Address: "10.0.0.1:41234", Local: true},
+			}}}
+		}, "sender-calibration-camera 0 calibration", "sender_conflict/error"},
+		"two game controllers": {func(_ *config.Document, _ *config.State, n *Network) {
+			n.Conflicts = []peers.Conflict{{Kind: peers.KindReferee, Subject: "game controller", Senders: []peers.Sender{
+				{Address: "10.0.0.4:10003"}, {Address: "10.0.0.5:10003"},
+			}}}
+		}, "sender-referee-game controller", "sender_conflict/warning"},
+		"two game controllers on a competition field": {func(d *config.Document, _ *config.State, n *Network) {
+			d.CompetitionField = true
+			n.Conflicts = []peers.Conflict{{Kind: peers.KindReferee, Subject: "game controller", Senders: []peers.Sender{
+				{Address: "10.0.0.4:10003"}, {Address: "10.0.0.5:10003"},
+			}}}
+		}, "sender-referee-game controller", "sender_conflict/error"},
+		"two video senders": {func(_ *config.Document, _ *config.State, n *Network) {
+			n.Conflicts = []peers.Conflict{{Kind: peers.KindVideo, Subject: "camera 1 video", Senders: []peers.Sender{
+				{Address: "10.0.0.1:50000"}, {Address: "10.0.0.2:50000"},
+			}}}
+		}, "sender-video-camera 1 video", "sender_conflict/warning"},
+		"two video senders on a competition field": {func(d *config.Document, _ *config.State, n *Network) {
+			d.CompetitionField = true
+			n.Conflicts = []peers.Conflict{{Kind: peers.KindVideo, Subject: "camera 1 video", Senders: []peers.Sender{
+				{Address: "10.0.0.1:50000"}, {Address: "10.0.0.2:50000"},
+			}}}
+		}, "sender-video-camera 1 video", "sender_conflict/error"},
 		"loopback": {func(_ *config.Document, _ *config.State, n *Network) {
 			n.LoopbackMulticast = false
 			n.Loopback = "lo"
@@ -154,5 +183,50 @@ func TestHeightIssue(t *testing.T) {
 				t.Errorf("HeightIssue = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// Every kind of sender conflict, in a lab and on a competition field: the
+// game controller and video are warnings in a lab and errors at a match;
+// calibration and field geometry are always errors.
+func TestSenderConflictSeverity(t *testing.T) {
+	want := map[string][2]string{ // kind -> {lab, competition}
+		peers.KindCalibration: {Error, Error},
+		peers.KindGeometry:    {Error, Error},
+		peers.KindReferee:     {Warning, Error},
+		peers.KindVideo:       {Warning, Error},
+	}
+
+	for kind, severities := range want {
+		for i, competition := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/competition=%v", kind, competition), func(t *testing.T) {
+				doc, state, net := healthy()
+				doc.CompetitionField = competition
+				net.Conflicts = []peers.Conflict{{Kind: kind, Subject: "subject", Senders: []peers.Sender{
+					{Address: "10.0.0.1:10006"}, {Address: "10.0.0.2:41234", Host: "other", Local: false},
+				}}}
+
+				var found *Alert
+
+				for _, a := range Collect(doc, state, net) {
+					if a.Code == CodeSenderConflict {
+						found = &a
+					}
+				}
+
+				if found == nil {
+					t.Fatal("no sender_conflict alert")
+				}
+
+				if found.Severity != severities[i] {
+					t.Errorf("severity = %s, want %s", found.Severity, severities[i])
+				}
+
+				senders, _ := found.Params["senders"].([]string)
+				if found.Params["kind"] != kind || len(senders) != 2 || senders[1] != "10.0.0.2:41234 (other)" {
+					t.Errorf("params = %v", found.Params)
+				}
+			})
+		}
 	}
 }

@@ -8,6 +8,11 @@ export const wizard = {
   // `backticks` show as code.
   applyNote: (path: string): string =>
     `Applying takes effect immediately but doesn't save -- use Save in the settings menu (or Ctrl+S) to write \`${path}\`, then calibrate each camera on its own Geometry tab.`,
+  // The dimensions step. Saying which way each runs keeps length and width
+  // from being swapped.
+  halfLength: (full: number): string =>
+    `Half length: goal line to halfway line (full: ${String(full)}mm)`,
+  fieldWidth: "Field width: along the goal line",
   layoutCount: (regions: number, half: boolean): string =>
     `Sets the layout to ${String(regions)} ${plural(regions, "region")}${half ? ", since a half field is half of a full one" : ""}. Assign cameras to regions on the Camera Layout page.`,
   finishCameras: (regions: number, changes: boolean): string =>

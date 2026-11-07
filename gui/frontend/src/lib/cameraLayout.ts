@@ -191,6 +191,40 @@ export interface PendingMove {
   plan: Consequence[];
   // Set for a camera count change.
   count?: number;
+  // Set to also switch between a full and a half field.
+  half?: boolean;
+}
+
+// Whether the physical field is half of the one vision.yml describes
+// (layout.half_field). Only the GUI reads it: the field is stored as the full
+// field it's half of, and vision_processor only ever sees the regions.
+export function isHalfField(doc: ConfigDocument): boolean {
+  return doc.layout?.halfField === true;
+}
+
+// Physical cameras the layout is for: the regions, halved on a half field.
+export function physicalCameraCount(doc: ConfigDocument): number {
+  const regions = cameraCount(doc);
+
+  return isHalfField(doc) ? Math.max(1, regions / 2) : regions;
+}
+
+// The regions for a number of physical cameras on a full or half field.
+export function regionsFor(cameras: number, half: boolean): number {
+  return half ? cameras * 2 : cameras;
+}
+
+// Marks the field full or half. Call after applyPlan has set the regions; a
+// half field pins the count, since it's always at least 2.
+export function setHalfField(half: boolean): void {
+  const doc = config.doc;
+  if (!doc) return;
+
+  if (half) {
+    doc.layout = { cameraCount: cameraCount(doc), halfField: true };
+  } else if (doc.layout?.halfField) {
+    doc.layout = { cameraCount: doc.layout.cameraCount };
+  }
 }
 
 // Moving the camera in slot from to slot to, swapping with whatever is there.

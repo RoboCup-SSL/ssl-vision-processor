@@ -13,6 +13,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/peers"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/referee"
 )
 
@@ -35,6 +36,7 @@ const (
 	CodeHeightsUnreadable = "heights_unreadable"
 	CodeTeamDefaultHeight = "team_default_height"
 	CodeLoopbackMulticast = "loopback_multicast_off"
+	CodeSenderConflict    = "sender_conflict"
 )
 
 // Alert is one problem.
@@ -67,6 +69,7 @@ func Codes() []string {
 	codes := append([]string{
 		CodeRenderFailed, CodeCameraIDConflict, CodeRegionUncovered, CodeCameraUnplaced, CodeFileChanged,
 		CodeSocketProblem, CodeSocketSilent, CodeHeightsUnreadable, CodeTeamDefaultHeight, CodeLoopbackMulticast,
+		CodeSenderConflict,
 	}, config.WarningCodes...)
 
 	slices.Sort(codes)
@@ -83,6 +86,20 @@ type Network struct {
 	Referee           referee.State
 	Loopback          string
 	LoopbackMulticast bool
+	// Conflicts are things claimed by more senders than they should be.
+	Conflicts []peers.Conflict
+}
+
+// conflictSeverity is how serious each kind of sender conflict is: a second
+// calibration or field geometry source changes what every vision_processor
+// uses; two game controllers or video streams only confuse what's shown, in
+// a lab. On a competition field Collect raises those to errors too: a match
+// can't run with two game controllers, and setup needs every camera's video.
+var conflictSeverity = map[string]string{
+	peers.KindCalibration: Error,
+	peers.KindGeometry:    Error,
+	peers.KindReferee:     Warning,
+	peers.KindVideo:       Warning,
 }
 
 // Collect lists every alert for the working document doc, the store's state,
@@ -213,6 +230,25 @@ func Collect(doc config.Document, state config.State, net Network) []Alert {
 				Message: fmt.Sprintf("The %s team's robots get vision_processor's default height: %s.", color, issueText[issue]),
 			})
 		}
+	}
+
+	for _, c := range net.Conflicts {
+		senders := make([]string, len(c.Senders))
+		for i, s := range c.Senders {
+			senders[i] = s.String()
+		}
+
+		severity := cmp.Or(conflictSeverity[c.Kind], Warning)
+		if doc.CompetitionField {
+			severity = Error
+		}
+
+		add(Alert{
+			ID: "sender-" + c.Kind + "-" + c.Subject, Code: CodeSenderConflict,
+			Severity: severity, CameraID: c.CameraID,
+			Params:  map[string]any{"kind": c.Kind, "subject": c.Subject, "senders": senders},
+			Message: fmt.Sprintf("%s is coming from %d senders: %v", c.Subject, len(senders), senders),
+		})
 	}
 
 	if !net.LoopbackMulticast {

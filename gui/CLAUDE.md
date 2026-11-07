@@ -184,8 +184,11 @@ what it started with and the current render, debounced 1 s. Keyed by
 `config_path`, so moving a camera to another slot is a restart, not a stop and
 start. Children get their own process group (terminal Ctrl-C reaches only the
 host) and `Pdeathsig`. vision_processor checks SIGTERM only between frames, so
-a blocked `readImage()` needs the SIGKILL fallback. Goes away with the network
-config push.
+a blocked `readImage()` needs the SIGKILL fallback. A field change restarts
+every supervised camera and, while it's stopped, unlocks its calibration
+(`Options.Recalibrate` -> `Store.UnlockCalibration`): otherwise the host keeps
+publishing the old one and the new process never recalibrates. Goes away with
+the network config push.
 
 **Numbers in free-form blocks are normalized** (integral floats to int). JSON
 from the browser makes every number a float64 and YAML makes integers ints;
@@ -292,7 +295,11 @@ instead, and the workflow turns it on first.
 
 `make e2e` runs `frontend/e2e/` with Playwright against the real host on a
 scratch copy of `internal/config/testdata/vision.yml`, in the
-installed Google Chrome (no browser download). A `test.fail()` there marks a
+installed Google Chrome (no browser download). `serve.mjs` moves that host to
+a random private multicast group and ports: on the league defaults it would
+publish the fixture's calibration (camera under the field) to any real host
+on the network, which once wedged a live camera for days. Never run a host on
+the fixture without doing the same. A `test.fail()` there marks a
 known bug: when it starts passing, the bug is fixed and the marker comes out.
 
 ## Not yet built

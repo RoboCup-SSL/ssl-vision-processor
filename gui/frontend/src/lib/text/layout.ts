@@ -10,6 +10,18 @@ export const layout = {
   cameraCount: [
     "vision_processor's geometry.camera_amount. The field is halved along its longer side for each doubling.",
   ],
+  field: {
+    label: "Field",
+    full: "Full field",
+    half: "Half field",
+    notes: [
+      "A half field is entered as the full field it's half of, with each camera covering one region of it; vision_processor only sees the regions.",
+      "Set by the setup wizard too.",
+    ],
+  },
+  // Under the camera buttons, for a half field.
+  halfRegions: (cameras: number, regions: number): string =>
+    `${String(cameras)} ${plural(cameras, "camera")} on a half field: ${String(regions)} regions of the full field.`,
   uncovered: (ids: number[]): string =>
     `No camera covers ${plural(ids.length, "region")} ${ids.join(", ")}.`,
   countTooSmall: "Move cameras with higher IDs to lower ones first.",

@@ -53,10 +53,12 @@ cameras:
         principal_point_x: 960
         principal_point_y: 540
         distortion: -0.1
-        q0: 0
+        # Looking straight down from 4 m: rotated 180° about x. (Identity
+        # would put the camera 4 m under the field, which the host rejects.)
+        q0: 1
         q1: 0
         q2: 0
-        q3: 1
+        q3: 0
         tx: 0
         ty: 0
         tz: 4000

@@ -374,3 +374,56 @@ func TestStopsAllOnCancel(t *testing.T) {
 		t.Error("OnChange never ran")
 	}
 }
+
+func TestFieldChangeRecalibrates(t *testing.T) {
+	var (
+		mu        sync.Mutex
+		calls     []int
+		runningAt []int
+	)
+
+	var h *harness
+
+	h = newHarness(t, Options{Recalibrate: func(id int) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		calls = append(calls, id)
+		// The old process must be gone, so it can't resend its calibration.
+		if pid := h.status(id).PID; pid != 0 && syscall.Kill(pid, 0) == nil {
+			runningAt = append(runningAt, pid)
+		}
+	}})
+	h.doc.Field.FieldLength = 9000
+	path := h.camera(0, "", exposure(1))
+
+	eventually(t, "first start", func() bool { return h.status(0).State == StateRunning })
+
+	h.doc.Field.FieldLength = 2160
+	h.sup.Sync(h.doc)
+
+	if keys := h.status(0).PendingKeys; len(keys) != 1 || keys[0] != FieldKey {
+		t.Errorf("PendingKeys = %v, want [%s]", keys, FieldKey)
+	}
+
+	eventually(t, "restart", func() bool { return starts(path) == 2 && h.status(0).State == StateRunning })
+
+	// Nothing else changed: no further restarts or recalibrations.
+	h.sup.Sync(h.doc)
+	time.Sleep(200 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(calls) != 1 || calls[0] != 0 {
+		t.Errorf("Recalibrate calls = %v, want [0]", calls)
+	}
+
+	if len(runningAt) != 0 {
+		t.Errorf("Recalibrate ran while pid %v was still alive", runningAt)
+	}
+
+	if n := starts(path); n != 2 {
+		t.Errorf("%d starts, want 2", n)
+	}
+}

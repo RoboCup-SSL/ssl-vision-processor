@@ -7,6 +7,7 @@ package supervisor
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -71,7 +72,16 @@ type Options struct {
 	MaxRetryDelay time.Duration
 	// OnChange runs after any status change, without the lock held.
 	OnChange func()
+	// Recalibrate runs, without the lock held, between stopping a camera's
+	// vision_processor and starting it again after the field changed. It
+	// must stop the host publishing any calibration for the camera, or the
+	// new process reuses the one solved against the old field.
+	Recalibrate func(cameraID int)
 }
+
+// FieldKey is the pending key for a restart to recalibrate against a
+// changed field.
+const FieldKey = "field"
 
 // outputLines is how many lines of output Status keeps.
 const outputLines = 20
@@ -84,6 +94,9 @@ type Supervisor struct {
 	ctx   context.Context // nil until Run
 	procs map[string]*proc
 	wg    sync.WaitGroup
+	// field is the last synced field and field lines, encoded; empty before
+	// the first Sync.
+	field string
 }
 
 // proc is one config file's vision_processor.
@@ -95,6 +108,8 @@ type proc struct {
 	restart chan struct{}
 	cancel  context.CancelFunc
 	starts  int
+	// recalibrate is set when the field changed since it started.
+	recalibrate bool
 }
 
 // New returns a Supervisor that starts nothing until Run.
@@ -120,9 +135,14 @@ func New(opts Options) *Supervisor {
 
 // Sync matches the running processes to doc: one per camera with a
 // config_path, which the store has already written. A camera whose
-// startup-only settings changed restarts after Options.Debounce.
+// startup-only settings changed restarts after Options.Debounce; a change to
+// the field restarts every camera to recalibrate.
 func (s *Supervisor) Sync(doc config.Document) {
 	s.mu.Lock()
+
+	field := fieldKey(doc)
+	fieldChanged := s.field != "" && field != s.field
+	s.field = field
 
 	seen := map[string]bool{}
 
@@ -149,7 +169,9 @@ func (s *Supervisor) Sync(doc config.Document) {
 
 		p.status.CameraID = c.CameraID
 
-		if reflect.DeepEqual(p.latest, rendered) {
+		if fieldChanged {
+			p.recalibrate = true
+		} else if reflect.DeepEqual(p.latest, rendered) {
 			continue
 		}
 
@@ -268,6 +290,10 @@ func (s *Supervisor) scheduleLocked(p *proc) {
 	}
 
 	keys := config.RestartKeys(p.started, p.latest)
+	if p.recalibrate {
+		keys = append([]string{FieldKey}, keys...)
+	}
+
 	if len(keys) == 0 {
 		return
 	}
@@ -335,7 +361,16 @@ func (s *Supervisor) start(p *proc) (*exec.Cmd, <-chan error, error) {
 	p.started = p.latest
 	p.status.PendingKeys = []string{}
 	s.stopTimerLocked(p)
+	recalibrate := p.recalibrate
+	p.recalibrate = false
 	s.mu.Unlock()
+
+	// The process is stopped here, so it can't resend its old calibration
+	// between this and starting again.
+	if recalibrate && s.opts.Recalibrate != nil {
+		slog.Info("field changed, recalibrating", "cam", id)
+		s.opts.Recalibrate(id)
+	}
 
 	args := append(slices.Clone(s.opts.Command[1:]), path)
 	cmd := exec.Command(s.opts.Command[0], args...)
@@ -436,6 +471,16 @@ func (s *Supervisor) output(p *proc, level slog.Level, line string) {
 	s.mu.Unlock()
 
 	slog.Log(context.Background(), level, "vision_processor: "+line, "cam", id)
+}
+
+// fieldKey is what of doc a calibration is solved against.
+func fieldKey(doc config.Document) string {
+	data, err := json.Marshal([]any{doc.Field, doc.OptionalFieldLines})
+	if err != nil {
+		return ""
+	}
+
+	return string(data)
 }
 
 func exitText(err error) string {

@@ -2,6 +2,7 @@ package video
 
 import (
 	"errors"
+	"net"
 	"sync"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
@@ -19,6 +20,8 @@ type Stream struct {
 // Manager owns one source per camera that has ever been watched.
 type Manager struct {
 	verbose bool
+	// onPacket hears every valid RTP packet's camera and sender.
+	onPacket func(cameraID int, from *net.UDPAddr)
 
 	mu      sync.Mutex
 	streams map[int]Stream
@@ -29,6 +32,15 @@ type Manager struct {
 // NewManager returns a Manager with no cameras until Configure.
 func NewManager(verbose bool) *Manager {
 	return &Manager{verbose: verbose, sources: map[int]*source{}}
+}
+
+// OnPacket sets fn to hear the camera and sender of every valid RTP packet,
+// to spot two senders on one camera's stream. Set it before any viewer.
+func (m *Manager) OnPacket(fn func(cameraID int, from *net.UDPAddr)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.onPacket = fn
 }
 
 // Configure applies the cameras' current stream settings and the host's
@@ -77,6 +89,7 @@ func (m *Manager) Subscribe(id int, mode Mode) (<-chan Message, func(), error) {
 	src := m.sources[id]
 	if src == nil {
 		src = newSource(id, m.verbose)
+		src.onPacket = m.onPacket
 		m.sources[id] = src
 	}
 

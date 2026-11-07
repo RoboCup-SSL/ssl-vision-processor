@@ -14,7 +14,12 @@
   import { virtualField } from "./geometry.svelte";
   import { config } from "./config.svelte";
   import FieldSketch from "./FieldSketch.svelte";
-  import { cameraCount, regionLabel, slotSlice } from "./cameraLayout";
+  import {
+    cameraCount,
+    isHalfField,
+    regionLabel,
+    slotSlice,
+  } from "./cameraLayout";
   import { selectedInstance, categoryHref } from "./layout/nav.svelte";
   import { DIMENSION_FIELDS, OPTIONAL_LINE_FIELDS } from "./fieldConfigFields";
   import { openWizard } from "./wizard/wizard.svelte";
@@ -26,7 +31,12 @@
   // switching modes never silently mutates already-loaded data. See
   // gui/CLAUDE.md and src/CameraModel.cpp's visibleFieldExtentEstimation for
   // why length (not width) is what gets halved.
-  let fieldLayout = $state<"full" | "half">("full");
+  // It starts as the layout says (layout.half_field, set by the wizard or
+  // the Camera Layout page) and can be flipped here for entering numbers.
+  let entry = $state<"full" | "half" | null>(null);
+  let fieldLayout = $derived(
+    entry ?? (config.doc && isHalfField(config.doc) ? "half" : "full"),
+  );
 
   // The selected camera's region, from the Camera Layout page, so the
   // markings outside it render dimmed.
@@ -47,7 +57,7 @@
   }
 
   function setFieldLayout(layout: "full" | "half"): void {
-    fieldLayout = layout;
+    entry = layout;
   }
 
   // The form's labels ("Boundary width (goal line)") need more room than

@@ -14,7 +14,13 @@ import {
   type FieldPreset,
 } from "../geometry.svelte";
 import { config } from "../config.svelte";
-import { applyPlan, cameraCount, planCount } from "../cameraLayout";
+import {
+  applyPlan,
+  isHalfField,
+  physicalCameraCount,
+  planCount,
+  setHalfField,
+} from "../cameraLayout";
 
 export const WIZARD_STEPS = [
   "start",
@@ -56,10 +62,10 @@ export const wizard = $state<{
 
 export function openWizard(): void {
   wizard.step = "start";
-  wizard.fieldLayout = "full";
   // Start from the current layout, so skipping the Layout step (a preset)
   // leaves it as it is.
-  wizard.cameraCount = config.doc ? cameraCount(config.doc) : 1;
+  wizard.fieldLayout = config.doc && isHalfField(config.doc) ? "half" : "full";
+  wizard.cameraCount = config.doc ? physicalCameraCount(config.doc) : 1;
   // Seed from the current live field, not blank -- reopening the wizard to
   // adjust an already-configured field should start from what's there.
   // $state.snapshot, not structuredClone: config.doc is a $state proxy, and
@@ -112,6 +118,8 @@ export function finishWizard(): void {
     // go stale and locked calibrations are dropped.
     const count = wizardCameraCount();
     applyPlan(planCount(config.doc, count), count);
+    // Remembered, so the other pages show the field as the half it is.
+    setHalfField(wizard.fieldLayout === "half");
   }
 
   wizard.open = false;

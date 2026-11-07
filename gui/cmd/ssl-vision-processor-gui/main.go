@@ -257,20 +257,29 @@ func newHost(path string, opts hostOptions) (*host, error) {
 	mcOpts := multicast.Options{Verbose: opts.verbose}
 	tracker := detections.NewTracker()
 	match := &referee.Match{}
-	trackTeams := func(yellow, blue string) { match.Teams.Record(yellow, blue, time.Now()) }
-	live := livefield.NewFeed()
-	track := func(d *vision.SSL_DetectionFrame, from net.IP) {
+	watches := newPeerWatches()
+	trackTeams := func(yellow, blue string, from *net.UDPAddr) {
 		now := time.Now()
-		tracker.Record(d.GetCameraId(), from, now)
-		live.RecordDetection(d, from, now)
+		match.Teams.Record(yellow, blue, now)
+		watches.referee.Record("game controller", nil, from, now)
 	}
+	live := livefield.NewFeed()
+	track := func(d *vision.SSL_DetectionFrame, from *net.UDPAddr) {
+		now := time.Now()
+		tracker.Record(d.GetCameraId(), from.IP, now)
+		live.RecordDetection(d, from.IP, now)
+		watches.detection(d.GetCameraId(), from, now)
+	}
+	videos := video.NewManager(opts.verbose)
+	videos.OnPacket(watches.videoPacket)
 	trackAutoref := func(p *vision.TrackerWrapperPacket, from net.IP) { live.RecordTracked(p, from, time.Now()) }
 	sockets := &networkSockets{
-		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(mcOpts), multicast.VisionConsumer(geom.Absorb, track)),
+		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(mcOpts), multicast.VisionConsumer(watches.absorber(geom), track)),
 		detections: tracker,
 		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, mcOpts, multicast.RefereeConsumer(trackTeams)),
 		tracker:    multicast.NewEndpoint("tracker", doc.TrackerAddress(), ifaces, mcOpts, multicast.TrackerConsumer(trackAutoref)),
-		video:      video.NewManager(opts.verbose),
+		video:      videos,
+		peers:      watches,
 		auto:       auto,
 		ifaces:     ifaces,
 	}
@@ -287,6 +296,13 @@ func newHost(path string, opts hostOptions) (*host, error) {
 		procs = supervisor.New(supervisor.Options{
 			Command:  opts.vpCommand,
 			OnChange: func() { publishJSON(wsHub, processesStateTopic, procs.Statuses()) },
+			// A calibration solved against the old field is wrong for the new
+			// one, locked or not; withholding it makes the restart recalibrate.
+			Recalibrate: func(cameraID int) {
+				if _, err := store.UnlockCalibration(cameraID); err != nil {
+					slog.Warn("clearing calibration to recalibrate", "cam", cameraID, "err", err)
+				}
+			},
 		})
 
 		doc, _ := store.Working()
@@ -355,6 +371,8 @@ func bootstrapConfig(path, legacyGeometry, legacyConfig, preset string) error {
 	geometrySource := preset
 	if fileExists(legacyGeometry) {
 		geometrySource = legacyGeometry
+	} else {
+		slog.Warn("no field geometry to import, using the preset; set -importGeometry, or the field in the GUI", "importGeometry", legacyGeometry, "preset", preset)
 	}
 
 	configSource := ""
@@ -471,6 +489,8 @@ type networkSockets struct {
 	detections *detections.Tracker
 	// video opens each camera's stream only while someone watches it.
 	video *video.Manager
+	// peers is who sends what on these groups.
+	peers *peerWatches
 
 	mu     sync.Mutex
 	auto   bool

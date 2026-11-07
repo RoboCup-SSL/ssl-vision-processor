@@ -221,8 +221,8 @@ func TestVisionConsumerAbsorbsGeometryButCountsOnlyDetections(t *testing.T) {
 	var tracked []string
 
 	visionConsume := VisionConsumer(
-		func(g *vision.SSL_GeometryData) { got = g },
-		func(d *vision.SSL_DetectionFrame, from net.IP) {
+		func(g *vision.SSL_GeometryData, _ *net.UDPAddr) { got = g },
+		func(d *vision.SSL_DetectionFrame, from *net.UDPAddr) {
 			tracked = append(tracked, fmt.Sprintf("%d@%s", d.GetCameraId(), from))
 		},
 	)
@@ -264,8 +264,8 @@ func TestVisionConsumerAbsorbsGeometryButCountsOnlyDetections(t *testing.T) {
 		t.Fatal("detection packet not counted as heard")
 	}
 
-	if len(tracked) != 1 || tracked[0] != "2@10.0.0.5" {
-		t.Fatalf("tracked = %v, want camera 2 from 10.0.0.5 once", tracked)
+	if len(tracked) != 1 || tracked[0] != "2@10.0.0.5:10006" {
+		t.Fatalf("tracked = %v, want camera 2 from 10.0.0.5:10006 once", tracked)
 	}
 
 	if consume([]byte("not a protobuf message")) {
@@ -273,10 +273,47 @@ func TestVisionConsumerAbsorbsGeometryButCountsOnlyDetections(t *testing.T) {
 	}
 }
 
+// The host's own sends come back on the group (multicast loopback); they
+// must never be mistaken for another sender's.
+func TestVisionConsumerDropsOwnSends(t *testing.T) {
+	called := false
+	consume := VisionConsumer(
+		func(*vision.SSL_GeometryData, *net.UDPAddr) { called = true },
+		func(*vision.SSL_DetectionFrame, *net.UDPAddr) { called = true },
+	)
+
+	s := openSender("127.0.0.1:9", nil)
+	defer s.close()
+
+	if len(s.conns) != 1 {
+		t.Fatalf("no send socket: %v", s.problem)
+	}
+
+	self := s.conns[0].LocalAddr().(*net.UDPAddr)
+	packet := marshal(t, &vision.SSL_WrapperPacket{Detection: &vision.SSL_DetectionFrame{
+		FrameNumber: proto.Uint32(1), TCapture: proto.Float64(1), TSent: proto.Float64(1), CameraId: proto.Uint32(0),
+	}})
+
+	if consume(packet, self) || called {
+		t.Error("own looped-back packet was consumed")
+	}
+
+	other := &net.UDPAddr{IP: self.IP, Port: self.Port + 1}
+	if !consume(packet, other) || !called {
+		t.Error("another sender on the same machine was dropped")
+	}
+
+	s.close()
+
+	if IsOwn(self) {
+		t.Error("closed send socket still counted as own")
+	}
+}
+
 func TestRefereeConsumer(t *testing.T) {
 	var yellow, blue string
 
-	refereeConsume := RefereeConsumer(func(y, b string) { yellow, blue = y, b })
+	refereeConsume := RefereeConsumer(func(y, b string, _ *net.UDPAddr) { yellow, blue = y, b })
 	consume := func(data []byte) bool { return refereeConsume(data, nil) }
 
 	team := func(name string) *gamecontroller.Referee_TeamInfo {

@@ -70,6 +70,16 @@ type Layout struct {
 	// (vision_processor's geometry.camera_amount). It can exceed the number of
 	// cameras, leaving some regions uncovered.
 	CameraCount int `yaml:"camera_count" json:"cameraCount"`
+	// HalfField marks a physical field that's half of the one described:
+	// the field is entered as the full field it's half of, and its cameras
+	// cover half the regions. Only the GUI reads it; vision_processor only
+	// ever sees the regions.
+	HalfField bool `yaml:"half_field,omitempty" json:"halfField,omitempty"`
+}
+
+// HalfField reports whether the physical field is half of the described one.
+func (d Document) HalfField() bool {
+	return d.Layout != nil && d.Layout.HalfField
 }
 
 // Teams overrides robot heights by team. Keyed by the game controller's
@@ -336,6 +346,10 @@ func (d Document) Validate() error {
 	count := d.CameraCount()
 	if !slices.Contains(CameraCounts, count) {
 		add(fmt.Errorf("layout.camera_count: want one of %v, got %d", CameraCounts, count))
+	}
+
+	if d.HalfField() && count < 2 {
+		add(fmt.Errorf("layout.half_field: a half field is at least 2 regions of the full one, got camera_count %d", count))
 	}
 
 	seen := map[int]bool{}

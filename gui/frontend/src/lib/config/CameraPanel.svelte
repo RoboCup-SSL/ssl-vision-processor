@@ -172,12 +172,6 @@
       : text.exposure.sdk),
   ]);
 
-  let exposureWarnings = $derived(
-    settings.driver === "OPENCV" && settings.exposure === 0
-      ? [text.exposure.opencvAutoBroken]
-      : [],
-  );
-
   let gainNotes = $derived([
     ...text.gain.notes,
     ...(settings.driver === "OPENCV" ? text.gain.opencv : text.gain.sdk),
@@ -440,7 +434,6 @@
             wheelStep={100}
             auto={{ value: 0, fallback: ranges.exposure.fallback }}
             notes={exposureNotes}
-            warnings={exposureWarnings}
             onchange={(v: number) => {
               set("exposure", toFile(ranges.exposure, v));
             }}

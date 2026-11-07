@@ -6,6 +6,7 @@
   } from "../../fieldConfigFields";
   import { wizard } from "../wizard.svelte";
   import WizardDimensionsPreview from "./WizardDimensionsPreview.svelte";
+  import { wizard as text } from "../../text/wizard";
 
   // A short, curated list, not FieldDimensionsEditor's full one: goal depth/height, line
   // thickness, ball radius, and max robot radius are close enough to standard
@@ -50,7 +51,7 @@
   {#if wizard.fieldLayout === "half"}
     <div class="flex items-center justify-between gap-2">
       <Label for="wizard-half-length" class="font-normal"
-        >Half length (full: {wizard.draft.field.fieldLength}mm)</Label
+        >{text.halfLength(wizard.draft.field.fieldLength)}</Label
       >
       <div class="w-28 shrink-0">
         <Input
@@ -80,7 +81,9 @@
 
   {#each fields as { key, label } (key)}
     <div class="flex items-center justify-between gap-2">
-      <Label for={`wizard-${key}`} class="font-normal">{label}</Label>
+      <Label for={`wizard-${key}`} class="font-normal"
+        >{key === "fieldWidth" ? text.fieldWidth : label}</Label
+      >
       <div class="w-28 shrink-0">
         <Input
           id={`wizard-${key}`}

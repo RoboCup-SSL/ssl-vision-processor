@@ -29,6 +29,8 @@ func testGeometry(t *testing.T) *Geometry {
 
 // calib builds a fully populated calibration: SSL_GeometryCameraCalibration
 // has a dozen required fields, and an incomplete one is rejected by Absorb.
+// calib is a camera looking straight down from 5 m: rotated 180° about x,
+// so CheckCalibration accepts it.
 func calib(camID uint32, focalLength float32) *vision.SSL_GeometryCameraCalibration {
 	return &vision.SSL_GeometryCameraCalibration{
 		CameraId:        proto.Uint32(camID),
@@ -36,10 +38,10 @@ func calib(camID uint32, focalLength float32) *vision.SSL_GeometryCameraCalibrat
 		PrincipalPointX: proto.Float32(0),
 		PrincipalPointY: proto.Float32(0),
 		Distortion:      proto.Float32(0),
-		Q0:              proto.Float32(0),
+		Q0:              proto.Float32(1),
 		Q1:              proto.Float32(0),
 		Q2:              proto.Float32(0),
-		Q3:              proto.Float32(1),
+		Q3:              proto.Float32(0),
 		Tx:              proto.Float32(0),
 		Ty:              proto.Float32(0),
 		Tz:              proto.Float32(5000),

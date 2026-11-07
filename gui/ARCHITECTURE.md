@@ -96,6 +96,7 @@ before returning.
 | `internal/referee`                           | The current match's teams, from the game controller, and their robot heights from `bot_heights_file`.                                   |
 | `internal/snapshot`                          | Debug image listing and serving.                                                                                                        |
 | `internal/video`                             | Live video: each camera's H.264 RTP stream relayed to browsers as fragmented MP4.                                                       |
+| `internal/peers`                             | Names senders (IP, port, hostname) and logs and alerts when two of them claim one thing.                                                |
 | `internal/supervisor`                        | `-vp`: runs a vision_processor per local camera and restarts it when a startup-only setting changes.                                   |
 | `internal/v4l`                               | Lists this host's Video4Linux capture devices for the camera path picker.                                                               |
 | `internal/logging`                           | slog setup: a coloured console handler and a rotating file handler.                                                                     |
@@ -120,13 +121,33 @@ graph LR
 A calibration missing a required proto2 field is rejected with `proto.CheckInitialized` before it can touch
 `State`, so a malformed message from one instance never desyncs the held message from its cached encoding.
 
+A received calibration is also rejected, and logged with its sender, unless it could be a real camera's
+(`geometry.CheckCalibration`): every number finite, a positive focal length, a unit rotation quaternion, a non-empty
+image, and the camera above the field. The host republishes what it absorbs every second, and a vision_processor
+that receives a calibration for its camera skips calibrating and uses it, so one bad packet (a NaN, a test fixture,
+another host's mistake) would otherwise stop that camera until someone unlocked it by hand.
+
+## Senders and conflicts
+
+The host drops its own looped-back packets by sender address: every send socket records its local address
+(`multicast.IsOwn`), which is exactly what its echoes arrive from. Everything else is compared by IP and port,
+so two programs on one machine are told apart. `internal/peers` watches who sends each camera's calibration,
+detections and video, the game controller's referee messages, and field geometry, which only this host should
+publish once a second. A second sender is logged once when it appears (`several senders claim the same thing`,
+with each sender's IP, port, hostname from reverse DNS, and whether it's this machine) and again when it's gone,
+and served as a `sender_conflict` alert on `network.state`/`GET /api/network`: an error for calibration and
+field geometry, a warning for the game controller and video, and an error for every kind on a competition field. Two vision_processors on one
+machine both send from the vision port, so they share an address and can't be told apart this way.
+
 ## Configuration: vision.yml
 
 `vision.yml` is the one file the host owns. It holds the field template, shared `defaults` in vision_processor's
 own `config.yml` layout, and a `cameras` list keyed by `camera_id`. Each camera carries its own overrides, its
 corner picker `seed` (corners plus the image resolution and slot they were picked at), optionally a locked
 `calibration`, and a GUI-only video `display` orientation. `layout.camera_count` (1, 2 or 4) splits the field into
-regions. A camera's `camera_id` picks its region, as in `camera_ids.png`. Any mix of hosts and cameras is valid;
+regions. `layout.half_field` marks a physical half field, entered as the full field it's half of with its cameras
+covering half the regions (one camera is region 0 of 2); only the GUI reads it, to show the field and the camera
+count as the user set them up. A camera's `camera_id` picks its region, as in `camera_ids.png`. Any mix of hosts and cameras is valid;
 one host may run several cameras.
 
 `config.Store` keeps two copies of the document: the working copy and the copy last loaded from or saved to disk.
@@ -170,7 +191,10 @@ or `host` needs nothing more, since the file is already rewritten; any other dif
 or unknown) restarts the process once edits have been quiet for a second, so a slider drag restarts it once.
 Stopping is SIGTERM, then SIGKILL after 3 s, since vision_processor only checks for SIGTERM between frames. A
 process that exits on its own is started again: after 1 s for a clean exit, doubling per crash in a row up to
-30 s. `processes.state` and `GET /api/processes` carry each one's state, pending restart keys, last exit, and last
+30 s. A change to the field or its optional lines restarts every supervised camera to recalibrate: between
+stopping the process and starting it again, the host unlocks the camera's calibration and drops the one it last
+received, since vision_processor skips calibrating when the geometry packet already holds one for its camera.
+`processes.state` and `GET /api/processes` carry each one's state, pending restart keys, last exit, and last
 lines of output; `POST /api/processes/{id}/restart` restarts one at once. `-legacy <file>` imports a
 `config.yml` into `<file>.vision.yml` so one existing file can be driven directly.
 

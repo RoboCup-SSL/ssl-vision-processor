@@ -180,6 +180,28 @@ function present(a: HostAlert): Alert {
         ],
       };
     }
+    case "sender_conflict": {
+      const camera = a.cameraId ?? 0;
+      const titles: Record<string, string> = {
+        calibration: text.senderConflict.calibration(camera),
+        geometry: text.senderConflict.geometry,
+        referee: text.senderConflict.referee,
+        video: text.senderConflict.video(camera),
+      };
+      const kind = str("kind");
+
+      return {
+        ...base,
+        title: titles[kind] ?? a.message,
+        detail: text.heardFrom((p["senders"] as string[] | undefined) ?? []),
+        actions: [
+          ...(kind in titles
+            ? [howTo(`sender-conflict-${kind}` as DocId)]
+            : []),
+          page(text.pages.network, undefined, "network"),
+        ],
+      };
+    }
     case "loopback_multicast_off":
       return {
         ...base,

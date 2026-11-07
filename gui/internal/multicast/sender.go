@@ -9,6 +9,23 @@ import (
 	"sync"
 )
 
+// own is the local address ("ip:port") of every open send socket in this
+// process: what the host's own looped-back packets arrive from.
+var own sync.Map
+
+// IsOwn reports whether from is one of this process's own send sockets, so a
+// consumer can tell the host's looped-back packets from another sender's on
+// the same machine, which differ only in port.
+func IsOwn(from *net.UDPAddr) bool {
+	if from == nil {
+		return false
+	}
+
+	_, ok := own.Load(from.String())
+
+	return ok
+}
+
 // sender writes datagrams to one address from every interface the host uses.
 type sender struct {
 	mu    sync.Mutex
@@ -81,6 +98,7 @@ func (s *sender) dial(laddr, raddr *net.UDPAddr) {
 		return
 	}
 
+	own.Store(conn.LocalAddr().String(), struct{}{})
 	s.conns = append(s.conns, conn)
 }
 
@@ -94,6 +112,7 @@ func (s *sender) send(data []byte) {
 		if _, err := conn.Write(data); err != nil {
 			slog.Debug("send failed, dropping this socket until reopened", "from", conn.LocalAddr(), "to", conn.RemoteAddr(), "err", err)
 			s.problem = errors.Join(s.problem, fmt.Errorf("lost send socket %v: %w", conn.LocalAddr(), err))
+			own.Delete(conn.LocalAddr().String())
 			_ = conn.Close()
 
 			return true
@@ -120,6 +139,7 @@ func (s *sender) close() {
 	defer s.mu.Unlock()
 
 	for _, conn := range s.conns {
+		own.Delete(conn.LocalAddr().String())
 		_ = conn.Close()
 	}
 

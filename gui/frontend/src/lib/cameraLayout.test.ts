@@ -4,7 +4,11 @@ import { config, type CameraDoc, type ConfigDocument } from "./config.svelte";
 import {
   applyPlan,
   cameraCount,
+  isHalfField,
   minCameraCount,
+  physicalCameraCount,
+  regionsFor,
+  setHalfField,
   planCount,
   planMove,
   regionLabel,
@@ -150,5 +154,42 @@ describe("planMove and applyPlan", () => {
   it("won't shrink below the highest camera_id", () => {
     expect(minCameraCount(doc([camera(0), camera(3)]))).toBe(4);
     expect(minCameraCount(doc([camera(1)]))).toBe(2);
+  });
+});
+
+describe("half field", () => {
+  it("counts physical cameras as half the regions", () => {
+    const d = doc([camera(0)], 2);
+    expect(isHalfField(d)).toBe(false);
+    expect(physicalCameraCount(d)).toBe(2);
+
+    d.layout = { cameraCount: 2, halfField: true };
+    expect(isHalfField(d)).toBe(true);
+    expect(physicalCameraCount(d)).toBe(1);
+  });
+
+  it("maps cameras to regions", () => {
+    expect(regionsFor(1, true)).toBe(2);
+    expect(regionsFor(2, true)).toBe(4);
+    expect(regionsFor(2, false)).toBe(2);
+  });
+
+  it("one camera on a half field is camera 0 of 2 regions, remembered as half", () => {
+    config.doc = doc([camera(0)]);
+
+    applyPlan(planCount(config.doc, 2), 2);
+    setHalfField(true);
+
+    expect(config.doc.layout).toEqual({ cameraCount: 2, halfField: true });
+    expect(physicalCameraCount(config.doc)).toBe(1);
+  });
+
+  it("switching back to a full field keeps the regions and drops the flag", () => {
+    config.doc = doc([camera(0)]);
+    config.doc.layout = { cameraCount: 2, halfField: true };
+
+    setHalfField(false);
+
+    expect(config.doc.layout).toEqual({ cameraCount: 2 });
   });
 });

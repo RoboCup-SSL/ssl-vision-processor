@@ -16,6 +16,8 @@ const PARAMS = {
   file: "robot-heights.yml",
   interface: "lo",
   issue: "noHeight",
+  kind: "calibration",
+  senders: ["10.0.0.1:10006 (vp-1)", "10.0.0.2:41234 (gui-host)"],
   path: "vision.yml",
   problem: "no usable network interface",
   slot: 1,

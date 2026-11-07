@@ -284,6 +284,60 @@ test("debug snapshots reach the page", async ({ page }) => {
   await expect(page.getByText("cam 0 / raw")).toBeVisible();
 });
 
+// A half field with one camera: the wizard stores it as 2 regions of the full
+// field, and the other pages must still show it as the half field it is.
+test("the wizard's half field is remembered", async ({ page }) => {
+  await page.goto("/#0/field_dimensions");
+  await page.getByRole("button", { name: "Run setup wizard" }).click();
+
+  await page.getByRole("button", { name: /custom/i }).click();
+  await page.locator('input[name="wizard-layout"][value="half"]').check();
+  await page.locator("#wizard-cameras").selectOption("1");
+  await page.getByRole("button", { name: "Next" }).click(); // markings
+  await page.getByRole("button", { name: "Next" }).click(); // dimensions
+  await page.locator("#wizard-half-length").fill("1080");
+  await page.locator("#wizard-fieldWidth").fill("1680");
+  await page.getByRole("button", { name: "Next" }).click(); // finish
+  await page.getByRole("button", { name: /apply/i }).click();
+
+  // Edits reach the host a moment after they're made.
+  await expect
+    .poll(async () => {
+      const res = await page.request.get("/api/config");
+      const body = (await res.json()) as {
+        document: {
+          field: { fieldLength: number; fieldWidth: number };
+          layout?: { cameraCount: number; halfField?: boolean };
+        };
+      };
+
+      return {
+        length: body.document.field.fieldLength,
+        width: body.document.field.fieldWidth,
+        layout: body.document.layout,
+      };
+    })
+    .toEqual({
+      length: 2160,
+      width: 1680,
+      layout: { cameraCount: 2, halfField: true },
+    });
+
+  await page.goto("/#0/field_dimensions");
+  await page.reload();
+  await expect(
+    page.locator('input[name="fieldLayout"][value="half"]'),
+  ).toBeChecked();
+
+  await page.goto("/#0/layout");
+  await expect(
+    page.getByRole("button", { name: "Half field", exact: true }),
+  ).toHaveClass(/primary/);
+  await expect(
+    page.getByText("1 camera on a half field: 2 regions"),
+  ).toBeVisible();
+});
+
 test("the settings menu opens the API reference", async ({ page, context }) => {
   await page.goto("/#0/field_dimensions");
 

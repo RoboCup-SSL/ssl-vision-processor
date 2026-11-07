@@ -12,6 +12,7 @@
   "seed_rescalable",
   "seed_resolution_unknown",
   "seed_stale",
+  "sender_conflict",
   "socket_problem",
   "socket_silent",
   "team_default_height",

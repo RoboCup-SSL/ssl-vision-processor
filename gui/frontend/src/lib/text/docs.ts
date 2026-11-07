@@ -63,6 +63,44 @@ export const RESOLUTION_DOCS = {
       "Check both machines are on the same network.",
     ],
   },
+  "sender-conflict-calibration": {
+    title: "A camera's calibration comes from several senders",
+    cause:
+      "Each camera's calibration should come from its own vision_processor only. Another GUI host, a test, or a second vision_processor with the same cam_id is also sending one, and whichever arrived last is what every vision_processor for that camera uses instead of calibrating.",
+    steps: [
+      "Read the senders on the alert: address, port, and hostname. The host's log has the same, under 'several senders claim the same thing'.",
+      "A sender on port 10006 is a vision_processor; any other port is usually another GUI host or a tool.",
+      "Stop the one that shouldn't be there, or move it to its own vision address and port.",
+      "Then unlock this camera's calibration on the Geometry page and restart its vision_processor so it calibrates again.",
+    ],
+  },
+  "sender-conflict-geometry": {
+    title: "Another host is publishing field geometry",
+    cause:
+      "This GUI host publishes the field and every camera's calibration once a second. Another host doing the same on this vision address makes vision_processors switch between the two.",
+    steps: [
+      "Read the sender on the alert: address, port, and hostname. 'this machine' means another program here, such as a second GUI host, a test, or geom_publisher.py.",
+      "Stop it, or move one of the two to its own vision address and port on the Network page.",
+    ],
+  },
+  "sender-conflict-referee": {
+    title: "Several game controllers are sending",
+    cause:
+      "Referee messages arrive from more than one sender on the game controller address, so the teams and commands seen here switch between them.",
+    steps: [
+      "Read the senders on the alert: address, port, and hostname.",
+      "Stop the game controller that shouldn't run, or move it to another address and port.",
+    ],
+  },
+  "sender-conflict-video": {
+    title: "A camera's video comes from several senders",
+    cause:
+      "Two vision_processors stream to the same address, usually because they share a cam_id or stream settings. The video interleaves both and breaks up.",
+    steps: [
+      "Read the senders on the alert: address, port, and hostname.",
+      "Give each vision_processor its own cam_id, or change one's stream settings.",
+    ],
+  },
   "team-height-missing": {
     title: "A team would get a default robot height",
     cause:

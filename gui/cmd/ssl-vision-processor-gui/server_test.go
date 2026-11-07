@@ -20,6 +20,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/livefield"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/origins"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/peers"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 )
 
@@ -62,6 +63,7 @@ func (stubStatus) Network() NetworkState {
 		Tracker:           multicast.Status{Address: "224.5.23.2:10010", Mode: "multicast"},
 		Cameras:           []detections.Source{},
 		Interfaces:        []multicast.Interface{},
+		Conflicts:         []peers.Conflict{},
 		LoopbackMulticast: true,
 	}
 }

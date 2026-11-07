@@ -184,6 +184,13 @@ func (g *Geometry) Absorb(incoming *vision.SSL_GeometryData) {
 			continue
 		}
 
+		// The host's receive path checks first and logs the sender; this
+		// guards every other caller.
+		if err := CheckCalibration(camera); err != nil {
+			slog.Warn("dropping calibration that can't be a real camera's", "cam", camera.GetCameraId(), "err", err)
+			continue
+		}
+
 		id := camera.GetCameraId()
 		if existing, ok := g.absorbed[id]; ok && proto.Equal(existing, camera) {
 			continue

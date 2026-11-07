@@ -23,8 +23,9 @@ export const camera = {
     pid: (pid: number): string => `pid ${String(pid)}`,
     restarts: (n: number): string =>
       n === 1 ? "1 restart" : `${String(n)} restarts`,
+    // "field" is the host's key for a field change, which also recalibrates.
     pending: (keys: string[]): string =>
-      `Restarting shortly for ${keys.join(", ")}.`,
+      `Restarting shortly for ${keys.map((k) => (k === "field" ? "the new field size (recalibrates)" : k)).join(", ")}.`,
     lastExit: (how: string): string => `Last run: ${how}.`,
     crashes: (n: number): string =>
       `Failed ${String(n)} times in a row; retrying, waiting longer each time. See its output below.`,
@@ -84,8 +85,6 @@ export const camera = {
     ],
     // Beside the unit, while not automatic.
     ms: (micros: number): string => `${(micros / 1000).toFixed(2)} ms`,
-    opencvAutoBroken:
-      "vision_processor's OpenCV driver sends auto_exposure = 1 for Auto, which V4L2 cameras read as Manual: the camera keeps its last exposure.",
   },
 
   gain: {

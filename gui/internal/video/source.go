@@ -67,6 +67,7 @@ type viewer struct {
 // everything between packets and viewers.
 type source struct {
 	id          int
+	onPacket    func(cameraID int, from *net.UDPAddr)
 	newEndpoint func(address string, ifaces []multicast.Interface, consume multicast.Consumer) endpoint
 
 	mu      sync.Mutex
@@ -229,10 +230,14 @@ func (s *source) stopIfIdle() {
 // handle is the socket's consumer: one RTP packet in, any finished frames
 // out to viewers. It reports whether the datagram was RTP, which is what the
 // endpoint's status counts.
-func (s *source) handle(data []byte, _ *net.UDPAddr) bool {
+func (s *source) handle(data []byte, from *net.UDPAddr) bool {
 	var pkt rtp.Packet
 	if err := pkt.Unmarshal(data); err != nil || pkt.Version != 2 {
 		return false
+	}
+
+	if s.onPacket != nil && from != nil {
+		s.onPacket(s.id, from)
 	}
 
 	now := time.Now()

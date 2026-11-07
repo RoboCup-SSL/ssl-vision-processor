@@ -95,7 +95,7 @@
 
     <Range
       size="sm"
-      class="min-w-24 flex-1"
+      class="min-w-24 flex-[1_1_8rem]"
       onwheel={wheel}
       {min}
       {max}
@@ -106,42 +106,56 @@
         set((e.currentTarget as HTMLInputElement).valueAsNumber);
       }}
     />
-    <div class="w-24 shrink-0">
-      <Input
-        {id}
-        type="number"
-        size="sm"
-        {step}
-        value={isAuto ? "" : value}
-        placeholder={isAuto ? (auto?.label ?? "Auto").toLowerCase() : ""}
-        disabled={isAuto}
-        onchange={(e: Event) => {
-          set((e.currentTarget as HTMLInputElement).valueAsNumber);
-        }}
-      />
-    </div>
-    <span class="unit"
-      >{unit}{#if detail}<span class="detail">{detail}</span>{/if}</span
-    >
-    {#if reset}
-      <Button
-        size="xs"
-        color="alternative"
-        class="shrink-0 px-2"
-        title={reset.label}
-        aria-label={reset.label}
-        disabled={reset.disabled}
-        onclick={reset.onclick}>↺</Button
+    <!-- The value, its unit and reset stay together; on a narrow column
+         they wrap under the slider rather than past the card's edge. -->
+    <div class="value">
+      <div class="w-24 shrink-0">
+        <Input
+          {id}
+          type="number"
+          size="sm"
+          {step}
+          value={isAuto ? "" : value}
+          placeholder={isAuto ? (auto?.label ?? "Auto").toLowerCase() : ""}
+          disabled={isAuto}
+          onchange={(e: Event) => {
+            set((e.currentTarget as HTMLInputElement).valueAsNumber);
+          }}
+        />
+      </div>
+      <span class="unit"
+        >{unit}{#if detail}<span class="detail">{detail}</span>{/if}</span
       >
-    {/if}
+      {#if reset}
+        <Button
+          size="xs"
+          color="alternative"
+          class="shrink-0 px-2"
+          title={reset.label}
+          aria-label={reset.label}
+          disabled={reset.disabled}
+          onclick={reset.onclick}>↺</Button
+        >
+      {/if}
+    </div>
   </div>
 </FormRow>
 
 <style>
   .controls {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    min-width: 0;
+  }
+
+  .value {
+    display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 0.5rem;
+    margin-left: auto;
   }
 
   .unit {

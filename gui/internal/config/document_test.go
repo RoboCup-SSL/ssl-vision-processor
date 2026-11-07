@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"os"
 	"path/filepath"
 	"strings"
@@ -382,6 +383,27 @@ func TestJSONPath(t *testing.T) {
 	} {
 		if got := strings.Join(jsonPath(strings.Split(yamlPath, ".")), "."); got != want {
 			t.Errorf("jsonPath(%s) = %s, want %s", yamlPath, got, want)
+		}
+	}
+}
+
+// The fixture's locked calibration is published by every host started on it
+// (the e2e host among them), so it must be one a real camera could have.
+func TestFixtureCalibrationIsPlausible(t *testing.T) {
+	doc := loadFixture(t)
+
+	for _, c := range doc.Cameras {
+		if c.Calibration == nil {
+			continue
+		}
+
+		calib, err := c.Calibration.Proto()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := geometry.CheckCalibration(calib); err != nil {
+			t.Errorf("camera %d: %v", c.CameraID, err)
 		}
 	}
 }

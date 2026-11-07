@@ -9,6 +9,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/livefield"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/peers"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/referee"
 )
 
@@ -25,9 +26,13 @@ type StatusSource interface {
 // facts the Network page's presets and notes need. Served as network.state
 // and GET /api/network.
 type NetworkState struct {
-	Vision                multicast.Status      `json:"vision"`
-	GC                    multicast.Status      `json:"gc"`
-	Tracker               multicast.Status      `json:"tracker"`
+	Vision  multicast.Status `json:"vision"`
+	GC      multicast.Status `json:"gc"`
+	Tracker multicast.Status `json:"tracker"`
+	// Conflicts are things more than one sender claims: a camera's
+	// calibration or video, the game controller, or the field geometry this
+	// host publishes.
+	Conflicts             []peers.Conflict      `json:"conflicts"`
 	Cameras               []detections.Source   `json:"cameras"`
 	Referee               referee.State         `json:"referee"`
 	AutoInterfaces        bool                  `json:"autoInterfaces"`
@@ -59,6 +64,7 @@ func (h *hostStatus) Network() NetworkState {
 		Vision:                h.sockets.vision.Status(now),
 		GC:                    h.sockets.gc.Status(now),
 		Tracker:               h.sockets.tracker.Status(now),
+		Conflicts:             h.sockets.peers.Conflicts(now),
 		Cameras:               nonNil(h.sockets.detections.Sources(now)),
 		Referee:               h.match.State(),
 		AutoInterfaces:        auto,
@@ -78,6 +84,7 @@ func (h *hostStatus) Alerts() []alerts.Alert {
 		Vision:            n.Vision,
 		GC:                n.GC,
 		Tracker:           n.Tracker,
+		Conflicts:         n.Conflicts,
 		Sources:           n.Cameras,
 		Referee:           n.Referee,
 		Loopback:          n.Loopback,

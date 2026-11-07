@@ -11,10 +11,14 @@
   import { layoutView, flips, type FeedMode } from "../layoutView.svelte";
   import { config, cameraStatus } from "../config.svelte";
   import { selectedInstance } from "../layout/nav.svelte";
+  import { CAMERA_COUNT_OPTIONS } from "../fieldSplit";
   import {
-    CAMERA_COUNTS,
     applyPlan,
     cameraCount,
+    isHalfField,
+    physicalCameraCount,
+    regionsFor,
+    setHalfField,
     unplacedSources,
     addHeardCamera,
     minCameraCount,
@@ -26,6 +30,8 @@
 
   let doc = $derived(config.doc);
   let count = $derived(doc ? cameraCount(doc) : 1);
+  let half = $derived(doc ? isHalfField(doc) : false);
+  let cameras = $derived(doc ? physicalCameraCount(doc) : 1);
   let allSlots = $derived(doc ? slots(doc) : []);
 
   let picked = $state(selectedInstance()?.cameraId ?? 0);
@@ -44,13 +50,28 @@
   // A change waiting on the confirm dialog.
   let pending = $state<PendingMove | null>(null);
 
-  function requestCount(next: number): void {
-    if (!doc || next === count) return;
+  // Asks to lay the field out for this many physical cameras on a full or
+  // half field. Only a change of regions needs confirming: switching between
+  // one camera per region of a full field and the same regions as a half
+  // field moves nothing.
+  function requestLayout(physical: number, nextHalf: boolean): void {
+    if (!doc) return;
+
+    const options = CAMERA_COUNT_OPTIONS[nextHalf ? "half" : "full"];
+    const n = options.includes(physical) ? physical : (options.at(-1) ?? 1);
+    const regions = regionsFor(n, nextHalf);
+
+    if (regions === count) {
+      if (nextHalf !== half) setHalfField(nextHalf);
+
+      return;
+    }
 
     pending = {
-      title: text.confirm.splitTitle(next),
-      plan: planCount(doc, next),
-      count: next,
+      title: text.confirm.splitTitle(regions),
+      plan: planCount(doc, regions),
+      count: regions,
+      half: nextHalf,
     };
   }
 
@@ -75,6 +96,7 @@
 
   function applyPending(move: PendingMove): void {
     applyPlan(move.plan, move.count);
+    if (move.half !== undefined) setHalfField(move.half);
   }
 
   const LABEL_WIDTH = "7rem";
@@ -100,21 +122,41 @@
 
     <SettingsCard title="Layout">
       <FormRow
+        label={text.field.label}
+        labelWidth={LABEL_WIDTH}
+        notes={text.field.notes}
+      >
+        <ButtonGroup>
+          {#each [false, true] as h (h)}
+            <Button
+              size="sm"
+              color={h === half ? "primary" : "alternative"}
+              onclick={() => {
+                requestLayout(cameras, h);
+              }}
+            >
+              {h ? text.field.half : text.field.full}
+            </Button>
+          {/each}
+        </ButtonGroup>
+      </FormRow>
+      <FormRow
         label="Cameras"
         labelWidth={LABEL_WIDTH}
         notes={text.cameraCount}
+        hints={half ? [text.halfRegions(cameras, count)] : []}
         warnings={uncovered.length > 0 ? [text.uncovered(uncovered)] : []}
       >
         <ButtonGroup>
-          {#each CAMERA_COUNTS as n (n)}
-            {@const tooSmall = n < minCameraCount(doc)}
+          {#each CAMERA_COUNT_OPTIONS[half ? "half" : "full"] as n (n)}
+            {@const tooSmall = regionsFor(n, half) < minCameraCount(doc)}
             <Button
               size="sm"
-              color={n === count ? "primary" : "alternative"}
+              color={n === cameras ? "primary" : "alternative"}
               disabled={tooSmall}
               title={tooSmall ? text.countTooSmall : undefined}
               onclick={() => {
-                requestCount(n);
+                requestLayout(n, half);
               }}
             >
               {n}

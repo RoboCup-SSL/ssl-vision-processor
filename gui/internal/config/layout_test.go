@@ -279,3 +279,32 @@ func TestValidateChecksColorOverridesAndClassifiesCompetition(t *testing.T) {
 		t.Fatalf("changes = %+v, want competition_field in team_assignment", changes)
 	}
 }
+
+func TestHalfFieldNeedsTwoRegions(t *testing.T) {
+	doc := loadFixture(t)
+	doc.Cameras = doc.Cameras[:1]
+
+	doc.Layout = &Layout{CameraCount: 1, HalfField: true}
+	if err := doc.Validate(); err == nil || !strings.Contains(err.Error(), "layout.half_field") {
+		t.Errorf("half field over 1 region: err = %v", err)
+	}
+
+	doc.Layout = &Layout{CameraCount: 2, HalfField: true}
+	if err := doc.Validate(); err != nil {
+		t.Errorf("half field over 2 regions: %v", err)
+	}
+
+	if !doc.HalfField() {
+		t.Error("HalfField() = false")
+	}
+
+	// GUI-only: never rendered for vision_processor.
+	data, err := Render(doc, doc.Cameras[0], "vision.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.Contains(string(data), "half") {
+		t.Errorf("half_field reached config.yml:\n%s", data)
+	}
+}

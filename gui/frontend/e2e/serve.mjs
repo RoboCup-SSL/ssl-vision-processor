@@ -4,7 +4,13 @@
 // GUI_BIN, which `make e2e` builds. Runs from the repo root so the rulebook
 // presets (config/legacy/) resolve.
 import { spawn } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,7 +28,31 @@ const repo = resolve(here, "../../..");
 const dir = mkdtempSync(join(tmpdir(), "vision-gui-e2e-"));
 const config = join(dir, "vision.yml");
 
-copyFileSync(join(repo, "gui/internal/config/testdata/vision.yml"), config);
+// The fixture uses the league's default vision and game controller groups,
+// where this host would publish the fixture's calibrations to every real
+// GUI host and vision_processor on the network. A private group and ports
+// keep it to itself.
+const octet = () => 1 + Math.floor(Math.random() * 254);
+const group = `239.255.${String(octet())}.${String(octet())}`;
+const base = 20000 + Math.floor(Math.random() * 20000);
+const fixture = readFileSync(
+  join(repo, "gui/internal/config/testdata/vision.yml"),
+  "utf8",
+);
+const isolated = fixture.replace(
+  /^defaults:\n/m,
+  `defaults:\n  network:\n    vision_ip: ${group}\n    vision_port: ${String(base)}\n    gc_ip: ${group}\n    gc_port: ${String(base + 1)}\n`,
+);
+
+if (isolated === fixture) {
+  console.error("serve.mjs: no defaults: block in the fixture to isolate");
+  process.exit(1);
+}
+
+writeFileSync(config, isolated);
+console.error(
+  `e2e host: vision ${group}:${String(base)}, game controller ${group}:${String(base + 1)}`,
+);
 
 // Debug snapshots for camera 0, as vision_processor writes them: the corner
 // picker's calibration input and a raw frame.
