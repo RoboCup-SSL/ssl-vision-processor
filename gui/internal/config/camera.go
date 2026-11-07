@@ -10,14 +10,15 @@ import (
 
 // CameraDrivers are vision_processor's camera drivers (src/driver). Which
 // ones a given build has depends on the SDKs it was compiled against.
-var CameraDrivers = []string{"SPINNAKER", "MVIMPACT", "OPENCV"}
+var CameraDrivers = []string{"SPINNAKER", "MVIMPACT", "DC1394", "OPENCV"}
 
 // cameraBlock is the YAML shape of a camera: block, as
 // src/driver/cameradriver.cpp reads it.
 type cameraBlock struct {
 	Driver       *string   `yaml:"driver"`
 	ID           *int      `yaml:"id"`
-	Path         *string   `yaml:"path"`
+	Device       *string   `yaml:"device"`
+	Path         *string   `yaml:"path"` // former name of device
 	Width        *int      `yaml:"width"`
 	Height       *int      `yaml:"height"`
 	Exposure     *float64  `yaml:"exposure"`
@@ -40,9 +41,14 @@ func deviceKey(host string, block any) string {
 		return ""
 	}
 
+	device := c.Device
+	if device == nil {
+		device = c.Path
+	}
+
 	switch {
-	case c.Path != nil && *c.Path != "":
-		return fmt.Sprintf("%s|%s|path=%s", host, *c.Driver, *c.Path)
+	case device != nil && *device != "":
+		return fmt.Sprintf("%s|%s|device=%s", host, *c.Driver, *device)
 	case c.ID != nil:
 		return fmt.Sprintf("%s|%s|id=%d", host, *c.Driver, *c.ID)
 	}

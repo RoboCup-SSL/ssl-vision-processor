@@ -11,14 +11,17 @@ import { config, cameraDoc } from "./config.svelte";
 import { fallback, schema } from "./schema.svelte";
 import type { VideoDevice } from "./apiTypes";
 
-export type Driver = "SPINNAKER" | "MVIMPACT" | "OPENCV";
+export type Driver = "SPINNAKER" | "MVIMPACT" | "DC1394" | "OPENCV";
 
 export type WhiteBalance = "OUTDOOR" | "INDOOR" | { red: number; blue: number };
 
 export interface CameraSettings {
   driver: Driver;
   id: number;
-  // Unset means /dev/video{id}.
+  // Spinnaker: serial number, ahead of id. OpenCV: path, unset means
+  // /dev/video{id}.
+  device?: string;
+  // Former name of device.
   path?: string;
   width: number;
   height: number;
@@ -35,6 +38,8 @@ export interface DriverInfo {
   label: string;
   // Selected by index in the SDK's camera list, or (OpenCV) by path.
   selectsBy: "id" | "path";
+  // Also selected by serial number, in device.
+  serial: boolean;
   gamma: boolean;
   // Separate OUTDOOR and INDOOR auto white balance profiles.
   wbProfiles: boolean;
@@ -43,6 +48,7 @@ export interface DriverInfo {
 const DRIVER_LABELS: Record<Driver, string> = {
   SPINNAKER: "Spinnaker (FLIR)",
   MVIMPACT: "mvIMPACT (Bluefox3)",
+  DC1394: "DC1394 (IIDC FireWire)",
   OPENCV: "OpenCV (V4L2 cameras, files)",
 };
 
@@ -53,6 +59,7 @@ export function drivers(): Record<Driver, DriverInfo> {
       {
         label: DRIVER_LABELS[d.id as Driver],
         selectsBy: d.selectsBy,
+        serial: d.serial,
         gamma: d.gamma,
         wbProfiles: d.whiteBalanceProfiles,
       },
@@ -60,7 +67,7 @@ export function drivers(): Record<Driver, DriverInfo> {
   ) as Record<Driver, DriverInfo>;
 }
 
-// Keys with a fixed fallback; path's depends on id (/dev/video{id}).
+// Keys with a fixed fallback; device's depends on id (/dev/video{id}).
 const FALLBACK_KEYS = [
   "driver",
   "id",

@@ -17,6 +17,10 @@
 //   - gamma: sent as is, where V4L2 means gamma × 100. The UC70 takes
 //     100-300.
 // SPINNAKER and MVIMPACT use typical machine-vision ranges.
+// DC1394 (src/driver/dc1394driver.cpp) clamps to the camera's own bounds:
+//   - exposure: ms, in the 20 µs steps of the AVT shutter timebase.
+//   - gain, white balance: raw registers, IIDC's 12-bit value field.
+//   - gamma: below 1 turns on the camera's lookup table (0.45 on AVT).
 import type { Driver } from "./cameraSettings.svelte";
 
 export interface Range {
@@ -78,6 +82,40 @@ export const CAMERA_RANGES: Record<Driver, CameraRanges> = {
       unit: "",
       scale: 1,
       fallback: 1,
+    },
+  },
+  DC1394: {
+    exposure: {
+      min: 0.02,
+      max: 80,
+      step: 0.02,
+      unit: "ms",
+      scale: 1,
+      fallback: 5,
+    },
+    gain: {
+      min: 1,
+      max: 4095,
+      step: 1,
+      unit: "camera units",
+      scale: 1,
+      fallback: 100,
+    },
+    gamma: {
+      min: 0.45,
+      max: 1,
+      step: 0.55,
+      unit: "",
+      scale: 1,
+      fallback: 0.45,
+    },
+    whiteBalance: {
+      min: 0,
+      max: 4095,
+      step: 1,
+      unit: "camera units",
+      scale: 1,
+      fallback: 512,
     },
   },
   OPENCV: {

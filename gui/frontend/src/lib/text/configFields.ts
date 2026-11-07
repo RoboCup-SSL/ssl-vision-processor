@@ -5,8 +5,8 @@ import type { ConfigField } from "../layout/configCategories";
 
 export const CONFIG_FIELDS = {
   camera: [
-    { name: "driver", comment: "SPINNAKER, MVIMPACT, or OPENCV" },
-    { name: "id / path", comment: "Which camera device" },
+    { name: "driver", comment: "SPINNAKER, MVIMPACT, DC1394, or OPENCV" },
+    { name: "id / device", comment: "Which camera device" },
     { name: "width / height", comment: "0 = highest supported resolution" },
     { name: "exposure", comment: "µs; 0 = automatic" },
     { name: "gain", comment: "0.0 = automatic" },

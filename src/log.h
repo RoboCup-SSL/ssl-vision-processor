@@ -14,8 +14,20 @@
      limitations under the License.
  */
 #pragma once
+#include <cstdlib>
 #include <iostream>
+#include <set>
+#include <sstream>
+#include <string>
 
 #define VP_LOG(data) std::cout << "[" << __FILE__ << ":" << __LINE__ << "] " << data << std::endl
 #define WARN(data) std::cerr << "[" << __FILE__ << ":" << __LINE__ << "] " << data << std::endl
-#define FATAL(data) { WARN(data); exit(1); }
+#define FATAL(data) do { WARN(data); std::exit(1); } while(0)
+
+inline std::set<std::string>& warnedMessages() {
+	static std::set<std::string> messages;
+	return messages;
+}
+// Warns only the first time a message occurs. The local's name avoids capturing a caller's variable used in data.
+#define WARN_ONCE(data) do { std::ostringstream warnOnceMessage_; warnOnceMessage_ << data; \
+	if(warnedMessages().insert(warnOnceMessage_.str()).second) WARN(warnOnceMessage_.str()); } while(0)
