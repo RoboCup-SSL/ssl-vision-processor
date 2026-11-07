@@ -157,14 +157,17 @@ static inline cl::Buffer clAlloc(cl_mem_flags type, cl::size_type size, void* da
 */
 #define MINIMUM_ALIGNMENT 4096
 
-CLArray::CLArray(int size): ptr(aligned_alloc(MINIMUM_ALIGNMENT, size)), buffer(clAlloc((cl_mem_flags) CL_MEM_USE_HOST_PTR, (cl::size_type) size, (void*) ptr)), size(size) {}
+CLArray::CLArray(int size): buffer(clAlloc((cl_mem_flags) CL_MEM_ALLOC_HOST_PTR, (cl::size_type) size, nullptr)), size(size) {}
+CLArray::CLArray(void* data, const int size): buffer(clAlloc((cl_mem_flags) CL_MEM_COPY_HOST_PTR, (cl::size_type) size, data)), size(size) {}
+
+/*CLArray::CLArray(int size): ptr(aligned_alloc(MINIMUM_ALIGNMENT, size)), buffer(clAlloc((cl_mem_flags) CL_MEM_USE_HOST_PTR, (cl::size_type) size, (void*) ptr)), size(size) {}
 CLArray::CLArray(void* data, const int size): ptr(nullptr), buffer(clAlloc((cl_mem_flags) CL_MEM_COPY_HOST_PTR, (cl::size_type) size, data)), size(size) {}
 CLArray::~CLArray() {
 	if(ptr) {
 		munlock(ptr, size);
 		free((void*) ptr);
 	}
-}
+}*/
 
 static inline cl::Image2D allocImage(int width, int height, const PixelFormat* format) {
 	int error;
