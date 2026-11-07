@@ -15,10 +15,15 @@
  */
 #include "opencvdriver.h"
 #include "driver/cameradriver.h"
+#include "log.h"
 #include <opencv2/videoio.hpp>
 
 OpenCVDriver::OpenCVDriver(const CameraConfig& config): capture(config.path, cv::CAP_ANY, {cv::CAP_PROP_HW_ACCELERATION, cv::VIDEO_ACCELERATION_ANY}), name(config.path) {
 	std::replace(name.begin(), name.end(), '/', '_');
+
+	// Usually a wrong path or a camera busy in another program; later calls would throw.
+	if(!capture.isOpened())
+		FATAL("Could not open camera " << config.path << ": no OpenCV backend can open it. Check the path, and whether another program is using the camera (fuser -v " << config.path << ").");
 
 	// Use compressed data stream to unlock the highest resolution - framerate combination on USB2 cameras
 	capture.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
