@@ -16,7 +16,12 @@
 #include "opencvdriver.h"
 #include "driver/cameradriver.h"
 #include "log.h"
+#include <linux/videodev2.h>
 #include <opencv2/videoio.hpp>
+
+// CAP_PROP_AUTO_EXPOSURE on backends other than V4L2: an OpenCV convention no header defines.
+static constexpr double OPENCV_AUTO_EXPOSURE_ON = 0.75;
+static constexpr double OPENCV_AUTO_EXPOSURE_OFF = 0.25;
 
 OpenCVDriver::OpenCVDriver(const CameraConfig& config): capture(config.path, cv::CAP_ANY, {cv::CAP_PROP_HW_ACCELERATION, cv::VIDEO_ACCELERATION_ANY}), name(config.path) {
 	std::replace(name.begin(), name.end(), '/', '_');
@@ -98,12 +103,15 @@ void OpenCVDriver::setExposure(float exposure) {
 }
 
 void OpenCVDriver::applyExposure() {
-	// The V4L2 backend passes CAP_PROP_AUTO_EXPOSURE through as V4L2_CID_EXPOSURE_AUTO, a menu where UVC
-	// cameras offer 1 (manual) and 3 (aperture priority, i.e. automatic). Other backends keep OpenCV's
-	// 0.25/0.75 convention.
-	const bool v4l2 = capture.getBackendName() == "V4L2";
-	const double autoMode = v4l2 ? 3.0 : 0.75;
-	const double manualMode = v4l2 ? 1.0 : 0.25;
+	double autoMode = OPENCV_AUTO_EXPOSURE_ON;
+	double manualMode = OPENCV_AUTO_EXPOSURE_OFF;
+
+	// V4L2 passes the value straight to V4L2_CID_EXPOSURE_AUTO; UVC cameras offer manual and aperture
+	// priority (automatic).
+	if(capture.getBackendName() == "V4L2") {
+		autoMode = V4L2_EXPOSURE_APERTURE_PRIORITY;
+		manualMode = V4L2_EXPOSURE_MANUAL;
+	}
 
 	capture.set(cv::CAP_PROP_AUTO_EXPOSURE, autoMode);
 	if(exposure == 0.0f)
