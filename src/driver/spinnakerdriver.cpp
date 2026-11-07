@@ -207,7 +207,7 @@ void SpinnakerDriver::selectPixelFormat() {
 		try {
 			pCam->PixelFormat.FromString(entry.c_str());
 		} catch (Spinnaker::Exception &e) {
-			FATAL("Could not select pixel format " << entry << ": " << e.GetErrorMessage());
+			WARN("Could not select pixel format " << entry << ": " << e.GetErrorMessage());
 		}
 		// "BayerRG8" style entries name the Bayer pattern, Raw8 cameras report it separately
 		std::string pattern;
