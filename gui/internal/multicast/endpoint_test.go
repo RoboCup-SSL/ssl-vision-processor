@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -225,6 +226,7 @@ func TestVisionConsumerAbsorbsGeometryButCountsOnlyDetections(t *testing.T) {
 		func(d *vision.SSL_DetectionFrame, from *net.UDPAddr) {
 			tracked = append(tracked, fmt.Sprintf("%d@%s", d.GetCameraId(), from))
 		},
+		nil,
 	)
 	from := &net.UDPAddr{IP: net.IPv4(10, 0, 0, 5), Port: 10006}
 	consume := func(data []byte) bool { return visionConsume(data, from) }
@@ -273,6 +275,30 @@ func TestVisionConsumerAbsorbsGeometryButCountsOnlyDetections(t *testing.T) {
 	}
 }
 
+// A vision_processor without a camera sends nothing but its announce, and
+// still shows the vision group is right.
+func TestVisionConsumerHandsOnAnnounces(t *testing.T) {
+	var got []string
+
+	consume := VisionConsumer(nil, nil, func(c *vision.SSL_VPConfig, from *net.UDPAddr) {
+		got = append(got, fmt.Sprintf("%s@%s", c.GetInstance(), from))
+	})
+	from := &net.UDPAddr{IP: net.IPv4(10, 0, 0, 5), Port: 41234}
+
+	packet := marshal(t, &vision.SSL_WrapperPacket{
+		Source: vision.SSL_Source_SSL_SOURCE_VISION_PROCESSOR.Enum(),
+		Config: &vision.SSL_VPConfig{Instance: proto.String("vp-1")},
+	})
+
+	if !consume(packet, from) {
+		t.Error("announce didn't count as heard")
+	}
+
+	if want := []string{"vp-1@10.0.0.5:41234"}; !slices.Equal(got, want) {
+		t.Errorf("announced %v, want %v", got, want)
+	}
+}
+
 // The host's own sends come back on the group (multicast loopback); they
 // must never be mistaken for another sender's.
 func TestVisionConsumerDropsOwnSends(t *testing.T) {
@@ -280,6 +306,7 @@ func TestVisionConsumerDropsOwnSends(t *testing.T) {
 	consume := VisionConsumer(
 		func(*vision.SSL_GeometryData, *net.UDPAddr) { called = true },
 		func(*vision.SSL_DetectionFrame, *net.UDPAddr) { called = true },
+		func(*vision.SSL_VPConfig, *net.UDPAddr) { called = true },
 	)
 
 	s := openSender("127.0.0.1:9", nil)

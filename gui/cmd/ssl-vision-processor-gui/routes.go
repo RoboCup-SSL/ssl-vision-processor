@@ -29,6 +29,7 @@ func (s *VisionServer) addRoutes(mux *http.ServeMux, a *api.API) {
 	api.Route(a, "GET /api/health", api.Doc{Tags: tagStatus}, s.health)
 	api.Route(a, "GET /api/alerts", api.Doc{Tags: tagStatus}, s.getAlerts)
 	api.Route(a, "GET /api/network", api.Doc{Tags: tagStatus}, s.network)
+	api.Route(a, "GET /api/instances", api.Doc{Tags: tagStatus}, s.instances)
 
 	api.Route(a, "GET /api/schema", api.Doc{Tags: tagConfig}, s.getSchema)
 	api.Route(a, "GET /api/config", api.Doc{Tags: tagConfig}, s.getConfig)

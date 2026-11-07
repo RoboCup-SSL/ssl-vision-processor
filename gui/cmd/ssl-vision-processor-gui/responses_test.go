@@ -28,6 +28,7 @@ func TestResponsesMatchTheSpec(t *testing.T) {
 		"/api/camera/devices":                "/api/camera/devices",
 		"/api/snapshots":                     "/api/snapshots",
 		"/api/processes":                     "/api/processes",
+		"/api/instances":                     "/api/instances",
 	} {
 		rec := do(t, h, http.MethodGet, target, nil)
 		if rec.Code != http.StatusOK {

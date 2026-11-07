@@ -93,12 +93,14 @@ type Network struct {
 
 // conflictSeverity is how serious each kind of sender conflict is: a second
 // calibration or field geometry source changes what every vision_processor
-// uses; two game controllers or video streams only confuse what's shown, in
+// uses, and two vision_processors announcing one instance name can't be told
+// apart to configure; two game controllers or video streams only confuse what's shown, in
 // a lab. On a competition field Collect raises those to errors too: a match
 // can't run with two game controllers, and setup needs every camera's video.
 var conflictSeverity = map[string]string{
 	peers.KindCalibration: Error,
 	peers.KindGeometry:    Error,
+	peers.KindInstance:    Error,
 	peers.KindReferee:     Warning,
 	peers.KindVideo:       Warning,
 }

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/discovery"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/peers"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/vision"
@@ -19,6 +20,7 @@ type peerWatches struct {
 	calibration *peers.Watch
 	detections  *peers.Watch
 	geometry    *peers.Watch
+	instance    *peers.Watch
 	referee     *peers.Watch
 	video       *peers.Watch
 	rejected    rejectLog
@@ -37,6 +39,8 @@ func newPeerWatches() *peerWatches {
 		// vision_processor sends the field back now and then; only another
 		// host publishes it every second, as this one does.
 		geometry: peers.NewWatch(peers.Options{Kind: peers.KindGeometry, Window: 10 * time.Second, MinCount: 3, WithSelf: true}, names),
+		// vision_processor announces once a second.
+		instance: peers.NewWatch(peers.Options{Kind: peers.KindInstance, Window: discovery.Stale, MinCount: 2}, names),
 		referee:  peers.NewWatch(peers.Options{Kind: peers.KindReferee, Window: 3 * time.Second, MinCount: 2}, names),
 		video:    peers.NewWatch(peers.Options{Kind: peers.KindVideo, Window: 3 * time.Second, MinCount: 10}, names),
 	}
@@ -47,7 +51,7 @@ func newPeerWatches() *peerWatches {
 func (p *peerWatches) Conflicts(now time.Time) []peers.Conflict {
 	out := []peers.Conflict{}
 
-	for _, w := range []*peers.Watch{p.calibration, p.geometry, p.referee, p.video} {
+	for _, w := range []*peers.Watch{p.calibration, p.geometry, p.instance, p.referee, p.video} {
 		out = append(out, w.Conflicts(now)...)
 	}
 
@@ -84,6 +88,20 @@ func (p *peerWatches) absorber(geom *geometry.Geometry) func(*vision.SSL_Geometr
 		if len(accepted.Calib) > 0 {
 			geom.Absorb(accepted)
 		}
+	}
+}
+
+// announcer passes each vision_processor announce on to instances, recording
+// who sent which instance name.
+func (p *peerWatches) announcer(instances *discovery.Registry) func(*vision.SSL_VPConfig, *net.UDPAddr) {
+	return func(config *vision.SSL_VPConfig, from *net.UDPAddr) {
+		now := time.Now()
+
+		if name := config.GetInstance(); name != "" {
+			p.instance.Record("instance "+name, nil, from, now)
+		}
+
+		instances.Record(config, from, now)
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/defaults"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/discovery"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/livefield"
@@ -286,6 +287,7 @@ func newHost(path string, opts hostOptions) (*host, error) {
 	doc, addrs, auto, ifaces := currentNetwork(store)
 	mcOpts := multicast.Options{Verbose: opts.verbose}
 	tracker := detections.NewTracker()
+	instances := discovery.NewRegistry()
 	match := &referee.Match{}
 	watches := newPeerWatches()
 	trackTeams := func(yellow, blue string, from *net.UDPAddr) {
@@ -304,7 +306,7 @@ func newHost(path string, opts hostOptions) (*host, error) {
 	videos.OnPacket(watches.videoPacket)
 	trackAutoref := func(p *vision.TrackerWrapperPacket, from net.IP) { live.RecordTracked(p, from, time.Now()) }
 	sockets := &networkSockets{
-		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(mcOpts), multicast.VisionConsumer(watches.absorber(geom), track)),
+		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(mcOpts), multicast.VisionConsumer(watches.absorber(geom), track, watches.announcer(instances))),
 		detections: tracker,
 		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, mcOpts, multicast.RefereeConsumer(trackTeams)),
 		tracker:    multicast.NewEndpoint("tracker", doc.TrackerAddress(), ifaces, mcOpts, multicast.TrackerConsumer(trackAutoref)),
@@ -316,8 +318,8 @@ func newHost(path string, opts hostOptions) (*host, error) {
 	sockets.apply(store)
 	match.SetHeightsFile(botHeightsFile(store))
 
-	wsHub := hub.New(wrapperPacketTopic, configStateTopic, networkStateTopic, alertsStateTopic, processesStateTopic, liveFieldTopic)
-	status := &hostStatus{store: store, sockets: sockets, match: match, live: live}
+	wsHub := hub.New(wrapperPacketTopic, configStateTopic, networkStateTopic, alertsStateTopic, processesStateTopic, liveFieldTopic, instancesStateTopic)
+	status := &hostStatus{store: store, sockets: sockets, match: match, live: live, instances: instances}
 	policy.SetStrict(competitionField(store))
 
 	var procs *supervisor.Supervisor
@@ -646,13 +648,16 @@ const (
 	alertsStateTopic  = "alerts.state"
 	// processesStateTopic carries the supervised vision_processors (-vp).
 	processesStateTopic = "processes.state"
+	// instancesStateTopic carries every vision_processor heard announcing.
+	instancesStateTopic = "instances.state"
 )
 
 // publishStatus publishes the network state and the alerts, which depend on
-// it and on the store.
+// it and on the store, and the vision_processors announcing.
 func publishStatus(wsHub *hub.Hub, status StatusSource) {
 	publishJSON(wsHub, networkStateTopic, status.Network())
 	publishJSON(wsHub, alertsStateTopic, status.Alerts())
+	publishJSON(wsHub, instancesStateTopic, status.Instances())
 }
 
 func publishJSON(wsHub *hub.Hub, topic string, v any) {

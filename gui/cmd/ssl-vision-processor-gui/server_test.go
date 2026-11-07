@@ -15,6 +15,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/alerts"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/discovery"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/httpjson"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/livefield"
@@ -70,6 +71,13 @@ func (stubStatus) Network() NetworkState {
 
 func (stubStatus) LiveField() livefield.Snapshot {
 	return livefield.NewFeed().Snapshot(time.Now())
+}
+
+func (stubStatus) Instances() []discovery.Instance {
+	return []discovery.Instance{{
+		Name: "vp-1", CameraID: 0, Address: "10.0.0.5:41234", Live: true,
+		Config: discovery.Config(`{"instance":"vp-1","camera":{"driver":"OPENCV"}}`),
+	}}
 }
 
 func (stubStatus) Alerts() []alerts.Alert {

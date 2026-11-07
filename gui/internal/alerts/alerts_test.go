@@ -196,6 +196,7 @@ func TestSenderConflictSeverity(t *testing.T) {
 	want := map[string][2]string{ // kind -> {lab, competition}
 		peers.KindCalibration: {Error, Error},
 		peers.KindGeometry:    {Error, Error},
+		peers.KindInstance:    {Error, Error},
 		peers.KindReferee:     {Warning, Error},
 		peers.KindVideo:       {Warning, Error},
 	}

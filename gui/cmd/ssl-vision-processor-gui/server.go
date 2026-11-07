@@ -10,6 +10,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/alerts"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/defaults"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/discovery"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/httpjson"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
@@ -83,6 +84,13 @@ func (s *VisionServer) network(*http.Request, none) (NetworkState, error) {
 // alerts.state on demand.
 func (s *VisionServer) getAlerts(*http.Request, none) ([]alerts.Alert, error) {
 	return s.status.Alerts(), nil
+}
+
+// instances lists every vision_processor heard announcing itself on the vision
+// group in the last 30 seconds, with the configuration it last announced, by
+// camera_id then instance name. One unheard for 3 seconds is no longer live.
+func (s *VisionServer) instances(*http.Request, none) ([]discovery.Instance, error) {
+	return s.status.Instances(), nil
 }
 
 // wrapperPacket is an SSL_WrapperPacket as canonical protojson.

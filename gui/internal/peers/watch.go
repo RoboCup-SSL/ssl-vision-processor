@@ -14,6 +14,7 @@ const (
 	KindCalibration = "calibration" // a camera's calibration, from vision_processors
 	KindDetections  = "detections"  // a camera's detection frames
 	KindGeometry    = "geometry"    // the field geometry this host publishes
+	KindInstance    = "instance"    // a vision_processor's announced instance name
 	KindReferee     = "referee"     // game controller referee messages
 	KindVideo       = "video"       // a camera's RTP stream
 )
@@ -33,7 +34,7 @@ type Options struct {
 
 // Conflict is something claimed by more senders than it should be.
 type Conflict struct {
-	Kind    string `json:"kind" enum:"calibration,detections,geometry,referee,video"`
+	Kind    string `json:"kind" enum:"calibration,detections,geometry,instance,referee,video"`
 	Subject string `json:"subject"`
 	// CameraID is the camera the subject is about, if any.
 	CameraID *int     `json:"cameraId,omitempty"`

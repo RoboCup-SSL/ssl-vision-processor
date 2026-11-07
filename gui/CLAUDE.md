@@ -55,6 +55,7 @@ internal/
   geometry/    live field template + published calibrations + 1Hz publish loop
   multicast/   vision + game controller + tracker sockets, interface selection,
                reopened on address/interface changes
+  discovery/   vision_processor instances from their SSL_VPConfig announces
   api/         typed routes + the OpenAPI spec (/api/openapi.json, /api/docs)
   hub/         topic pub/sub + the /ws handler
   livefield/   latest detection + autoref tracked frames for the Live Field page
@@ -231,7 +232,14 @@ without a file in `dist/`, and the host is compiled before the frontend's first
 build, to write the OpenAPI spec the frontend's API types are generated from.
 `make` restores it after each build, since Vite empties `dist/`.
 
-**Discovery is multicast-announce-based** -- still unimplemented; see below.
+**Discovery is multicast-announce-based.** vision_processor sends
+`SSL_WrapperPacket{config}` about once a second on the vision group;
+`internal/discovery` keys it by `SSL_VPConfig.instance` (live within 3 s,
+forgotten after 30 s), served as `GET /api/instances` and `instances.state`.
+Key on `config` being present, never on `source`: the host's own geometry
+packets say `SSL_SOURCE_VISION_PROCESSOR` too. An announce counts as hearing
+the vision group, since a vision_processor without a camera sends nothing else.
+Two senders of one instance name raise a `sender_conflict` of kind `instance`.
 
 ## Gotchas
 
@@ -325,8 +333,11 @@ known bug: when it starts passing, the bug is fixed and the marker comes out.
 
 ## Not yet built
 
-- **`internal/discovery`** -- parsing `SSL_VPConfig` announces off multicast
-  into an instance table. The C++ side does not emit these yet.
+- **Discovery UI and drift.** `internal/discovery` exists, but no page shows
+  it yet, and nothing compares an announced config with the desired one.
+  The C++ announce (upstream PR #50) is sent from inside the frame loop and
+  built once at startup, so a VP whose camera blocks never announces and a
+  hot-reloaded config isn't reflected.
 - **Config push / reprovision loop** -- `internal/config` exists as the
   host-owned store, but delivery is still a regenerated local `config.yml`.
   The diff-based reprovision loop (push desired config to an instance when its

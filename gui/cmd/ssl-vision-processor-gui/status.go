@@ -7,6 +7,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/alerts"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/discovery"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/livefield"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/peers"
@@ -14,12 +15,13 @@ import (
 )
 
 // StatusSource is the live host state the API serves beside the store's:
-// what the sockets hear, the alerts derived from it all, and the latest
-// detections and tracked frames.
+// what the sockets hear, the alerts derived from it all, the latest
+// detections and tracked frames, and the vision_processors announcing.
 type StatusSource interface {
 	Network() NetworkState
 	Alerts() []alerts.Alert
 	LiveField() livefield.Snapshot
+	Instances() []discovery.Instance
 }
 
 // NetworkState is each socket's address and what it has heard, plus the host
@@ -45,10 +47,11 @@ type NetworkState struct {
 
 // hostStatus is the running host's StatusSource.
 type hostStatus struct {
-	store   *config.Store
-	sockets *networkSockets
-	match   *referee.Match
-	live    *livefield.Feed
+	store     *config.Store
+	sockets   *networkSockets
+	match     *referee.Match
+	live      *livefield.Feed
+	instances *discovery.Registry
 }
 
 func (h *hostStatus) Network() NetworkState {
@@ -103,4 +106,8 @@ func nonNil[T any](s []T) []T {
 
 func (h *hostStatus) LiveField() livefield.Snapshot {
 	return h.live.Snapshot(time.Now())
+}
+
+func (h *hostStatus) Instances() []discovery.Instance {
+	return h.instances.Instances(time.Now())
 }

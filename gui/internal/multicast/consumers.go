@@ -9,11 +9,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// VisionConsumer hands the geometry from every wrapper packet to absorb, and
-// each detection frame to track, each with its sender. The host's own
-// looped-back packets are dropped. Only packets carrying a detection frame
-// count as heard: those come from vision processors.
-func VisionConsumer(absorb func(*vision.SSL_GeometryData, *net.UDPAddr), track func(*vision.SSL_DetectionFrame, *net.UDPAddr)) Consumer {
+// VisionConsumer hands the geometry from every wrapper packet to absorb, each
+// detection frame to track, and each vision_processor announce to announce,
+// each with its sender. The host's own looped-back packets are dropped. Only
+// packets carrying a detection frame or an announce count as heard: those come
+// from vision processors, and one without a camera only announces.
+func VisionConsumer(absorb func(*vision.SSL_GeometryData, *net.UDPAddr), track func(*vision.SSL_DetectionFrame, *net.UDPAddr), announce func(*vision.SSL_VPConfig, *net.UDPAddr)) Consumer {
 	return func(data []byte, from *net.UDPAddr) bool {
 		if IsOwn(from) {
 			return false
@@ -35,7 +36,12 @@ func VisionConsumer(absorb func(*vision.SSL_GeometryData, *net.UDPAddr), track f
 			track(detection, from)
 		}
 
-		return detection != nil
+		config := packet.GetConfig()
+		if config != nil && from != nil && announce != nil {
+			announce(config, from)
+		}
+
+		return detection != nil || config != nil
 	}
 }
 
