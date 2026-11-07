@@ -158,6 +158,7 @@ static inline cl::Buffer clAlloc(cl_mem_flags type, cl::size_type size, void* da
 #define MINIMUM_ALIGNMENT 4096
 
 static std::shared_ptr<void> hostAlloc(int size) {
+	size = (size + MINIMUM_ALIGNMENT-1)/MINIMUM_ALIGNMENT * MINIMUM_ALIGNMENT;
 	return {aligned_alloc(MINIMUM_ALIGNMENT, size), [size](void* ptr) {
 		munlock(ptr, size);
 		free(ptr);
