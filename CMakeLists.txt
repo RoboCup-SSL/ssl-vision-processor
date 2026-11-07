@@ -18,6 +18,7 @@ enable_language(ASM)
 
 option(WITH_SPINNAKER "Build with Spinnaker support (if library available)" ON)
 option(WITH_MVIMPACT "Build with mvIMPACT/Bluefox support (if library available)" ON)
+option(WITH_DC1394 "Build with DC1394 (IIDC FireWire) support (if library available)" ON)
 
 # Adapted from https://stackoverflow.com/a/48832234 CC BY-SA 4.0 by einpoklum
 if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
@@ -34,6 +35,7 @@ pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET libavformat libavcodec libavuti
 
 find_package(Eigen3 REQUIRED)
 find_package(mvIMPACT)
+find_package(DC1394)
 find_package(OpenCL REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs videoio)
 find_package(Spinnaker)
@@ -54,8 +56,8 @@ endif()
 
 add_compile_definitions(CL_HPP_TARGET_OPENCL_VERSION=300)
 # m (c math) and stdc++ (c++ standard library) explicitly required by LLD
-link_libraries("m" "stdc++" ${YAML_CPP_LIBRARIES} ${OpenCV_LIBS} PkgConfig::LIBAV ${SPINNAKER_LIBS} OpenCL::OpenCL protobuf::libprotobuf ${mvIMPACT_LIBS})
-include_directories(SYSTEM ${YAML_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${SPINNAKER_INCLUDE_DIRS} Eigen3::Eigen ${mvIMPACT_INCLUDE_DIRS})
+link_libraries("m" "stdc++" ${YAML_CPP_LIBRARIES} ${OpenCV_LIBS} PkgConfig::LIBAV ${SPINNAKER_LIBS} OpenCL::OpenCL protobuf::libprotobuf ${mvIMPACT_LIBS} ${DC1394_LIBRARIES})
+include_directories(SYSTEM ${YAML_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${SPINNAKER_INCLUDE_DIRS} Eigen3::Eigen ${mvIMPACT_INCLUDE_DIRS} ${DC1394_INCLUDE_DIRS})
 
 include_directories(src)
 
@@ -129,5 +131,10 @@ add_executable("blob_benchmark" ${SRC} "src/blob_benchmark.cpp")
 add_dependencies(${PROJECT_NAME} AUTOGENERATE)
 add_dependencies("geometry_benchmark" AUTOGENERATE)
 add_dependencies("blob_benchmark" AUTOGENERATE)
+
+# Read-only camera node map dump, see tools/spinnaker_probe.cpp
+if (SPINNAKER_LIBS)
+    add_executable("spinnaker_probe" "tools/spinnaker_probe.cpp")
+endif ()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION /usr/local/bin)

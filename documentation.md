@@ -32,6 +32,7 @@ Therefore different `driver`s are supported in vision processor:
 
 - `SPINNAKER` for FLIR cameras
 - `MVIMPACT` for Bluefox3 cameras
+- `DC1394` for IIDC FireWire cameras (e.g. AVT Stingray), captured in Format7 mode 0 as YUV422. Without absolute shutter support `exposure` assumes the AVT 20 µs shutter timebase, `white_balance` takes raw camera register values
 - `OPENCV` for generic cameras (e.g. video4linux cameras, webcams) and image and video files (for such prerecorded data no camera parameter adjustment is possible)
 
 
