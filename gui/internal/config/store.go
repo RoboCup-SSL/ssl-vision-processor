@@ -57,6 +57,16 @@ type Store struct {
 	live       Applier
 	onChange   func()
 	stamp      fileStamp
+	// local is Options.LocalCameras.
+	local bool
+}
+
+// Options configures a Store.
+type Options struct {
+	// LocalCameras is a host that runs every camera's vision_processor
+	// itself: each camera gets a config_path (Document.AssignConfigPaths) when
+	// loaded or edited without one.
+	LocalCameras bool
 }
 
 // external is a version of the file on disk that differs from what the
@@ -101,7 +111,12 @@ type ExternalState struct {
 // Open loads path, applies it to live, and renders every local camera's
 // config.yml.
 func Open(path string, live Applier) (*Store, error) {
-	s := &Store{dir: filepath.Dir(path), path: path, live: live}
+	return OpenWith(path, live, Options{})
+}
+
+// OpenWith is Open with options.
+func OpenWith(path string, live Applier, opts Options) (*Store, error) {
+	s := &Store{dir: filepath.Dir(path), path: path, live: live, local: opts.LocalCameras}
 
 	if err := s.loadLocked(path); err != nil {
 		return nil, err
@@ -213,6 +228,14 @@ func (s *Store) Update(rev int64, doc Document) (int64, error) {
 }
 
 func (s *Store) update(rev int64, doc Document) (int64, error) {
+	if s.local {
+		s.mu.Lock()
+		own := filepath.Base(s.path)
+		s.mu.Unlock()
+
+		doc.AssignConfigPaths(own)
+	}
+
 	doc.normalize()
 
 	if err := doc.Validate(); err != nil {
@@ -443,6 +466,13 @@ func (s *Store) loadLocked(path string) error {
 		return &ValidationError{prefixed(path, err)}
 	}
 
+	// The file as it is, so assigned config_paths show as unsaved changes.
+	disk := doc.clone()
+
+	if s.local {
+		doc.AssignConfigPaths(filepath.Base(path))
+	}
+
 	if err := checkNotOverActive(doc, path); err != nil {
 		return err
 	}
@@ -457,7 +487,7 @@ func (s *Store) loadLocked(path string) error {
 	}
 
 	s.working = doc
-	s.disk = doc.clone()
+	s.disk = disk
 	s.diskHash = hashBytes(data)
 	s.external = nil
 	s.stamp = statFile(path)

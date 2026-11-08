@@ -54,6 +54,10 @@ export const alerts = {
     `${color} team "${team}" would get a default robot height`,
   colorDefaultHeight: (color: string): string =>
     `${color} robots would get a default robot height`,
+  deviceConflict: (camera: number): string =>
+    `Camera ${String(camera)}'s vision_processor isn't started`,
+  deviceConflictDetail: (conflict: string): string =>
+    `${conflict.charAt(0).toUpperCase()}${conflict.slice(1)}.`,
   firstRun: "Not publishing until you save",
   firstRunDetail:
     "This is a new configuration. Check the field, then save it to start publishing on the network.",

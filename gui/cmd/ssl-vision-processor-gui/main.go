@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -49,13 +50,12 @@ var configFile = flag.String("configFile", "vision.yml", "Config file (field, ca
 var allowOrigin = flag.String("allowOrigin", "", "Comma-separated origins (scheme://host:port) whose browser pages may use the API on a competition field, besides the host's own; * for any. In a lab, pages from this network are allowed anyway. Default: none")
 var allowHost = flag.String("allowHost", "", "Comma-separated extra names this host is reached by, e.g. a DNS alias; * to turn the check off. Its IPs, hostname, .local name and reverse-DNS names are always accepted. Default: none")
 var openapiOut = flag.String("openapi", "", "Write the API's OpenAPI spec to this path and exit (make builds openapi.json with it)")
-var imgDir = flag.String("imgDir", "", "Directory the vision processor writes debug snapshot images to. Default: $XDG_STATE_HOME or ~/.local/state, then rcssl/vision-processor-gui/img; with -vp, img in -configDir")
+var imgDir = flag.String("imgDir", "", "Directory the vision processor writes debug snapshot images to. Default: $XDG_STATE_HOME or ~/.local/state, then rcssl/vision-processor-gui/img")
 var logLevelFlag = flag.String("logLevel", "Info", "Log Level: Debug, Info, Warn, Error. Default: Info")
 
-// Until vision_processor takes config over the network: run it for each camera
-// with a config_path, restarting it when a setting it reads only at startup
-// changes.
-var vpCommand = flag.String("vp", "", "Run this vision_processor (binary, then any arguments; the config path is appended) for each camera with a config_path, restarting it when a startup-only setting changes. Default: none, run them yourself")
+// A host either runs every camera's vision_processor or none: then they run
+// as their own services, configured over the network.
+var runCameras = flag.Bool("runCameras", false, "Run every camera's vision_processor on this machine, found on PATH, restarting it when a startup-only setting changes. Each camera gets a config_path, cam<id>.yml, if it has none. Default: off, they run as their own services")
 
 var logFile = flag.String("logFile", "", "Rotating log file to write alongside stderr, empty to disable. Default: $XDG_STATE_HOME or ~/.local/state, then rcssl/vision-processor-gui/logs/vision-processor-gui.log")
 var showVersion = flag.Bool("version", false, "Print the version and exit")
@@ -118,13 +118,29 @@ func run() int {
 	slog.Info("Init VP GUI", "version", version)
 	logPaths(p)
 
+	var vpCommand []string
+
+	if *runCameras {
+		vp, err := findVisionProcessor()
+		if err != nil {
+			slog.Error("-runCameras needs vision_processor on PATH", "err", err)
+
+			return 1
+		}
+
+		slog.Info("mode", "cameras", "local", "vision_processor", vp)
+		vpCommand = []string{vp}
+	} else {
+		slog.Info("mode", "cameras", "external")
+	}
+
 	if err := makeDirs(p); err != nil {
 		slog.Error("creating folders", "err", err)
 
 		return 1
 	}
 
-	if err := bootstrapConfig(p.configDir, p.configFile); err != nil {
+	if err := bootstrapConfig(p.configDir, p.configFile, *runCameras); err != nil {
 		slog.Error("creating config file", "err", err)
 
 		return 1
@@ -135,7 +151,8 @@ func run() int {
 		allowedHosts:   splitList(*allowHost),
 		imgDir:         p.imgDir,
 		verbose:        level == slog.LevelDebug,
-		vpCommand:      strings.Fields(*vpCommand),
+		vpCommand:      vpCommand,
+		runDir:         p.runDir,
 	})
 	if err != nil {
 		slog.Error("starting", "config", p.config(), "err", err)
@@ -255,7 +272,8 @@ type host struct {
 	hub     *hub.Hub
 	status  *hostStatus
 	policy  *origins.Policy
-	// procs is nil unless the host runs the vision_processors itself (-vp).
+	// procs is nil unless the host runs the vision_processors itself
+	// (-runCameras).
 	procs   *supervisor.Supervisor
 	handler http.Handler
 }
@@ -265,8 +283,11 @@ type hostOptions struct {
 	allowedHosts   []string
 	imgDir         string
 	verbose        bool
-	// vpCommand runs a vision_processor per local camera; empty for none.
+	// vpCommand runs a vision_processor per camera; empty for none. The host
+	// then gives every camera a config_path.
 	vpCommand []string
+	// runDir holds each camera's vision_processor working directory.
+	runDir string
 }
 
 // newHost opens the config at path and wires the store, geometry, sockets,
@@ -274,7 +295,7 @@ type hostOptions struct {
 // switches the origin rules for a competition field, and publishes the
 // config, network and alert topics.
 func newHost(path string, opts hostOptions) (*host, error) {
-	geom, store, err := openConfig(path)
+	geom, store, err := openConfig(path, len(opts.vpCommand) > 0)
 	if err != nil {
 		return nil, err
 	}
@@ -326,9 +347,15 @@ func newHost(path string, opts hostOptions) (*host, error) {
 
 	if len(opts.vpCommand) > 0 {
 		procs = supervisor.New(supervisor.Options{
-			Command:  opts.vpCommand,
-			Dir:      filepath.Dir(path),
-			OnChange: func() { publishJSON(wsHub, processesStateTopic, procs.Statuses()) },
+			Command:   opts.vpCommand,
+			ConfigDir: filepath.Dir(path),
+			RunDir:    opts.runDir,
+			ImgDir:    opts.imgDir,
+			OnChange: func() {
+				publishJSON(wsHub, processesStateTopic, procs.Statuses())
+				// A camera held for a device conflict is an alert.
+				publishStatus(wsHub, status)
+			},
 			// A calibration solved against the old field is wrong for the new
 			// one, locked or not; withholding it makes the restart recalibrate.
 			Recalibrate: func(cameraID int) {
@@ -340,6 +367,7 @@ func newHost(path string, opts hostOptions) (*host, error) {
 
 		doc, _ := store.Working()
 		procs.Sync(doc)
+		status.procs = procs
 	}
 
 	store.OnChange(func() {
@@ -393,8 +421,9 @@ const configWatchInterval = time.Second
 
 // bootstrapConfig creates the config file from the embedded defaults if it
 // doesn't exist yet, and with it the robot height table vision_processor
-// needs. Never touches an existing config.
-func bootstrapConfig(dir, name string) error {
+// needs. Never touches an existing config. A host that runs its cameras
+// (local) gives camera 0 its config_path, cam0.yml, so a webcam works at once.
+func bootstrapConfig(dir, name string, local bool) error {
 	path := filepath.Join(dir, name)
 
 	if _, err := os.Stat(path); err == nil {
@@ -406,6 +435,10 @@ func bootstrapConfig(dir, name string) error {
 	doc, err := config.Default()
 	if err != nil {
 		return fmt.Errorf("default config: %w", err)
+	}
+
+	if local {
+		doc.AssignConfigPaths(name)
 	}
 
 	data, err := config.Marshal(doc)
@@ -456,10 +489,20 @@ func printReadme() int {
 	return 0
 }
 
+// findVisionProcessor is vision_processor's absolute path, from PATH.
+func findVisionProcessor() (string, error) {
+	vp, err := exec.LookPath("vision_processor")
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Abs(vp)
+}
+
 // givenPaths collects the path flags. A flag not given is nil, so an empty
 // -logFile can mean no log file.
 func givenPaths() pathFlags {
-	f := pathFlags{configDir: *configDir, configFile: *configFile, supervising: *vpCommand != ""}
+	f := pathFlags{configDir: *configDir, configFile: *configFile, runCameras: *runCameras}
 
 	if flagSet("logFile") {
 		f.logFile = logFile
@@ -472,10 +515,15 @@ func givenPaths() pathFlags {
 	return f
 }
 
-// makeDirs creates the config folder and image directory. The log directory
-// is logging.Setup's, which only warns if it can't.
+// makeDirs creates the config folder, image directory, and with -runCameras
+// the run directory. The log directory is logging.Setup's, which only warns if
+// it can't.
 func makeDirs(p paths) error {
-	for _, dir := range []string{p.configDir, p.imgDir} {
+	for _, dir := range []string{p.configDir, p.imgDir, p.runDir} {
+		if dir == "" {
+			continue
+		}
+
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
@@ -485,8 +533,9 @@ func makeDirs(p paths) error {
 }
 
 // openConfig builds the live Geometry from path's field template and opens
-// the store that keeps it in sync with the file.
-func openConfig(path string) (*geometry.Geometry, *config.Store, error) {
+// the store that keeps it in sync with the file. localCameras is
+// config.Options.LocalCameras.
+func openConfig(path string, localCameras bool) (*geometry.Geometry, *config.Store, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, nil, err
@@ -507,7 +556,7 @@ func openConfig(path string) (*geometry.Geometry, *config.Store, error) {
 		return nil, nil, err
 	}
 
-	store, err := config.Open(path, geom)
+	store, err := config.OpenWith(path, geom, config.Options{LocalCameras: localCameras})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -646,7 +695,8 @@ func warnLoopbackMulticast() {
 const (
 	networkStateTopic = "network.state"
 	alertsStateTopic  = "alerts.state"
-	// processesStateTopic carries the supervised vision_processors (-vp).
+	// processesStateTopic carries the supervised vision_processors
+	// (-runCameras).
 	processesStateTopic = "processes.state"
 	// instancesStateTopic carries every vision_processor heard announcing.
 	instancesStateTopic = "instances.state"

@@ -579,3 +579,49 @@ func TestAFailedSaveKeepsFirstRun(t *testing.T) {
 		t.Error("a failed save ended first run")
 	}
 }
+
+func TestLocalCamerasGetConfigPaths(t *testing.T) {
+	_, _, path := testStore(t)
+
+	s, err := OpenWith(path, &fakeLive{live: map[uint32]*vision.SSL_GeometryCameraCalibration{}}, Options{LocalCameras: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc, rev := s.Working()
+	if got := doc.camera(1).ConfigPath; got != "cam1.yml" {
+		t.Fatalf("camera 1 config_path = %q, want cam1.yml", got)
+	}
+
+	if _, err := os.Stat(filepath.Join(filepath.Dir(path), "cam1.yml")); err != nil {
+		t.Errorf("cam1.yml not rendered: %v", err)
+	}
+
+	// Assigned, not yet saved: it shows as a change to save.
+	if changes := s.State().Changes; len(changes) == 0 {
+		t.Error("no unsaved changes after assigning a config_path")
+	}
+
+	// An edit that leaves one out gets it back.
+	doc.camera(1).ConfigPath = ""
+	if _, err := s.Update(rev, doc); err != nil {
+		t.Fatal(err)
+	}
+
+	if doc, _ := s.Working(); doc.camera(1).ConfigPath != "cam1.yml" {
+		t.Errorf("after edit, camera 1 config_path = %q, want cam1.yml", doc.camera(1).ConfigPath)
+	}
+}
+
+func TestRenderNamesTheHeightsTableBesideTheSource(t *testing.T) {
+	doc := loadFixture(t)
+
+	data, err := Render(doc, doc.Cameras[0], "/srv/rcssl/vision.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(string(data), "bot_heights_file: /srv/rcssl/robot-heights.yml\n") {
+		t.Errorf("render = %s\nwant an absolute bot_heights_file", data)
+	}
+}

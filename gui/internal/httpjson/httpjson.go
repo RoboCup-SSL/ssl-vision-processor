@@ -20,6 +20,7 @@ const (
 	CodeStale             = "stale"               // edited an older revision; refetch and retry
 	CodeDiskChanged       = "disk_changed"        // the file changed on disk since it was loaded
 	CodeNoLiveCalibration = "no_live_calibration" // nothing received to lock yet
+	CodeDeviceConflict    = "device_conflict"     // another camera uses this one's device
 	CodePrecondition      = "precondition"        // a required header (If-Match) is missing
 	CodeCrossOrigin       = "cross_origin"        // a browser request on behalf of another site
 	CodeUnknownHost       = "unknown_host"        // the request names this host by a name it doesn't answer to
@@ -35,6 +36,7 @@ var statuses = map[string]int{
 	CodeStale:             http.StatusConflict,
 	CodeDiskChanged:       http.StatusConflict,
 	CodeNoLiveCalibration: http.StatusConflict,
+	CodeDeviceConflict:    http.StatusConflict,
 	CodePrecondition:      http.StatusPreconditionRequired,
 	CodeCrossOrigin:       http.StatusForbidden,
 	CodeUnknownHost:       http.StatusMisdirectedRequest,
@@ -69,7 +71,7 @@ func Errorf(code, format string, args ...any) *Problem {
 
 // ErrorBody is the body of every non-2xx API response.
 type ErrorBody struct {
-	Error   string `json:"error" enum:"bad_request,invalid,not_found,stale,disk_changed,no_live_calibration,precondition,cross_origin,unknown_host,unsupported_media,internal"`
+	Error   string `json:"error" enum:"bad_request,invalid,not_found,stale,disk_changed,no_live_calibration,device_conflict,precondition,cross_origin,unknown_host,unsupported_media,internal"`
 	Message string `json:"message"`
 	// Issues lists each problem separately for CodeInvalid.
 	Issues []string `json:"issues,omitempty"`

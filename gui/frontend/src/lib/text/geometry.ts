@@ -11,7 +11,7 @@ export const geometry = {
   lineDetection: {
     title: "Field line detection",
     restart:
-      "Used when vision_processor calibrates, at startup. With the host running it (-vp), it restarts on its own.",
+      "Used when vision_processor calibrates, at startup. With the host running it (-runCameras), it restarts on its own.",
     locked:
       "This camera's calibration is locked, so it doesn't calibrate and these have no effect until you unlock it.",
     reset: "Back to the shared default",

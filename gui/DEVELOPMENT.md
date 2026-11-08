@@ -71,26 +71,27 @@ Without one, the host creates a default from the files embedded in `internal/def
 
 ### Running vision_processor from the host
 
-`-vp` is a stopgap, going away once vision_processor takes its config over the network. Until then, the host starts
-one vision_processor per camera with a `config_path` (`-vp` is the command; the config file's name is appended),
-with the config folder as its working directory. So a relative `-vp` path is relative to the config folder.
+With `-runCameras`, the host starts one vision_processor per camera, using the `vision_processor` it finds on `PATH`.
+There's no flag to name another binary: to use your own build, put it first on `PATH`. Every camera gets a
+`config_path`, `cam<id>.yml`, if it has none. Each runs in its own folder, `run/cam<id>` in the state folder
+(`~/.local/state/rcssl/vision-processor-gui`), with `img` there linking to `-imgDir`. It gets the full path of its
+config file. A camera whose capture device another camera already uses isn't started until that's fixed.
 
 Settings vision_processor hot reloads (thresholds, tracking, color, debug) only rewrite the file. A change to any
 other setting (camera, geometry, network, stream) restarts it once edits stop for a second. The Camera Settings
 page shows its state and output and has a Restart button. A crash is retried, waiting longer each time; a clean
 exit, such as a video file ending, is started again after a second.
 
-The GUI can't set `config_path`, so add it to the camera in `vision.yml` by hand: a file name in the config folder.
 For a bench test, from the repo root:
 
 ```
-make run ARGS="-configFile config-camtest.vision.yml -vp build/vision_processor"
+PATH=$PWD/build:$PATH make run ARGS="-configFile config-camtest.vision.yml -runCameras"
 ```
 
 Stop any vision_processor already using the camera first. A restart recalibrates geometry unless the camera's
-calibration is locked.
+calibration is locked. `make run` passes `-imgDir img`, so snapshots still land in the repo's `img/`.
 
-With `-vp`, `-imgDir` defaults to `img` in the config folder, where vision_processor writes its snapshots.
+`make release-check` also runs the release binary with `-runCameras` and a stand-in vision_processor script.
 
 ### Network settings
 
@@ -114,7 +115,7 @@ internal/
   livefield/   latest detections and autoref tracker frames, for the Live Field page
   snapshot/    debug image listing and serving
   video/       live video, relayed to the browser
-  supervisor/  runs and restarts local vision_processors (-vp)
+  supervisor/  runs and restarts every camera's vision_processor (-runCameras)
   v4l/         this host's capture devices
   logging/     slog setup
   vision/      generated protobuf bindings, not committed
@@ -137,7 +138,8 @@ copy their fixture into `t.TempDir()` first and never operate on the checked in 
 `first-run.spec.ts`. Both use a private multicast group, since the fixture's calibration must never reach a real
 network.
 
-`make release-check` exercises the release binary from outside. A first run publishes nothing, so it's safe on any network.
+`make release-check` exercises the release binary from outside, with and without `-runCameras`. A first run publishes
+nothing, so it's safe on any network.
 
 ## Live video
 

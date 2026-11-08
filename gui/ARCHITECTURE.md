@@ -98,7 +98,7 @@ before returning.
 | `internal/snapshot`                          | Debug image listing and serving.                                                                                                        |
 | `internal/video`                             | Live video: each camera's H.264 RTP stream relayed to browsers as fragmented MP4.                                                       |
 | `internal/peers`                             | Names senders (IP, port, hostname) and logs and alerts when two of them claim one thing.                                                |
-| `internal/supervisor`                        | `-vp`: runs a vision_processor per local camera and restarts it when a startup-only setting changes.                                   |
+| `internal/supervisor`                        | `-runCameras`: runs every camera's vision_processor and restarts it when a startup-only setting changes.                                |
 | `internal/v4l`                               | Lists this host's Video4Linux capture devices for the camera path picker.                                                               |
 | `internal/logging`                           | slog setup: a coloured console handler and a rotating file handler.                                                                     |
 | `internal/vision`, `internal/gamecontroller` | Generated protobuf bindings. Not committed, see Build-time codegen below.                                                               |
@@ -185,8 +185,24 @@ starts with a header saying it is generated. `reloadConfigIfChanged()` in `src/R
 `thresholds`, `tracking`, `color`, and `debug` every half second, but never `geometry`, `camera`, `network`, or
 `stream`. Changes to those take effect when the instance restarts.
 
-With `-vp`, the host also runs those instances itself (`internal/supervisor`), one per `config_path`, from the
-config folder. It watches the store like any other subscriber: on each change it renders every camera's
+With `-runCameras`, the host also runs those instances itself (`internal/supervisor`), one per `config_path`,
+using the `vision_processor` it finds on `PATH` at startup; it exits if there is none. A host runs every camera or
+none, so in this mode every camera gets a `config_path`: `Document.AssignConfigPaths` names it `cam<id>.yml` (or
+`cam<id>-2.yml` and so on if taken) whenever a document is loaded or edited without one. One assigned on load shows
+as an unsaved change. Two cameras can't share a `config_path`. Each process runs in its own directory,
+`run/cam<id>` in the state folder, with `img` there linking to `-imgDir`, so the debug dumps vision_processor writes
+relative to its working directory never collide or land in the config folder. It gets its config file's full path,
+and the rendered file names `bot_heights_file` by its full path too.
+
+Before starting anything, the supervisor compares the cameras' capture devices, with vision_processor's fallbacks
+filled in (`Document.CaptureDevice`: OPENCV opens `/dev/video<id>` when no device is named, other drivers their
+`id`-th camera) and device paths resolved through symlinks. A camera whose device a lower camera_id already uses is
+held, not started: state `conflict`, a `device_conflict` alert, and a 409 from its restart route. It starts on its own
+once its device changes. `Document.Validate` already rejects two cameras on one device on the same `instance`; this
+also catches cameras on different instances, and two names for one device node. A daemon holding a camera is out of
+scope: the process's own output says the device is busy.
+
+It watches the store like any other subscriber: on each change it renders every camera's
 config and compares it with what each process was started with. A difference in a setting the schema marks `live`
 or `host` needs nothing more, since the file is already rewritten; any other difference (startup-only, derived,
 or unknown) restarts the process once edits have been quiet for a second, so a slider drag restarts it once.
@@ -353,8 +369,8 @@ status comes from the network rather than the store.
 `network.state` carries each multicast socket's address and what it has heard there: vision detection packets
 (the host's own looped back geometry doesn't count), game controller referee messages, and autoref tracker packets. It is published once per
 second and on every config change.
-`processes.state` carries the vision_processors the host runs (`-vp`), on every state change and once per
-second; an empty list without `-vp`.
+`processes.state` carries the vision_processors the host runs (`-runCameras`), on every state change and once per
+second; an empty list without `-runCameras`.
 `live_field.frames` carries the latest detection frame from each camera (by camera_id and sender) and the latest
 tracked frame from each autoref (by the uuid it sends), as canonical protojson inside a small envelope with each
 source's rate and receive time and the host's clock (`at`), so a client can tell a source's age without trusting the

@@ -15,6 +15,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/peers"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/referee"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/supervisor"
 )
 
 // Severities, most serious first.
@@ -38,6 +39,7 @@ const (
 	CodeLoopbackMulticast = "loopback_multicast_off"
 	CodeSenderConflict    = "sender_conflict"
 	CodeFirstRun          = "first_run_not_publishing"
+	CodeDeviceConflict    = "device_conflict"
 )
 
 // Alert is one problem.
@@ -70,7 +72,7 @@ func Codes() []string {
 	codes := append([]string{
 		CodeRenderFailed, CodeCameraIDConflict, CodeRegionUncovered, CodeCameraUnplaced, CodeFileChanged,
 		CodeSocketProblem, CodeSocketSilent, CodeHeightsUnreadable, CodeTeamDefaultHeight, CodeLoopbackMulticast,
-		CodeSenderConflict, CodeFirstRun,
+		CodeSenderConflict, CodeFirstRun, CodeDeviceConflict,
 	}, config.WarningCodes...)
 
 	slices.Sort(codes)
@@ -78,7 +80,8 @@ func Codes() []string {
 	return codes
 }
 
-// Network is what the host's sockets report.
+// Network is what the host's sockets report, and the vision_processors it
+// runs itself.
 type Network struct {
 	Vision            multicast.Status
 	GC                multicast.Status
@@ -89,6 +92,8 @@ type Network struct {
 	LoopbackMulticast bool
 	// Conflicts are things claimed by more senders than they should be.
 	Conflicts []peers.Conflict
+	// Processes are the host's own vision_processors (-runCameras).
+	Processes []supervisor.Status
 }
 
 // conflictSeverity is how serious each kind of sender conflict is: a second
@@ -116,6 +121,18 @@ func Collect(doc config.Document, state config.State, net Network) []Alert {
 		add(Alert{
 			ID: "first-run", Code: CodeFirstRun, Severity: Warning,
 			Message: "Nothing is published on the network until the configuration is saved for the first time.",
+		})
+	}
+
+	for _, p := range net.Processes {
+		if p.State != supervisor.StateConflict {
+			continue
+		}
+
+		add(Alert{
+			ID: "device-" + strconv.Itoa(p.CameraID), Code: CodeDeviceConflict, Severity: Error, CameraID: ptr(p.CameraID),
+			Params:  map[string]any{"conflict": p.Conflict},
+			Message: fmt.Sprintf("Camera %d's vision_processor isn't started: %s.", p.CameraID, p.Conflict),
 		})
 	}
 

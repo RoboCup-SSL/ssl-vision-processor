@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -16,12 +17,19 @@ import (
 // derived from the document as a whole (cam_id, camera_amount, and the seed's
 // line_corners). sourcePath is named in the header comment.
 //
+// bot_heights_file is written as a path beside sourcePath, so absolute when
+// sourcePath is: vision_processor opens it from its working directory, which
+// needn't be the config folder.
+//
 // This is the stand-in transport until vision_processor accepts config over
 // the network; vision_processor hot-reloads color/thresholds/tracking/debug
 // from it and needs a restart for everything else.
 func Render(doc Document, c Camera, sourcePath string) ([]byte, error) {
 	merged := doc.Rendered(c)
 	exposureToFile(merged)
+
+	heights, _ := merged["bot_heights_file"].(string)
+	merged["bot_heights_file"] = filepath.Join(filepath.Dir(sourcePath), cmp.Or(heights, DefaultBotHeightsFile))
 
 	if geom, _ := merged["geometry"].(map[string]any); geom["line_corners"] != nil {
 		corners := geom["line_corners"].([][2]int)

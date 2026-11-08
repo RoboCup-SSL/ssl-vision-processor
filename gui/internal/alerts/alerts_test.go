@@ -10,6 +10,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/peers"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/referee"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/supervisor"
 )
 
 // healthy is a two-camera lab setup with nothing wrong.
@@ -85,6 +86,12 @@ func TestCollect(t *testing.T) {
 		"first run": {func(d *config.Document, _ *config.State, _ *Network) {
 			d.FirstRun = true
 		}, "first-run", "first_run_not_publishing/warning"},
+		"device conflict": {func(_ *config.Document, _ *config.State, n *Network) {
+			n.Processes = []supervisor.Status{
+				{CameraID: 0, State: supervisor.StateRunning},
+				{CameraID: 1, State: supervisor.StateConflict, Conflict: "camera 0 already uses OPENCV /dev/video0"},
+			}
+		}, "device-1", "device_conflict/error"},
 		"heights unreadable": {func(_ *config.Document, _ *config.State, n *Network) {
 			n.Referee.HeightsError = "no such file"
 		}, "heights-unreadable", "heights_unreadable/warning"},

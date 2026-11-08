@@ -112,6 +112,15 @@ export const RESOLUTION_DOCS = {
       "Until vision_processor reads these overrides, also add the team to the height table (bot_heights_file, robot-heights.yml by default) under its exact game controller name, and restart the vision_processors.",
     ],
   },
+  "device-conflict": {
+    title: "Two cameras would open one device",
+    cause:
+      "The host runs every camera's vision_processor itself (-runCameras), and two cameras name the same capture device: the same driver and device, or two names for one /dev/video node. Only the lower camera ID is started; the other waits, so they don't fight over the camera.",
+    steps: [
+      "Open the camera on the Camera Settings page and choose its own device under camera, or remove the camera if it's a leftover.",
+      "It starts by itself as soon as its device is free. Nothing needs restarting.",
+    ],
+  },
   "first-run": {
     title: "Nothing is published until you save",
     cause:

@@ -1,4 +1,4 @@
-// The vision_processors the host runs itself (started with -vp), from the
+// The vision_processors the host runs itself (started with -runCameras), from the
 // processes.state topic. Empty when the host runs none: then each one is
 // started and restarted by hand.
 import { topic } from "./wrapper-bus";

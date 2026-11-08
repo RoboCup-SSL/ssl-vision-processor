@@ -55,6 +55,7 @@ run it. It doesn't start by itself when the machine boots; packages with a syste
 | Robot height table     | `robot-heights.yml` in the config folder                                             | `vision.yml`   |
 | Log file               | `~/.local/state/rcssl/vision-processor-gui/logs/vision-processor-gui.log`, rotated   | `-logFile`     |
 | Debug snapshot images  | `~/.local/state/rcssl/vision-processor-gui/img/`                                     | `-imgDir`      |
+| Camera working folders | `~/.local/state/rcssl/vision-processor-gui/run/`, with `-runCameras` only           |                |
 
 `XDG_CONFIG_HOME` and `XDG_STATE_HOME` replace `~/.config` and `~/.local/state` if you have them set.
 
@@ -90,6 +91,7 @@ Every option is optional. `-h` lists them all.
 | `-configFile`  | `vision.yml`         | The file to use in the config folder: a file name, not a path. Created if missing. |
 | `-logFile`     | see above            | Rotating log file. `-logFile ""` turns it off.                                     |
 | `-imgDir`      | see above            | Where the GUI looks for vision_processor's debug images.                           |
+| `-runCameras`  | off                  | Run every camera's vision_processor on this machine; see [Cameras](#cameras).      |
 | `-logLevel`    | `Info`               | `Debug`, `Info`, `Warn`, or `Error`.                                               |
 | `-allowOrigin` | none                 | Other web pages allowed to use the API on a competition field.                     |
 | `-allowHost`   | none                 | Extra names this machine is reached by, such as a DNS alias.                       |
@@ -155,11 +157,45 @@ This download is the GUI only. It doesn't include vision_processor, which does t
 build that from source: see the [main README](../README.md). The GUI finds running vision_processors through the
 multicast traffic they send, wherever they run.
 
-Camera settings changed in the GUI reach a vision_processor through a generated config file, so that only works
-for one on the same machine. To use it, add `config_path: <file name>` to the camera in `vision.yml`, then start
-vision_processor with that file from the config folder. Delivering settings over the network is planned.
+There are two ways to run the cameras:
 
-Debug snapshots also need vision_processor on the same machine, with `-imgDir` pointing at its `img/` folder.
+- **On this machine, run by the GUI** (`-runCameras`). Simplest for one or two cameras, such as a lab webcam. The
+  GUI starts a vision_processor for every camera, and restarts it when you change a setting it only reads at
+  startup. Camera settings reach it through a file the GUI writes in the config folder, `cam0.yml` for camera 0
+  and so on.
+- **As their own services**, the default. For events and larger labs. The GUI starts nothing; each vision_processor
+  is started separately, on this machine or others. Packages that set these up are planned.
+
+### Running a webcam with the GUI
+
+1. Build vision_processor, then make sure the shell finds it:
+
+   ```sh
+   export PATH=/path/to/vision-processor/build:$PATH
+   which vision_processor
+   ```
+
+   The GUI uses the `vision_processor` on your `PATH`. There is no option to point it elsewhere.
+
+2. Start the GUI with `-runCameras`:
+
+   ```sh
+   ./ssl-vision-processor-gui -runCameras
+   ```
+
+   It prints which vision_processor it runs, and exits straight away if it can't find one. A new configuration's
+   camera 0 is ready to go, on the first webcam (`/dev/video0`) once its driver is set to OPENCV on the Camera
+   Settings page.
+
+3. Camera Settings shows each vision_processor's state, its last lines of output, and a Restart button. Each camera
+   you add gets its own config file automatically.
+
+Each camera needs its own capture device. If two cameras name the same one, only the lower camera ID starts, and
+an alert says which. The GUI doesn't know about a vision_processor started some other way: if one already has the
+camera open, the GUI's copy says so in its output.
+
+Each vision_processor runs in its own folder, `~/.local/state/rcssl/vision-processor-gui/run/cam<id>`, so its debug
+files stay apart. Its snapshots go to the image folder.
 
 ## Troubleshooting
 
@@ -174,6 +210,7 @@ Check the GUI's Alerts page first; most alerts have a how-to. The printed log fi
 | Nothing is published                         | First run: save once. Then check the Alerts page.                                               |
 | Your old settings seem to be gone            | The GUI no longer reads `vision.yml` from the current folder. Pass `-configDir .` from that folder. |
 | `config_path: ... want a file name`          | `vision.yml` names a full path. Move the file to the config folder and use only its name.       |
+| `-runCameras needs vision_processor on PATH` | Build vision_processor and add its folder to `PATH`; see [Cameras](#cameras).                   |
 
 ## Upgrading
 

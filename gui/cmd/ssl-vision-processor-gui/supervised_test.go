@@ -12,13 +12,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/alerts"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/peers"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/vision"
 	"google.golang.org/protobuf/proto"
 )
 
-// TestFakeVisionProcessor stands in for vision_processor under -vp: it notes
+// TestFakeVisionProcessor stands in for vision_processor under -runCameras: it notes
 // each start beside its config and runs until SIGTERM.
 func TestFakeVisionProcessor(t *testing.T) {
 	if os.Getenv("FAKE_VISION_PROCESSOR") != "1" {
@@ -43,7 +44,9 @@ func TestFakeVisionProcessor(t *testing.T) {
 }
 
 // An edit to a startup-only setting through the API restarts the camera's
-// vision_processor; an edit to a live one only rewrites its config.yml.
+// vision_processor; an edit to a live one only rewrites its config.yml. The
+// fixture's camera 1 gets a config_path too, but opens camera 0's device, so
+// it's held back.
 func TestEditRestartsSupervisedVisionProcessor(t *testing.T) {
 	t.Setenv("FAKE_VISION_PROCESSOR", "1")
 
@@ -87,10 +90,23 @@ func TestEditRestartsSupervisedVisionProcessor(t *testing.T) {
 	running := func() bool {
 		st := h.procs.Statuses()
 
-		return len(st) == 1 && st[0].State == "running"
+		return len(st) == 2 && st[0].State == "running"
 	}
 
 	waitFor("first start", func() bool { return starts() == 1 && running() })
+
+	if st := h.procs.Statuses()[1]; st.CameraID != 1 || st.ConfigPath != "cam1.yml" || st.State != "conflict" {
+		t.Errorf("camera 1 = %+v, want cam1.yml held for a device conflict", st)
+	}
+
+	if !hasAlert(h.status.Alerts(), "device_conflict") {
+		t.Error("no device_conflict alert for camera 1")
+	}
+
+	held, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/processes/1/restart", nil)
+	if resp, err := http.DefaultClient.Do(held); err != nil || resp.StatusCode != http.StatusConflict {
+		t.Errorf("restarting held camera 1: %v %v, want 409", resp, err)
+	}
 
 	resp, err := http.Get(srv.URL + "/api/processes")
 	if err != nil {
@@ -242,4 +258,14 @@ func TestAbsorberFiltersAndWatchesCalibrations(t *testing.T) {
 	if len(c) != 1 || c[0].Kind != peers.KindCalibration || *c[0].CameraID != 3 || len(c[0].Senders) != 2 {
 		t.Fatalf("Conflicts = %+v, want camera 3's calibration from both", c)
 	}
+}
+
+func hasAlert(list []alerts.Alert, code string) bool {
+	for _, a := range list {
+		if a.Code == code {
+			return true
+		}
+	}
+
+	return false
 }

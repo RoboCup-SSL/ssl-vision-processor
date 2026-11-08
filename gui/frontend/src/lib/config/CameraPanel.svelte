@@ -46,12 +46,15 @@
     restarting: "yellow",
     waiting: "yellow",
     stopped: "gray",
+    conflict: "red",
   } as const;
 
   // One line under the badge: the most pressing of these.
   let procMessage = $derived.by((): { text: string; error: boolean } => {
     if (!proc) return { text: "", error: false };
     if (restartError) return { text: restartError, error: true };
+    if (proc.conflict)
+      return { text: text.process.conflict(proc.conflict), error: true };
     if (proc.pendingKeys.length > 0)
       return { text: text.process.pending(proc.pendingKeys), error: false };
     if (proc.crashes > 0)
@@ -578,6 +581,7 @@
             size="xs"
             color="alternative"
             class="ml-auto"
+            disabled={proc.state === "conflict"}
             onclick={() => void restartNow()}
           >
             {text.process.restartNow}

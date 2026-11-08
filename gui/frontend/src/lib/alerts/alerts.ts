@@ -153,6 +153,13 @@ function present(a: HostAlert): Alert {
         ],
       };
     }
+    case "device_conflict":
+      return {
+        ...base,
+        title: text.deviceConflict(a.cameraId ?? 0),
+        detail: text.deviceConflictDetail(str("conflict")),
+        actions: [howTo("device-conflict")],
+      };
     case "first_run_not_publishing":
       return {
         ...base,

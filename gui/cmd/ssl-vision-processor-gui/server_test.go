@@ -40,7 +40,7 @@ func testServer(t *testing.T) (http.Handler, string) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	geom, store, err := openConfig(path)
+	geom, store, err := openConfig(path, false)
 	if err != nil {
 		t.Fatalf("openConfig: %v", err)
 	}

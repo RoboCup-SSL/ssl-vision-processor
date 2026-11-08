@@ -28,33 +28,67 @@ type cameraBlock struct {
 }
 
 // deviceKey identifies the physical camera a camera block opens on host, or
-// is empty when the block doesn't say which device. Two cameras with the same
+// is empty when the block doesn't say which driver. Two cameras with the same
 // key would fight over one device.
 func deviceKey(host string, block any) string {
-	data, err := yaml.Marshal(block)
-	if err != nil {
+	driver, device, ok := captureDevice(block, "")
+	if !ok {
 		return ""
 	}
 
+	return fmt.Sprintf("%s|%s|%s", host, driver, device)
+}
+
+// CaptureDevice is the driver and device camera c's vision_processor opens,
+// with vision_processor's fallbacks filled in: see captureDevice.
+func (d Document) CaptureDevice(c Camera) (driver, device string) {
+	driver, device, _ = captureDevice(d.Effective(c)["camera"], settings["camera.driver"].Default.(string))
+
+	return driver, device
+}
+
+// captureDevice is the driver and device a camera block opens, as
+// src/driver/cameradriver.cpp picks them: device (or its former name path),
+// else /dev/video<id> for OPENCV, else "id <id>", the driver's id-th camera.
+// A block naming no driver uses defaultDriver; ok is false when that's empty
+// too.
+func captureDevice(block any, defaultDriver string) (driver, device string, ok bool) {
 	var c cameraBlock
-	if yaml.Unmarshal(data, &c) != nil || c.Driver == nil {
-		return ""
+
+	if block != nil {
+		data, err := yaml.Marshal(block)
+		if err != nil || yaml.Unmarshal(data, &c) != nil {
+			return "", "", false
+		}
 	}
 
-	device := c.Device
-	if device == nil {
-		device = c.Path
+	driver = defaultDriver
+	if c.Driver != nil {
+		driver = *c.Driver
+	}
+
+	if driver == "" {
+		return "", "", false
+	}
+
+	id := 0
+	if c.ID != nil {
+		id = *c.ID
+	}
+
+	named := c.Device
+	if named == nil {
+		named = c.Path
 	}
 
 	switch {
-	case device != nil && *device != "":
-		return fmt.Sprintf("%s|%s|device=%s", host, *c.Driver, *device)
-	case c.ID != nil:
-		return fmt.Sprintf("%s|%s|id=%d", host, *c.Driver, *c.ID)
+	case named != nil && *named != "":
+		return driver, *named, true
+	case driver == "OPENCV":
+		return driver, fmt.Sprintf("/dev/video%d", id), true
 	}
 
-	// Neither set: the driver's default device on that host.
-	return fmt.Sprintf("%s|%s|default", host, *c.Driver)
+	return driver, fmt.Sprintf("id %d", id), true
 }
 
 // validateCamera checks a camera block for what vision_processor would

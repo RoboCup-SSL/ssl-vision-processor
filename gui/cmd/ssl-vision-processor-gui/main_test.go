@@ -12,7 +12,7 @@ import (
 func TestBootstrapConfigCreatesAParseableDefault(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := bootstrapConfig(dir, "vision.yml"); err != nil {
+	if err := bootstrapConfig(dir, "vision.yml", false); err != nil {
 		t.Fatalf("bootstrapConfig: %v", err)
 	}
 
@@ -21,8 +21,13 @@ func TestBootstrapConfigCreatesAParseableDefault(t *testing.T) {
 		t.Fatalf("no file created: %v", err)
 	}
 
-	if _, err := config.Parse(data); err != nil {
+	doc, err := config.Parse(data)
+	if err != nil {
 		t.Fatalf("bootstrapped file doesn't parse: %v", err)
+	}
+
+	if path := doc.Cameras[0].ConfigPath; path != "" {
+		t.Errorf("camera 0 config_path = %q, want none without -runCameras", path)
 	}
 
 	heights, err := os.ReadFile(filepath.Join(dir, "robot-heights.yml"))
@@ -39,7 +44,7 @@ func TestBootstrapConfigLeavesExistingFileAlone(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	if err := bootstrapConfig(dir, "vision.yml"); err != nil {
+	if err := bootstrapConfig(dir, "vision.yml", true); err != nil {
 		t.Fatalf("bootstrapConfig: %v", err)
 	}
 
@@ -50,6 +55,27 @@ func TestBootstrapConfigLeavesExistingFileAlone(t *testing.T) {
 
 	if string(got) != "already here" {
 		t.Errorf("existing file was overwritten: %q", got)
+	}
+}
+
+// With -runCameras, a webcam works on the first run: camera 0 has a file to
+// run with.
+func TestBootstrapConfigRunCamerasGivesCameraZeroAFile(t *testing.T) {
+	dir := t.TempDir()
+
+	if err := bootstrapConfig(dir, "vision.yml", true); err != nil {
+		t.Fatalf("bootstrapConfig: %v", err)
+	}
+
+	data, _ := os.ReadFile(filepath.Join(dir, "vision.yml"))
+
+	doc, err := config.Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if path := doc.Cameras[0].ConfigPath; path != "cam0.yml" {
+		t.Errorf("camera 0 config_path = %q, want cam0.yml", path)
 	}
 }
 

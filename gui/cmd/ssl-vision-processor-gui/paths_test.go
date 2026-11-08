@@ -110,17 +110,34 @@ func TestResolvePathsRefusesAPathAsTheConfigFile(t *testing.T) {
 	}
 }
 
-// A supervised vision_processor writes img/ in the config folder, so that's
-// where the host has to look.
-func TestResolvePathsFindsSupervisedSnapshotsInTheConfigFolder(t *testing.T) {
+// With -runCameras each camera's vision_processor runs in its own folder in
+// the state directory; snapshots still default to the shared image directory.
+func TestResolvePathsRunCameras(t *testing.T) {
 	t.Setenv("HOME", "/home/someone")
+	t.Setenv("XDG_STATE_HOME", "")
 
-	p, err := resolvePaths(pathFlags{configDir: "/c", configFile: "vision.yml", supervising: true})
+	p, err := resolvePaths(pathFlags{configDir: "/c", configFile: "vision.yml", runCameras: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if p.imgDir != "/c/img" {
-		t.Errorf("imgDir = %q, want /c/img", p.imgDir)
+	if p.runDir != "/home/someone/.local/state/rcssl/vision-processor-gui/run" {
+		t.Errorf("runDir = %q", p.runDir)
+	}
+
+	if p.imgDir != "/home/someone/.local/state/rcssl/vision-processor-gui/img" {
+		t.Errorf("imgDir = %q, want the state directory's", p.imgDir)
+	}
+
+	if p, _ := resolvePaths(pathFlags{configDir: "/c", configFile: "vision.yml"}); p.runDir != "" {
+		t.Errorf("runDir without -runCameras = %q, want none", p.runDir)
+	}
+
+	t.Setenv("HOME", "")
+
+	img := "/i"
+	none := ""
+	if _, err := resolvePaths(pathFlags{configDir: "/c", configFile: "vision.yml", logFile: &none, imgDir: &img, runCameras: true}); err == nil {
+		t.Error("-runCameras with no state directory: want an error")
 	}
 }

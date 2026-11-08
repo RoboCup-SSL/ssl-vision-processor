@@ -12,6 +12,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/peers"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/referee"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/supervisor"
 )
 
 // StatusSource is the live host state the API serves beside the store's:
@@ -52,6 +53,8 @@ type hostStatus struct {
 	match     *referee.Match
 	live      *livefield.Feed
 	instances *discovery.Registry
+	// procs is nil unless the host runs the vision_processors.
+	procs *supervisor.Supervisor
 }
 
 func (h *hostStatus) Network() NetworkState {
@@ -92,6 +95,7 @@ func (h *hostStatus) Alerts() []alerts.Alert {
 		Referee:           n.Referee,
 		Loopback:          n.Loopback,
 		LoopbackMulticast: n.LoopbackMulticast,
+		Processes:         h.procs.Statuses(),
 	})
 }
 

@@ -21,9 +21,9 @@ type pathFlags struct {
 	configFile string
 	logFile    *string
 	imgDir     *string
-	// supervising is whether -vp was given: vision_processor writes img/ in
-	// its working directory, the config folder.
-	supervising bool
+	// runCameras is -runCameras: the host runs the vision_processors, each in
+	// its own directory under runDir.
+	runCameras bool
 }
 
 // paths are every location the host uses, absolute.
@@ -34,6 +34,9 @@ type paths struct {
 	// logFile is empty for no log file.
 	logFile string
 	imgDir  string
+	// runDir holds each camera's vision_processor working directory, empty
+	// without -runCameras.
+	runDir string
 }
 
 // config is the full path of the config file.
@@ -67,8 +70,17 @@ func resolvePaths(f pathFlags) (paths, error) {
 		return paths{}, err
 	}
 
-	if p.imgDir, err = resolveImgDir(f, p.configDir); err != nil {
+	if p.imgDir, err = resolveImgDir(f.imgDir); err != nil {
 		return paths{}, err
+	}
+
+	if f.runCameras {
+		base, err := userStateDir()
+		if err != nil {
+			return paths{}, fmt.Errorf("no folder to run the cameras in, set $XDG_STATE_HOME: %w", err)
+		}
+
+		p.runDir = filepath.Join(base, appDir, "run")
 	}
 
 	return p, nil
@@ -91,13 +103,9 @@ func resolveLogFile(flag *string) (string, error) {
 	return filepath.Join(base, appDir, "logs", "vision-processor-gui.log"), nil
 }
 
-func resolveImgDir(f pathFlags, configDir string) (string, error) {
-	if f.imgDir != nil && *f.imgDir != "" {
-		return filepath.Abs(*f.imgDir)
-	}
-
-	if f.supervising {
-		return filepath.Join(configDir, "img"), nil
+func resolveImgDir(flag *string) (string, error) {
+	if flag != nil && *flag != "" {
+		return filepath.Abs(*flag)
 	}
 
 	base, err := userStateDir()
@@ -139,4 +147,8 @@ func logPaths(p paths) {
 	}
 
 	slog.Info("paths", "imgDir", p.imgDir)
+
+	if p.runDir != "" {
+		slog.Info("paths", "runDir", p.runDir)
+	}
 }

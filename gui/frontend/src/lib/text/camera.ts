@@ -10,7 +10,8 @@ export const camera = {
   writesTo: (path: string): string => `The host writes them to \`${path}\`.`,
   noConfigPath:
     "This camera has no `config_path`, so the host doesn't write its config file; copy these to it by hand.",
-  // The host's own vision_processor for this camera (gui started with -vp).
+  // The host's own vision_processor for this camera (gui started with
+  // -runCameras).
   process: {
     banner: (camera: number): string =>
       `The host runs cam ${String(camera)}'s vision_processor and restarts it when a setting it reads only at startup changes.`,
@@ -19,6 +20,7 @@ export const camera = {
       restarting: "Restarting",
       waiting: "Waiting to start",
       stopped: "Stopped",
+      conflict: "Held back",
     },
     pid: (pid: number): string => `pid ${String(pid)}`,
     restarts: (n: number): string =>
@@ -27,6 +29,8 @@ export const camera = {
     pending: (keys: string[]): string =>
       `Restarting shortly for ${keys.map((k) => (k === "field" ? "the new field size (recalibrates)" : k)).join(", ")}.`,
     lastExit: (how: string): string => `Last run: ${how}.`,
+    conflict: (why: string): string =>
+      `Not started: ${why}. Give it its own device and it starts.`,
     crashes: (n: number): string =>
       `Failed ${String(n)} times in a row; retrying, waiting longer each time. See its output below.`,
     restartNow: "Restart now",

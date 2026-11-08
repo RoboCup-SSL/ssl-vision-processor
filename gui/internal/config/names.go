@@ -63,6 +63,9 @@ func (d Document) validateFileNames() error {
 
 	heights("defaults", d.Defaults)
 
+	// Two cameras writing one file would each overwrite the other's settings.
+	users := map[string]int{}
+
 	for _, c := range d.Cameras {
 		prefix := fmt.Sprintf("cameras[%d]", c.CameraID)
 		heights(prefix+".config", c.Config)
@@ -76,9 +79,42 @@ func (d Document) validateFileNames() error {
 		if c.ConfigPath == d.BotHeightsFile() {
 			errs = errors.Join(errs, fmt.Errorf("%s.config_path: %q is the robot height table", prefix, c.ConfigPath))
 		}
+
+		if other, ok := users[c.ConfigPath]; ok {
+			errs = errors.Join(errs, fmt.Errorf("%s.config_path: %q is also cameras[%d]'s", prefix, c.ConfigPath, other))
+		} else {
+			users[c.ConfigPath] = c.CameraID
+		}
 	}
 
 	return errs
+}
+
+// AssignConfigPaths gives every camera without a config_path one of its own:
+// cam<id>.yml, or cam<id>-2.yml and so on when that name is another camera's,
+// the robot height table, or ownFile, the config file itself. For a host that
+// runs every camera's vision_processor, which each need a file to read.
+func (d *Document) AssignConfigPaths(ownFile string) {
+	taken := map[string]bool{d.BotHeightsFile(): true, ownFile: true}
+
+	for _, c := range d.Cameras {
+		taken[c.ConfigPath] = true
+	}
+
+	for i := range d.Cameras {
+		c := &d.Cameras[i]
+		if c.ConfigPath != "" {
+			continue
+		}
+
+		name := fmt.Sprintf("cam%d.yml", c.CameraID)
+		for n := 2; taken[name]; n++ {
+			name = fmt.Sprintf("cam%d-%d.yml", c.CameraID, n)
+		}
+
+		c.ConfigPath = name
+		taken[name] = true
+	}
 }
 
 // writesOver reports whether saving doc as name would overwrite a file doc

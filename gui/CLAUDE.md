@@ -62,8 +62,9 @@ internal/
   snapshot/    debug image listing/serving
   video/       live video: RTP H.264 -> fMP4 over /ws/video/{id} for MSE
   v4l/         this host's capture devices, for the camera path picker
-  supervisor/  -vp: runs a vision_processor per config_path, restarting it on
-               startup-only setting changes (config.RestartKeys)
+  supervisor/  -runCameras: runs a vision_processor per config_path, restarting
+               it on startup-only setting changes (config.RestartKeys); holds
+               a camera whose device another already uses
   logging/     slog setup: tint console + lumberjack file
   vision/      generated Go protobuf, not committed -- run `make proto` (DO NOT EDIT)
   gamecontroller/  generated Go protobuf, not committed
@@ -196,8 +197,16 @@ host owns the flag: `Store.update` keeps it whatever an edit says, and
 `writeLocked` clears it only once the file is written. Read it from
 `config.state`, since clearing it bumps no revision.
 
-**`-vp` supervises local vision_processors; a test stand-in, not the
-deployment model.** `internal/supervisor` observes the store (`Sync` on every
+**`-runCameras` runs every camera's vision_processor, for a single-machine
+setup such as a student lab's webcam; events run them as their own services
+instead.** All or nothing: a host with `-runCameras` gives every camera a
+`config_path` (`Document.AssignConfigPaths`, via `config.Options.LocalCameras`)
+and finds `vision_processor` on `PATH` once at startup (no override flag: put
+`build/` first on `PATH`). Each process runs in `<state>/run/cam<id>` with an
+`img` link to `-imgDir`, so its relative debug writes stay apart; the config
+path and the rendered `bot_heights_file` are absolute for that reason. A camera
+whose device (`Document.CaptureDevice`, symlinks resolved) a lower camera_id
+already uses is held in state `conflict`. `internal/supervisor` observes the store (`Sync` on every
 change) rather than sitting in `Store.apply`: the store still writes the file,
 and the supervisor restarts a process when `config.RestartKeys` (anything not
 `live`/`host` in the schema, unknown keys included) finds a difference between
@@ -208,8 +217,8 @@ host) and `Pdeathsig`. vision_processor checks SIGTERM only between frames, so
 a blocked `readImage()` needs the SIGKILL fallback. A field change restarts
 every supervised camera and, while it's stopped, unlocks its calibration
 (`Options.Recalibrate` -> `Store.UnlockCalibration`): otherwise the host keeps
-publishing the old one and the new process never recalibrates. Goes away with
-the network config push.
+publishing the old one and the new process never recalibrates. The config file
+transport goes away with the network config push; the supervision stays.
 
 **Numbers in free-form blocks are normalized** (integral floats to int). JSON
 from the browser makes every number a float64 and YAML makes integers ints;

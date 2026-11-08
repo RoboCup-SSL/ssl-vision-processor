@@ -2,6 +2,7 @@
   "calibration_aspect_mismatch",
   "camera_id_conflict",
   "camera_unplaced",
+  "device_conflict",
   "field_changed",
   "file_changed",
   "first_run_not_publishing",

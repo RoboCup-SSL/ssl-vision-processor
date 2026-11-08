@@ -10,10 +10,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -24,20 +28,28 @@ import (
 // ErrNotSupervised means no supervised vision_processor runs that camera.
 var ErrNotSupervised = errors.New("no supervised vision_processor for this camera")
 
+// ErrHeld means the camera's vision_processor is held back: see
+// Status.Conflict.
+var ErrHeld = errors.New("held back: another camera uses its device")
+
 // Process states.
 const (
 	StateRunning    = "running"
 	StateRestarting = "restarting" // stopping, to start again at once
 	StateWaiting    = "waiting"    // exited or failed to start; starts again after a delay
 	StateStopped    = "stopped"
+	StateConflict   = "conflict" // not started: another camera uses its device
 )
 
 // Status is one supervised vision_processor.
 type Status struct {
 	CameraID   int    `json:"cameraId"`
 	ConfigPath string `json:"configPath"`
-	State      string `json:"state" enum:"running,restarting,waiting,stopped"`
-	PID        int    `json:"pid,omitempty"`
+	State      string `json:"state" enum:"running,restarting,waiting,stopped,conflict"`
+	// Conflict says which camera already uses this one's device, while State
+	// is conflict.
+	Conflict string `json:"conflict,omitempty"`
+	PID      int    `json:"pid,omitempty"`
 	// Since is when it entered State.
 	Since time.Time `json:"since"`
 	// Restarts counts every start after the first.
@@ -57,9 +69,16 @@ type Status struct {
 type Options struct {
 	// Command runs vision_processor; the config path is appended.
 	Command []string
-	// Dir is its working directory, where it writes img/ and finds
-	// robot-heights.yml. Empty means the host's.
-	Dir string
+	// ConfigDir is the folder the config_paths are in. Empty means the host's
+	// working directory.
+	ConfigDir string
+	// RunDir holds each camera's working directory, cam<id>, where its
+	// vision_processor writes debug files, so that no two share one. Empty
+	// means the host's working directory, for every camera.
+	RunDir string
+	// ImgDir is linked as img in each working directory under RunDir: where
+	// vision_processor writes its snapshots, prefixed by camera_id.
+	ImgDir string
 	// Debounce is how long startup-only settings must stay unchanged before
 	// a restart, so dragging a slider restarts once. Default 1s.
 	Debounce time.Duration
@@ -110,6 +129,9 @@ type proc struct {
 	starts  int
 	// recalibrate is set when the field changed since it started.
 	recalibrate bool
+	// done is closed when the loop last spawned has returned, nil before the
+	// first.
+	done chan struct{}
 }
 
 // New returns a Supervisor that starts nothing until Run.
@@ -136,8 +158,11 @@ func New(opts Options) *Supervisor {
 // Sync matches the running processes to doc: one per camera with a
 // config_path, which the store has already written. A camera whose
 // startup-only settings changed restarts after Options.Debounce; a change to
-// the field restarts every camera to recalibrate.
+// the field restarts every camera to recalibrate. A camera whose device
+// another camera already uses is held, not started (StateConflict).
 func (s *Supervisor) Sync(doc config.Document) {
+	conflicts := deviceConflicts(doc)
+
 	s.mu.Lock()
 
 	field := fieldKey(doc)
@@ -162,12 +187,31 @@ func (s *Supervisor) Sync(doc config.Document) {
 				restart: make(chan struct{}, 1),
 			}
 			s.procs[c.ConfigPath] = p
+			p.status.Conflict = conflicts[c.CameraID]
 			s.spawnLocked(p)
 
 			continue
 		}
 
 		p.status.CameraID = c.CameraID
+
+		if held := conflicts[c.CameraID]; held != p.status.Conflict {
+			p.status.Conflict = held
+			if held != "" {
+				s.holdLocked(p)
+			} else {
+				p.latest = rendered
+				s.spawnLocked(p)
+			}
+
+			continue
+		}
+
+		if p.status.Conflict != "" {
+			p.latest = rendered // starts with it once released
+
+			continue
+		}
 
 		if fieldChanged {
 			p.recalibrate = true
@@ -205,11 +249,17 @@ func (s *Supervisor) Restart(cameraID int) error {
 	defer s.mu.Unlock()
 
 	for _, p := range s.procs {
-		if p.status.CameraID == cameraID {
-			p.requestRestart()
-
-			return nil
+		if p.status.CameraID != cameraID {
+			continue
 		}
+
+		if p.status.Conflict != "" {
+			return ErrHeld
+		}
+
+		p.requestRestart()
+
+		return nil
 	}
 
 	return ErrNotSupervised
@@ -229,6 +279,9 @@ func (s *Supervisor) Statuses() []Status {
 
 	for _, p := range s.procs {
 		st := p.status
+		if st.Conflict != "" {
+			st.State = StateConflict
+		}
 		st.PendingKeys = slices.Clone(st.PendingKeys)
 		st.Output = slices.Clone(st.Output)
 		out = append(out, st)
@@ -262,21 +315,42 @@ func (s *Supervisor) notify() {
 	}
 }
 
-// spawnLocked starts p's loop, once Run has started.
+// spawnLocked starts p's loop, once Run has started, unless p is held. A
+// loop held and then released waits for its previous one to stop the old
+// process first.
 func (s *Supervisor) spawnLocked(p *proc) {
-	if s.ctx == nil || s.ctx.Err() != nil || p.cancel != nil {
+	if s.ctx == nil || s.ctx.Err() != nil || p.cancel != nil || p.status.Conflict != "" {
 		return
 	}
 
 	ctx, cancel := context.WithCancel(s.ctx)
-	p.cancel = cancel
+	previous, done := p.done, make(chan struct{})
+	p.cancel, p.done = cancel, done
 
 	s.wg.Add(1)
 
 	go func() {
 		defer s.wg.Done()
+		defer close(done)
+
+		if previous != nil {
+			<-previous
+		}
+
 		s.loop(ctx, p)
 	}()
+}
+
+// holdLocked stops p's loop, and with it the process, for a device conflict.
+func (s *Supervisor) holdLocked(p *proc) {
+	s.stopTimerLocked(p)
+	p.status.PendingKeys = []string{}
+
+	if p.cancel != nil {
+		slog.Warn("holding vision_processor back", "cam", p.status.CameraID, "reason", p.status.Conflict)
+		p.cancel()
+		p.cancel = nil
+	}
 }
 
 // scheduleLocked (re)arms p's debounced restart if its startup-only
@@ -372,9 +446,16 @@ func (s *Supervisor) start(p *proc) (*exec.Cmd, <-chan error, error) {
 		s.opts.Recalibrate(id)
 	}
 
-	args := append(slices.Clone(s.opts.Command[1:]), path)
+	dir, err := s.workDir(id)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Absolute, since it runs in its own directory rather than the config
+	// folder.
+	args := append(slices.Clone(s.opts.Command[1:]), filepath.Join(s.opts.ConfigDir, path))
 	cmd := exec.Command(s.opts.Command[0], args...)
-	cmd.Dir = s.opts.Dir
+	cmd.Dir = dir
 	cmd.Stdout = &lineWriter{emit: func(line string) { s.output(p, slog.LevelInfo, line) }}
 	cmd.Stderr = &lineWriter{emit: func(line string) { s.output(p, slog.LevelWarn, line) }}
 	cmd.SysProcAttr = sysProcAttr()
@@ -471,6 +552,82 @@ func (s *Supervisor) output(p *proc, level slog.Level, line string) {
 	s.mu.Unlock()
 
 	slog.Log(context.Background(), level, "vision_processor: "+line, "cam", id)
+}
+
+// workDir makes camera id's working directory, RunDir/cam<id>, with img in it
+// linking to ImgDir. An img left there that isn't a link is refused rather
+// than removed: it may hold someone's images.
+func (s *Supervisor) workDir(id int) (string, error) {
+	if s.opts.RunDir == "" {
+		return "", nil
+	}
+
+	dir := filepath.Join(s.opts.RunDir, fmt.Sprintf("cam%d", id))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+
+	if s.opts.ImgDir == "" {
+		return dir, nil
+	}
+
+	link := filepath.Join(dir, "img")
+
+	info, err := os.Lstat(link)
+
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+	case err != nil:
+		return "", err
+	case info.Mode()&fs.ModeSymlink == 0:
+		return "", fmt.Errorf("%s should link to the image directory %s, but isn't a link; move it away", link, s.opts.ImgDir)
+	default:
+		if target, err := os.Readlink(link); err == nil && target == s.opts.ImgDir {
+			return dir, nil
+		}
+
+		if err := os.Remove(link); err != nil {
+			return "", err
+		}
+	}
+
+	return dir, os.Symlink(s.opts.ImgDir, link)
+}
+
+// deviceConflicts finds the cameras in doc that would open a device a camera
+// with a lower camera_id already does, keyed by camera_id, each with why. The
+// host runs them all, so every camera counts whatever its instance. Device
+// paths are compared with symlinks resolved, so a /dev/v4l/by-id name and
+// the /dev/video node it points at match.
+func deviceConflicts(doc config.Document) map[int]string {
+	cameras := slices.Clone(doc.Cameras)
+	slices.SortFunc(cameras, func(a, b config.Camera) int { return a.CameraID - b.CameraID })
+
+	owners := map[string]int{}
+	conflicts := map[int]string{}
+
+	for _, c := range cameras {
+		if c.ConfigPath == "" {
+			continue
+		}
+
+		driver, device := doc.CaptureDevice(c)
+		key := driver + " " + device
+
+		if strings.HasPrefix(device, "/") {
+			if resolved, err := filepath.EvalSymlinks(device); err == nil {
+				key = driver + " " + resolved
+			}
+		}
+
+		if owner, ok := owners[key]; ok {
+			conflicts[c.CameraID] = fmt.Sprintf("camera %d already uses %s %s", owner, driver, device)
+		} else {
+			owners[key] = c.CameraID
+		}
+	}
+
+	return conflicts
 }
 
 // fieldKey is what of doc a calibration is solved against.

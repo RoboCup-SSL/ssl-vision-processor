@@ -105,8 +105,11 @@ func newHarness(t *testing.T, opts Options) *harness {
 }
 
 // camera adds or replaces camera id, writing mode as its config file's text.
+// Unless cfg says otherwise, each camera opens its own device, camera.id id.
 func (h *harness) camera(id int, mode string, cfg config.Settings) string {
 	h.t.Helper()
+
+	cfg = withDevice(cfg, "id", id)
 
 	path := filepath.Join(h.dir, fmt.Sprintf("cam%d.yml", id))
 	if err := os.WriteFile(path, []byte(mode), 0o644); err != nil {
@@ -167,6 +170,29 @@ func eventually(t *testing.T, what string, cond func() bool) {
 
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// withDevice is cfg with camera.key set to value, unless it already sets it.
+func withDevice(cfg config.Settings, key string, value any) config.Settings {
+	out := config.Settings{}
+	for k, v := range cfg {
+		out[k] = v
+	}
+
+	block := map[string]any{}
+	if existing, ok := out["camera"].(map[string]any); ok {
+		for k, v := range existing {
+			block[k] = v
+		}
+	}
+
+	if _, ok := block[key]; !ok {
+		block[key] = value
+	}
+
+	out["camera"] = block
+
+	return out
 }
 
 func exposure(v float64) config.Settings {
@@ -425,5 +451,129 @@ func TestFieldChangeRecalibrates(t *testing.T) {
 
 	if n := starts(path); n != 2 {
 		t.Errorf("%d starts, want 2", n)
+	}
+}
+
+func TestSameDeviceHeldUntilFreed(t *testing.T) {
+	h := newHarness(t, Options{})
+	h.camera(0, "", config.Settings{"camera": map[string]any{"driver": "OPENCV", "id": 2}})
+	path := h.camera(1, "", config.Settings{"camera": map[string]any{"driver": "OPENCV", "device": "/dev/video2"}})
+
+	eventually(t, "camera 0 running", func() bool { return h.status(0).State == StateRunning })
+
+	st := h.status(1)
+	if st.State != StateConflict || !strings.Contains(st.Conflict, "camera 0") || !strings.Contains(st.Conflict, "/dev/video2") {
+		t.Errorf("camera 1 = %+v, want held for camera 0's /dev/video2", st)
+	}
+
+	if err := h.sup.Restart(1); !errors.Is(err, ErrHeld) {
+		t.Errorf("Restart(1) = %v, want ErrHeld", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	if n := starts(path); n != 0 {
+		t.Fatalf("held camera started %d times", n)
+	}
+
+	// Moved to its own device, it starts.
+	h.camera(1, "", config.Settings{"camera": map[string]any{"driver": "OPENCV", "device": "/dev/video3"}})
+	eventually(t, "camera 1 running", func() bool { return h.status(1).State == StateRunning && starts(path) == 1 })
+
+	if st := h.status(1); st.Conflict != "" {
+		t.Errorf("released camera still says %q", st.Conflict)
+	}
+
+	// Moved back, it stops again.
+	pid := h.status(1).PID
+	h.camera(1, "", config.Settings{"camera": map[string]any{"driver": "OPENCV", "id": 2}})
+
+	if st := h.status(1); st.State != StateConflict {
+		t.Errorf("camera 1 = %+v, want held again", st)
+	}
+
+	eventually(t, "held process gone", func() bool { return syscall.Kill(pid, 0) != nil })
+}
+
+func TestDeviceConflictsResolveSymlinks(t *testing.T) {
+	dir := t.TempDir()
+	node := filepath.Join(dir, "video0")
+	link := filepath.Join(dir, "usb-cam-video-index0")
+
+	if err := os.WriteFile(node, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Symlink(node, link); err != nil {
+		t.Fatal(err)
+	}
+
+	camera := func(id int, device string) config.Camera {
+		return config.Camera{CameraID: id, ConfigPath: fmt.Sprintf("cam%d.yml", id), Config: config.Settings{
+			"camera": map[string]any{"driver": "OPENCV", "device": device},
+		}}
+	}
+
+	doc := config.Document{Version: config.Version, Cameras: []config.Camera{camera(1, link), camera(0, node), camera(2, filepath.Join(dir, "video1"))}}
+
+	got := deviceConflicts(doc)
+	if len(got) != 1 || !strings.Contains(got[1], "camera 0") {
+		t.Errorf("conflicts = %v, want camera 1 held for camera 0", got)
+	}
+
+	// Cameras with no camera block all open the default driver's first camera.
+	doc = config.Document{Version: config.Version, Cameras: []config.Camera{{CameraID: 0, ConfigPath: "a.yml"}, {CameraID: 1, ConfigPath: "b.yml"}}}
+	if got := deviceConflicts(doc); len(got) != 1 || !strings.Contains(got[1], "SPINNAKER id 0") {
+		t.Errorf("conflicts = %v, want camera 1 held for SPINNAKER id 0", got)
+	}
+}
+
+func TestWorkDirLinksImages(t *testing.T) {
+	t.Setenv("SUPERVISOR_HELPER", "1")
+
+	run, img, configDir := t.TempDir(), t.TempDir(), t.TempDir()
+	sup := New(Options{
+		Command:   []string{os.Args[0], "-test.run=^TestHelperProcess$", "--"},
+		ConfigDir: configDir,
+		RunDir:    run,
+		ImgDir:    img,
+	})
+
+	if err := os.WriteFile(filepath.Join(configDir, "cam3.yml"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A stale link is replaced.
+	if err := os.MkdirAll(filepath.Join(run, "cam3"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Symlink("/nowhere", filepath.Join(run, "cam3", "img")); err != nil {
+		t.Fatal(err)
+	}
+
+	sup.Sync(config.Document{Version: config.Version, Cameras: []config.Camera{{CameraID: 3, ConfigPath: "cam3.yml"}}})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+
+	go func() { done <- sup.Run(ctx) }()
+
+	t.Cleanup(func() { cancel(); <-done })
+
+	// The config path is passed whole, relative to ConfigDir.
+	eventually(t, "running", func() bool { return starts(filepath.Join(configDir, "cam3.yml")) == 1 })
+
+	if target, err := os.Readlink(filepath.Join(run, "cam3", "img")); err != nil || target != img {
+		t.Errorf("cam3/img -> %q, %v; want %q", target, err, img)
+	}
+
+	// Something real in the way is left alone, and the camera doesn't start.
+	if err := os.MkdirAll(filepath.Join(run, "cam4", "img"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := sup.workDir(4); err == nil || !strings.Contains(err.Error(), "isn't a link") {
+		t.Errorf("workDir over a real img = %v, want refused", err)
 	}
 }

@@ -329,7 +329,7 @@ func (s *VisionServer) snapshots(*http.Request, none) ([]snapshot.Entry, error) 
 	return snapshot.List(s.imgDir)
 }
 
-// processes lists the vision_processors the host runs itself (-vp), by
+// processes lists the vision_processors the host runs itself (-runCameras), by
 // camera_id: processes.state on demand. Empty when it runs none.
 func (s *VisionServer) processes(*http.Request, none) ([]supervisor.Status, error) {
 	return s.procs.Statuses(), nil
@@ -337,10 +337,13 @@ func (s *VisionServer) processes(*http.Request, none) ([]supervisor.Status, erro
 
 // restartProcess restarts the camera's vision_processor now, rather than
 // waiting for a startup-only setting to change. A 404 not_found means the
-// host doesn't run that camera's vision_processor.
+// host doesn't run that camera's vision_processor; a 409 device_conflict that
+// it's held back because another camera uses its device.
 func (s *VisionServer) restartProcess(_ *http.Request, in cameraRequest) ([]supervisor.Status, error) {
 	if err := s.procs.Restart(in.ID); errors.Is(err, supervisor.ErrNotSupervised) {
-		return nil, httpjson.Errorf(httpjson.CodeNotFound, "the host doesn't run camera %d's vision_processor; start the host with -vp", in.ID)
+		return nil, httpjson.Errorf(httpjson.CodeNotFound, "the host doesn't run camera %d's vision_processor; start the host with -runCameras", in.ID)
+	} else if errors.Is(err, supervisor.ErrHeld) {
+		return nil, httpjson.Errorf(httpjson.CodeDeviceConflict, "camera %d's vision_processor is held back: another camera uses its device", in.ID)
 	} else if err != nil {
 		return nil, err
 	}
