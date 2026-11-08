@@ -31,6 +31,30 @@ jobs:
             make -C build -j"$(nproc)" vision_processor geometry_benchmark blob_benchmark
           '
 
+  build-apt:
+    name: Build (Ubuntu 24.04, apt)
+    # Pinned, not ubuntu-latest: 24.04 is the release target, and its packages
+    # (protobuf 3.21, OpenCV 4.6, ffmpeg 6.1) are far older than nixpkgs'.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # setup.sh's Debian package list, minus its runtime-only and Python
+      # packages. Keep the two in sync.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libyaml-cpp-dev \
+            ocl-icd-opencl-dev libeigen3-dev libopencv-dev protobuf-compiler libprotobuf-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libdc1394-dev
+
+      - name: Build all targets
+        run: |
+          cmake -B build .
+          make -C build -j"$(nproc)" vision_processor geometry_benchmark blob_benchmark
+
   gui-go:
     name: Go (gui)
     runs-on: ubuntu-latest
