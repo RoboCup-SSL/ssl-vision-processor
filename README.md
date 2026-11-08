@@ -54,12 +54,16 @@ Installation with PIP: `pip install protobuf pyyaml`
    - OpenCV
    - protobuf
    - yaml-cpp
+   - libdc1394 (optional, for FireWire cameras)
 
 3. Compile vision_processor:
 
     git submodule update --init --recursive
     cmake -B build .
     make -C build vision_processor
+
+   The same works inside `nix develop` (see `flake.nix`). A build directory belongs to the toolchain that configured
+   it: to switch between nix and the distro packages, delete `build` first, or CMake stops with an error.
 
 
 ## Setup
