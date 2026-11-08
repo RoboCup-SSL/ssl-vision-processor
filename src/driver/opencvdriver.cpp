@@ -15,10 +15,20 @@
  */
 #include "opencvdriver.h"
 #include "driver/cameradriver.h"
+#include "log.h"
+#include <linux/videodev2.h>
 #include <opencv2/videoio.hpp>
+
+// CAP_PROP_AUTO_EXPOSURE on backends other than V4L2: an OpenCV convention no header defines.
+static constexpr double OPENCV_AUTO_EXPOSURE_ON = 0.75;
+static constexpr double OPENCV_AUTO_EXPOSURE_OFF = 0.25;
 
 OpenCVDriver::OpenCVDriver(const CameraConfig& config): capture(config.device, cv::CAP_ANY, {cv::CAP_PROP_HW_ACCELERATION, cv::VIDEO_ACCELERATION_ANY}), name(config.device) {
 	std::replace(name.begin(), name.end(), '/', '_');
+
+	// Usually a wrong path or a camera busy in another program; later calls would throw.
+	if(!capture.isOpened())
+		FATAL("Could not open camera " << config.device << ": no OpenCV backend can open it. Check the path, and whether another program is using the camera (fuser -v " << config.device << ").");
 
 	// Use compressed data stream to unlock the highest resolution - framerate combination on USB2 cameras
 	capture.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
@@ -32,6 +42,12 @@ std::shared_ptr<RawImage> OpenCVDriver::readImage() {
 	cv::Mat mat(cv::Size(image->width, image->height), CV_8UC3, (void*)*map);
 	if(!capture.read(mat))
 		return nullptr;
+
+	// V4L2 streams start on the first read; some UVC cameras ignore exposure set before that.
+	if(!exposureApplied) {
+		applyExposure();
+		exposureApplied = true;
+	}
 
 	return image;
 }
@@ -82,13 +98,29 @@ float OpenCVDriver::getExposure() {
 }
 
 void OpenCVDriver::setExposure(float exposure) {
-	if(exposure == 0.0f) {
-		capture.set(cv::CAP_PROP_AUTO_EXPOSURE, 1.0);
-		return;
-	} else {
-		capture.set(cv::CAP_PROP_AUTO_EXPOSURE, 0.0);
-		capture.set(cv::CAP_PROP_EXPOSURE, exposure * 1000.0);
+	this->exposure = exposure;
+	applyExposure();
+}
+
+void OpenCVDriver::applyExposure() {
+	double autoMode = OPENCV_AUTO_EXPOSURE_ON;
+	double manualMode = OPENCV_AUTO_EXPOSURE_OFF;
+
+	// V4L2 passes the value straight to V4L2_CID_EXPOSURE_AUTO; UVC cameras offer manual and aperture
+	// priority (automatic).
+	if(capture.getBackendName() == "V4L2") {
+		autoMode = V4L2_EXPOSURE_APERTURE_PRIORITY;
+		manualMode = V4L2_EXPOSURE_MANUAL;
 	}
+
+	capture.set(cv::CAP_PROP_AUTO_EXPOSURE, autoMode);
+	if(exposure == 0.0f)
+		return;
+
+	// Passing through automatic first: some UVC cameras (e.g. the SunplusIT UC70) keep their last
+	// exposure and ignore exposure_time_absolute until they switch from automatic to manual.
+	capture.set(cv::CAP_PROP_AUTO_EXPOSURE, manualMode);
+	capture.set(cv::CAP_PROP_EXPOSURE, exposure * 1000.0);
 }
 
 float OpenCVDriver::getGain() {
