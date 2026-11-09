@@ -1,0 +1,93 @@
+# The GUI's .deb, built by nfpm (go tool nfpm, pinned in this folder's go.mod)
+# from a binary make has already built: make deb. make fills in the @...@
+# values, since nfpm only expands the environment in a few fields, including
+# @STAGE@, where it puts the binary for each architecture in turn. Paths are
+# relative to this folder.
+
+name: rcssl-vision-processor-gui
+arch: "@ARCH@"
+platform: linux
+version: "@VERSION@"
+version_schema: none
+# Every file's date: the last commit's, so rebuilding a commit gives the same
+# package.
+mtime: "@MTIME@"
+section: misc
+priority: optional
+maintainer: "@MAINTAINER@"
+homepage: https://github.com/RoboCup-SSL/ssl-vision-processor
+license: Apache-2.0
+description: |-
+  Browser interface for the RoboCup SSL vision_processor
+  Sets up and runs the league's shared vision system: field geometry, camera
+  settings, locked calibrations, live video and the live field. It publishes
+  the field geometry to the rest of the league's software.
+  .
+  The setup questions decide whether it runs as a system service. The camera
+  processing itself, vision_processor, is packaged separately.
+
+depends:
+  - systemd
+  - debconf (>= 0.5) | debconf-2.0
+
+contents:
+  - src: "@STAGE@/rcssl-vision-processor-gui"
+    dst: /usr/bin/rcssl-vision-processor-gui
+    file_info:
+      mode: 0755
+  # Debian requires a changelog in every package. It's one entry, for the
+  # version built (packaging/changelog), pointing at the release notes.
+  - src: "@STAGE@/changelog.gz"
+    dst: /usr/share/doc/rcssl-vision-processor-gui/changelog.gz
+    file_info:
+      mode: 0644
+  - src: "@STAGE@/rcssl-vision-processor-gui.1.gz"
+    dst: /usr/share/man/man1/rcssl-vision-processor-gui.1.gz
+    file_info:
+      mode: 0644
+  - src: rcssl-vision-processor-gui.service
+    dst: /usr/lib/systemd/system/rcssl-vision-processor-gui.service
+    file_info:
+      mode: 0644
+  - src: rcssl-vision-processor-gui.user.service
+    dst: /usr/lib/systemd/user/rcssl-vision-processor-gui.service
+    file_info:
+      mode: 0644
+  - src: sysusers.conf
+    dst: /usr/lib/sysusers.d/rcssl-vision-processor-gui.conf
+    file_info:
+      mode: 0644
+  - src: sysctl.conf
+    dst: /usr/lib/sysctl.d/60-rcssl-multicast.conf
+    file_info:
+      mode: 0644
+  - src: configure-service
+    dst: /usr/lib/rcssl-vision-processor-gui/configure-service
+    file_info:
+      mode: 0755
+  - src: ../README.md
+    dst: /usr/share/doc/rcssl-vision-processor-gui/README.md
+    file_info:
+      mode: 0644
+  - src: lintian-overrides
+    dst: /usr/share/lintian/overrides/rcssl-vision-processor-gui
+    file_info:
+      mode: 0644
+  - src: copyright
+    dst: /usr/share/doc/rcssl-vision-processor-gui/copyright
+    file_info:
+      mode: 0644
+  - src: "@STAGE@/THIRD_PARTY_NOTICES.txt"
+    dst: /usr/share/doc/rcssl-vision-processor-gui/THIRD_PARTY_NOTICES.txt
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: debian/postinst
+  preremove: debian/prerm
+  postremove: debian/postrm
+
+deb:
+  scripts:
+    templates: debian/templates
+    config: debian/config

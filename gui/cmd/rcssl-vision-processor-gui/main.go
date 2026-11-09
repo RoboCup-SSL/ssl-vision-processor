@@ -13,6 +13,8 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -75,7 +77,7 @@ func run() int {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("ssl-vision-processor-gui", version)
+		fmt.Println("rcssl-vision-processor-gui", version)
 
 		return 0
 	}
@@ -167,6 +169,7 @@ func run() int {
 	defer stopSignals()
 
 	warnLoopbackMulticast()
+	warnFirewall(ufwConfig, *address, udpPorts(h.store))
 
 	// Reverse lookups can be slow; until they finish, the host is still
 	// reachable by IP, hostname and .local name.
@@ -688,6 +691,84 @@ func warnLoopbackMulticast() {
 	if name, enabled, ok := multicast.LoopbackMulticast(); ok && !enabled {
 		slog.Warn("multicast is off on the loopback interface", "interface", name, "enable with", "sudo ip link set "+name+" multicast on")
 	}
+}
+
+// ufwConfig is where ufw records whether it's on. Unlike its rules, which
+// only root can read, anyone can read this.
+const ufwConfig = "/etc/ufw/ufw.conf"
+
+// warnFirewall logs once at startup if ufw is on, as it's off on a fresh
+// Ubuntu: then its default policy drops the multicast traffic the GUI listens
+// for on udp, and its own port unless addr is loopback, which ufw never
+// blocks. Whether they're allowed takes root to see, so the commands are only
+// suggested.
+func warnFirewall(confPath, addr string, udp []string) {
+	if !ufwEnabled(confPath) {
+		return
+	}
+
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil || port == "" {
+		port = "8085"
+	}
+
+	allowUDP := "sudo ufw allow " + strings.Join(udp, ",") + "/udp"
+
+	if ip := net.ParseIP(host); host == "localhost" || ip != nil && ip.IsLoopback() {
+		slog.Warn("the ufw firewall is on; unless it allows the GUI's multicast traffic, nothing is heard from other machines",
+			"allow with", allowUDP)
+
+		return
+	}
+
+	slog.Warn("the ufw firewall is on; unless it allows the GUI's traffic, other machines can't open the GUI and nothing is heard from them",
+		"allow with", "sudo ufw allow "+port+"/tcp && "+allowUDP)
+}
+
+// udpPorts is every UDP port the host listens on, from the store's current
+// network settings: vision, game controller, tracker, and live video.
+func udpPorts(store *config.Store) []string {
+	doc, addrs, _, _ := currentNetwork(store)
+
+	addresses := []string{addrs.VisionAddress(), addrs.GCAddress(), doc.TrackerAddress()}
+	for _, s := range cameraStreams(doc) {
+		addresses = append(addresses, s.Address)
+	}
+
+	numbers := []int{}
+
+	for _, a := range addresses {
+		if _, p, err := net.SplitHostPort(a); err == nil {
+			if n, err := strconv.Atoi(p); err == nil && !slices.Contains(numbers, n) {
+				numbers = append(numbers, n)
+			}
+		}
+	}
+
+	slices.Sort(numbers)
+
+	ports := make([]string, len(numbers))
+	for i, n := range numbers {
+		ports[i] = strconv.Itoa(n)
+	}
+
+	return ports
+}
+
+// ufwEnabled reports whether the ufw config at path says it's on.
+func ufwEnabled(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		if key, value, ok := strings.Cut(strings.TrimSpace(line), "="); ok && key == "ENABLED" {
+			return strings.EqualFold(strings.Trim(value, `"' `), "yes")
+		}
+	}
+
+	return false
 }
 
 // networkStateTopic carries NetworkState, and alertsStateTopic every

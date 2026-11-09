@@ -1,0 +1,46 @@
+#!/bin/sh
+set -e
+
+package=rcssl-vision-processor-gui
+unit=$package.service
+
+case "$1" in
+configure | abort-upgrade | abort-deconfigure | abort-remove)
+	systemd-sysusers /usr/lib/sysusers.d/$package.conf
+
+	# Applied now as well as at boot, unless it's already as high. Fails in a
+	# container, where it's the host's to set.
+	current=$(sysctl -n net.core.rmem_max 2>/dev/null || echo 0)
+	if [ "$current" -lt 4194304 ]; then
+		sysctl -q -w net.core.rmem_max=4194304 >/dev/null 2>&1 || true
+	fi
+
+	if [ -d /run/systemd/system ]; then
+		systemctl --system daemon-reload >/dev/null || true
+	fi
+
+	if [ "$1" = configure ] && { [ -z "$2" ] || [ -n "${DEBCONF_RECONFIGURE:-}" ]; }; then
+		# A new install or dpkg-reconfigure: apply the answers.
+		. /usr/share/debconf/confmodule
+		db_get rcssl-vision-processor-gui/service
+		service="$RET"
+		db_get rcssl-vision-processor-gui/listen
+		listen="$RET"
+		# debconf reads this script's stdout as its protocol until db_stop, so
+		# stop it before running anything that prints.
+		db_stop
+
+		/usr/lib/$package/configure-service "$service" "$listen"
+	else
+		# An upgrade, or an aborted one: the service stays enabled or not, and
+		# the address as the admin last had them, as debhelper does. Removing
+		# the package masks the unit, so a reinstall unmasks it.
+		deb-systemd-helper unmask $unit >/dev/null || true
+		if [ -d /run/systemd/system ] && systemctl --quiet is-active $unit; then
+			deb-systemd-invoke restart $unit >/dev/null || true
+		fi
+	fi
+	;;
+esac
+
+exit 0

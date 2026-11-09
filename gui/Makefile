@@ -1,4 +1,4 @@
-BINARY = ssl-vision-processor-gui
+BINARY = rcssl-vision-processor-gui
 
 # ./... would also descend into frontend/node_modules, where npm packages ship
 # stray Go source (flatted/golang, for one). Enumerate our own trees instead.
@@ -25,7 +25,7 @@ SHA256SUM = $(shell command -v sha256sum >/dev/null 2>&1 && echo sha256sum || ec
 .DEFAULT_GOAL := help
 
 .PHONY: help run install test check e2e vet build go-test frontend-test fmt-check generate-check \
-	multicast-note e2e-if-chrome npm proto defaults redoc comments openapi frontend generate clean release release-check
+	multicast-note e2e-if-chrome npm proto defaults redoc comments openapi frontend generate clean release release-check deb
 
 ## Running
 
@@ -53,12 +53,14 @@ GOARCH ?= $(shell go env GOARCH)
 RELEASE_DIR = bin/release
 RELEASE_BIN = $(RELEASE_DIR)/$(BINARY)-$(VERSION)-linux-$(GOARCH)
 RELEASE_TAR = $(RELEASE_BIN).tar.gz
+# The release binary's build, shared by the tarball and the .deb so they ship
+# the same thing. GOARCH and -o are the caller's.
+RELEASE_BUILD = CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)"
 
 release: frontend ## Build the static release binary and its tarball, in bin/release
 	rm -rf $(RELEASE_DIR)
 	mkdir -p $(RELEASE_BIN)
-	CGO_ENABLED=0 GOARCH=$(GOARCH) go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" \
-		-o $(RELEASE_BIN)/$(BINARY) ./cmd/$(BINARY)
+	GOARCH=$(GOARCH) $(RELEASE_BUILD) -o $(RELEASE_BIN)/$(BINARY) ./cmd/$(BINARY)
 	cp README.md ../LICENSE.md $(RELEASE_BIN)/
 	scripts/third-party-notices.sh > $(RELEASE_BIN)/THIRD_PARTY_NOTICES.txt
 	tar -czf $(RELEASE_TAR) -C $(RELEASE_DIR) $(notdir $(RELEASE_BIN))
@@ -68,6 +70,34 @@ release: frontend ## Build the static release binary and its tarball, in bin/rel
 
 release-check: release ## Run the release binary as a new user would: no arguments, an empty home
 	scripts/release-check.sh $(RELEASE_BIN)/$(BINARY) $(VERSION)
+
+# The .deb for each architecture, built by nfpm from packaging/ (see
+# packaging/nfpm.yaml) around the same static binary as release. nfpm is a Go
+# tool pinned in packaging/go.mod, so this needs no Debian tools.
+DEB_VERSION ?= $(shell scripts/deb-version.sh)
+DEB_ARCHES ?= amd64 arm64
+DEB_DIR = bin/deb
+DEB_STAGE = $(DEB_DIR)/stage
+DEB_MTIME ?= $(shell git log -1 --format=%cI)
+DEB_MAINTAINER ?= Will Stuckey <guyfleeman@gmail.com>
+DEB_FILL = sed -e "s|@VERSION@|$(DEB_VERSION)|" -e "s|@MTIME@|$(DEB_MTIME)|" -e "s|@MAINTAINER@|$(DEB_MAINTAINER)|" \
+	-e "s|@COMMIT@|$$(git rev-parse --short HEAD)|" -e "s|@STAGE@|$(CURDIR)/$(DEB_STAGE)|" \
+	-e "s|@DATE@|$$(date -R -u -d @$$(git log -1 --format=%ct))|"
+
+deb: frontend ## Build the .deb packages, amd64 and arm64, in bin/deb
+	rm -rf $(DEB_DIR)
+	mkdir -p $(DEB_STAGE)
+	scripts/third-party-notices.sh > $(DEB_STAGE)/THIRD_PARTY_NOTICES.txt
+	$(DEB_FILL) packaging/changelog | gzip -9n > $(DEB_STAGE)/changelog.gz
+	gzip -9n < packaging/rcssl-vision-processor-gui.1 > $(DEB_STAGE)/rcssl-vision-processor-gui.1.gz
+	set -e; for arch in $(DEB_ARCHES); do \
+		GOARCH=$$arch $(RELEASE_BUILD) -o $(DEB_STAGE)/$(BINARY) ./cmd/$(BINARY); \
+		$(DEB_FILL) -e "s|@ARCH@|$$arch|" packaging/nfpm.yaml > $(DEB_STAGE)/nfpm.yaml; \
+		go -C packaging tool nfpm package --config $(CURDIR)/$(DEB_STAGE)/nfpm.yaml --packager deb \
+			--target $(CURDIR)/$(DEB_DIR)/; \
+	done
+	rm -rf $(DEB_STAGE)
+	@ls $(DEB_DIR)/*.deb
 
 ## Checking
 

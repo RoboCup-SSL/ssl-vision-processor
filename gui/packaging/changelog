@@ -1,0 +1,6 @@
+rcssl-vision-processor-gui (@VERSION@) noble; urgency=medium
+
+  * Built from commit @COMMIT@. Release notes:
+    https://github.com/RoboCup-SSL/ssl-vision-processor/releases
+
+ -- @MAINTAINER@  @DATE@
