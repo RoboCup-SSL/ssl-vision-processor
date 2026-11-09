@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
 # Print the license of everything compiled or bundled into the release binary,
-# which its license terms require shipping with it: Go modules, the frontend's
-# npm packages (svelte and tailwindcss are devDependencies, but end up in the
-# bundle), and the Redoc docs viewer. Run from gui/.
+# which its license terms require shipping with it: the SSL protocol
+# definitions, Go modules, the frontend's npm packages (svelte and tailwindcss
+# are devDependencies, but end up in the bundle), and the Redoc docs viewer.
+# Run from gui/.
 
 set -euo pipefail
 
@@ -27,9 +28,17 @@ section() {
 	fi
 }
 
-echo "Third-party software in ssl-vision-processor-gui"
+echo "Third-party software in rcssl-vision-processor-gui"
 
-go list -deps -f '{{with .Module}}{{if not .Main}}{{.Path}} {{.Version}} {{.Dir}}{{end}}{{end}}' ./cmd/ssl-vision-processor-gui |
+# Not a Go module or npm package, so nothing below finds it: the binary and its
+# web page contain code generated from proto/.
+printf '\n================================================================\n%s\n' "SSL protocol definitions (proto/)"
+printf '================================================================\n\n'
+echo "Compiled in as generated code. Used under the MIT License with the original authors' permission."
+echo
+cat ../proto/LICENSE-MIT
+
+go list -deps -f '{{with .Module}}{{if not .Main}}{{.Path}} {{.Version}} {{.Dir}}{{end}}{{end}}' ./cmd/rcssl-vision-processor-gui |
 	sort -u |
 	while read -r path version dir; do
 		section "$path $version" "$dir"

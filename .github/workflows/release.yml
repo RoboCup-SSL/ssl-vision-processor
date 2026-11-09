@@ -1,7 +1,7 @@
 name: Release
 
 # Pushing a v* tag publishes that version of the GUI host: the static binary,
-# its tarball and SHA256SUMS, as a GitHub Release.
+# its tarball, the .deb packages and SHA256SUMS, as a GitHub Release.
 on:
   push:
     tags: ["v*"]
@@ -12,7 +12,7 @@ permissions:
 jobs:
   gui:
     name: Release (gui)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # The version comes from git describe, which needs the tags.
       - uses: actions/checkout@v4
@@ -26,9 +26,19 @@ jobs:
       - name: Build and check
         run: nix develop --command bash -c 'cd gui && make release-check VERSION="$GITHUB_REF_NAME"'
 
+      - name: Packages
+        run: |
+          nix develop --command bash -c 'cd gui && make deb VERSION="$GITHUB_REF_NAME"'
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lintian
+          lintian --fail-on error,warning gui/bin/deb/*.deb
+          sudo gui/scripts/deb-check.sh gui/bin/deb/*_amd64.deb "$GITHUB_REF_NAME"
+          cp gui/bin/deb/*.deb gui/bin/release/
+          cd gui/bin/release && sha256sum *.tar.gz *-bin *.deb > SHA256SUMS
+
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" --generate-notes \
-            gui/bin/release/*.tar.gz gui/bin/release/*-bin gui/bin/release/SHA256SUMS
+            gui/bin/release/*.tar.gz gui/bin/release/*-bin gui/bin/release/*.deb gui/bin/release/SHA256SUMS

@@ -5,6 +5,7 @@ It holds your field geometry and camera settings, locks in camera calibrations, 
 field, and publishes the field geometry to the rest of the league's software.
 
 It is one self-contained program: download it and run it. It needs no installation, no root, and no other files.
+On Ubuntu you can [install the package](#installing-the-package) instead, which can also run it as a service.
 
 Working on the GUI itself? See [DEVELOPMENT.md](DEVELOPMENT.md).
 
@@ -18,14 +19,14 @@ These steps are for 64-bit Linux, tested on Ubuntu 24.04.
 
    ```sh
    sha256sum --check --ignore-missing SHA256SUMS
-   tar -xzf ssl-vision-processor-gui-*-linux-amd64.tar.gz
-   cd ssl-vision-processor-gui-*-linux-amd64
+   tar -xzf rcssl-vision-processor-gui-*-linux-amd64.tar.gz
+   cd rcssl-vision-processor-gui-*-linux-amd64
    ```
 
 2. Run it:
 
    ```sh
-   ./ssl-vision-processor-gui
+   ./rcssl-vision-processor-gui
    ```
 
    It prints where it keeps everything, then the address to open:
@@ -44,7 +45,72 @@ These steps are for 64-bit Linux, tested on Ubuntu 24.04.
    it on a live network without disturbing anyone. Until then, an alert reminds you that it isn't publishing.
 
 The program stops when you close the terminal or press Ctrl+C, and picks up where it left off the next time you
-run it. It doesn't start by itself when the machine boots; packages with a system service are planned.
+run it. To have it start with the machine, [install the package](#installing-the-package).
+
+## Installing the package
+
+The releases page also has a `.deb` for Ubuntu 24.04, for `amd64` and `arm64` machines. It installs the same
+program, and can run it as a system service that starts at boot.
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS
+sudo apt install ./rcssl-vision-processor-gui_*_amd64.deb
+```
+
+It asks two questions:
+
+1. **Run it as a system service?** Not as a service, start it at boot, or start it at boot and now. A
+   non-interactive install, such as from the App Center or a script, takes the first answer: no service.
+2. **Who can open it?** This machine only, or any machine on the network. Asked only for a service. The GUI has no
+   login; see [Security](#security).
+
+To change your answers: `sudo dpkg-reconfigure rcssl-vision-processor-gui`.
+
+The service runs as its own user, `rcssl-vp-gui`, in the `rcssl` group that every RoboCup SSL tool's package
+shares:
+
+| What                   | Where                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------ |
+| Config folder          | `/var/lib/rcssl/vision-processor-gui/`. Members of `rcssl` can read it.        |
+| Log                    | `journalctl -u rcssl-vision-processor-gui`                                     |
+| Address, extra options | `/etc/default/rcssl-vision-processor-gui`. Restart the service after editing.  |
+| Start, stop, restart   | `sudo systemctl start rcssl-vision-processor-gui`, and so on                   |
+
+To read the config folder without `sudo`, join the group (`sudo usermod -aG rcssl $USER`), then log in again.
+
+### Customizing the service
+
+Extra options go on the `ARGS` line of `/etc/default/rcssl-vision-processor-gui`, as you'd type them, for example
+`ARGS="-logLevel Debug -allowHost vision.local"`. Then `sudo systemctl restart rcssl-vision-processor-gui`.
+Reconfiguring the package changes only `ADDRESS` and keeps everything else in that file.
+
+Don't edit the unit file itself, `/usr/lib/systemd/system/rcssl-vision-processor-gui.service`: upgrades replace it.
+For anything `ARGS` can't do, add a drop-in, which upgrades keep:
+
+```sh
+sudo systemctl edit rcssl-vision-processor-gui     # writes /etc/systemd/system/rcssl-vision-processor-gui.service.d/override.conf
+systemctl cat rcssl-vision-processor-gui           # shows the unit with every drop-in
+```
+
+The service is sandboxed: it can write only to its config folder. To have it write anywhere else, for example
+`-imgDir` on another disk, add `ReadWritePaths=` with that folder in the drop-in. To replace the command entirely,
+clear it first with an empty `ExecStart=` line, then give the new one.
+
+Without the system service, run `rcssl-vision-processor-gui` as above, or as your own user service, which keeps the
+same files as running it by hand:
+
+```sh
+systemctl --user enable --now rcssl-vision-processor-gui
+```
+
+The package also raises the network receive buffer limit that [live video needs](#network-setup).
+
+Removing the package (`sudo apt remove`) keeps your settings, and purging it (`sudo apt purge`) keeps the config
+folder too, since it holds your locked calibrations. Delete `/var/lib/rcssl/vision-processor-gui` yourself if you
+want it gone.
+
+The package doesn't include vision_processor; see [Cameras](#cameras). The service never runs cameras itself: on a
+machine set up with packages, each vision_processor will run as its own service.
 
 ## Where things are
 
@@ -64,7 +130,7 @@ run it. It doesn't start by itself when the machine boots; packages with a syste
 To keep a whole setup together, for example on a USB stick, point everything at one place:
 
 ```sh
-./ssl-vision-processor-gui -configDir ./setup -logFile ./setup/logs/gui.log -imgDir ./setup/img
+./rcssl-vision-processor-gui -configDir ./setup -logFile ./setup/logs/gui.log -imgDir ./setup/img
 ```
 
 To start over, stop the program and delete or rename `vision.yml`. The next run creates a new one and starts the
@@ -96,7 +162,7 @@ Every option is optional. `-h` lists them all.
 | `-allowOrigin` | none                 | Other web pages allowed to use the API on a competition field.                     |
 | `-allowHost`   | none                 | Extra names this machine is reached by, such as a DNS alias.                       |
 | `-version`     |                      | Print the version and exit.                                                        |
-| `-readme`      |                      | Print this guide and exit, e.g. `./ssl-vision-processor-gui -readme \| less`.      |
+| `-readme`      |                      | Print this guide and exit, e.g. `./rcssl-vision-processor-gui -readme \| less`.      |
 
 ## Network setup
 
@@ -115,15 +181,20 @@ It skips loopback, Docker and VM bridges, and VPNs. The Network page lets you ex
 
 Three settings can trip you up on a stock Ubuntu machine. All need root, so the GUI can't change them for you.
 
-**Firewall.** Ubuntu's `ufw` is usually off, but if `sudo ufw status` says it's active, allow the GUI's traffic:
+**Firewall.** Ubuntu's `ufw` firewall is off on a new install, so most machines need nothing here. If you've turned
+it on (`sudo ufw status` says `active`), it blocks the GUI's port and the traffic the GUI listens for until you
+allow them. The GUI warns at startup when `ufw` is on. Allow its traffic with:
 
 ```sh
 sudo ufw allow 8085/tcp
 sudo ufw allow 10003,10006,10010,10100/udp
 ```
 
+Use your own port in place of `8085` if you've changed it with `-address`.
+
 **Live video stutters or breaks up.** Linux's default network receive buffer is too small for a video keyframe,
-and the GUI gets no warning when it's capped. Raise the limit and keep it across reboots:
+and the GUI gets no warning when it's capped. [The package](#installing-the-package) raises the limit for you.
+Without it, raise the limit and keep it across reboots:
 
 ```sh
 echo 'net.core.rmem_max=4194304' | sudo tee /etc/sysctl.d/60-rcssl-multicast.conf
@@ -180,7 +251,7 @@ There are two ways to run the cameras:
 2. Start the GUI with `-runCameras`:
 
    ```sh
-   ./ssl-vision-processor-gui -runCameras
+   ./rcssl-vision-processor-gui -runCameras
    ```
 
    It prints which vision_processor it runs, and exits straight away if it can't find one. A new configuration's
@@ -205,7 +276,7 @@ Check the GUI's Alerts page first; most alerts have a how-to. The printed log fi
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `http server init failed` and it exits       | Something else is using the port, often another copy of the GUI. Stop it, or use another `-address`. |
 | `no default config folder, set -configDir`   | `HOME` isn't set, as in some service environments. Set `-configDir`, `-logFile`, and `-imgDir`. |
-| Page doesn't load from another machine       | Firewall; see [Network setup](#network-setup). Check the address the GUI printed.               |
+| Page doesn't load from another machine       | It allows this machine only: check the address it printed, or the service's [setting](#installing-the-package). Then the firewall, if it's on; see [Network setup](#network-setup). |
 | "This host doesn't answer to..."             | You're using a name the GUI doesn't know. Add it with `-allowHost`.                             |
 | Nothing is published                         | First run: save once. Then check the Alerts page.                                               |
 | Your old settings seem to be gone            | The GUI no longer reads `vision.yml` from the current folder. Pass `-configDir .` from that folder. |
@@ -217,6 +288,11 @@ Check the GUI's Alerts page first; most alerts have a how-to. The printed log fi
 Stop the program and replace the binary. Your configuration is kept in the config folder. `-version` shows which
 version you have.
 
+With the package, install the newer `.deb` the same way. A running service restarts on the new version, and your
+answers, the service's address, and whether it starts at boot are kept as they are.
+
 ## License
 
-Apache 2.0; see `LICENSE.md`. The release's `THIRD_PARTY_NOTICES.txt` lists the licenses of everything bundled.
+Apache 2.0; see `LICENSE.md`. The release's `THIRD_PARTY_NOTICES.txt` lists the licenses of everything bundled,
+including the SSL protocol definitions. The package installs it and the license summary in
+`/usr/share/doc/rcssl-vision-processor-gui/`, and a man page: `man rcssl-vision-processor-gui`.

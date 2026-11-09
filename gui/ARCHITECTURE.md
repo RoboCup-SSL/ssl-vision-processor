@@ -22,7 +22,7 @@ graph LR
         FS[("shared filesystem\nimg/, config.yml")]
     end
 
-    GUI["gui host\nssl-vision-processor-gui"]
+    GUI["gui host\nrcssl-vision-processor-gui"]
     MC(("multicast\n224.5.23.2:10006"))
     Browser["Browser UI"]
 
@@ -45,8 +45,8 @@ HTTP and a WebSocket instead, covered under HTTP API and WebSocket protocol belo
 
 ## Process layout
 
-`ssl-vision-processor-gui` is one process with seven concurrent responsibilities, wired together in
-`cmd/ssl-vision-processor-gui/main.go`.
+`rcssl-vision-processor-gui` is one process with seven concurrent responsibilities, wired together in
+`cmd/rcssl-vision-processor-gui/main.go`.
 
 ```mermaid
 graph TD
@@ -85,7 +85,7 @@ before returning.
 
 | Package                                      | Responsibility                                                                                                                          |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `cmd/ssl-vision-processor-gui`               | Flags, wiring, HTTP handlers and routes.                                                                                                |
+| `cmd/rcssl-vision-processor-gui`               | Flags, wiring, HTTP handlers and routes.                                                                                                |
 | `internal/config`                            | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files.             |
 | `internal/defaults`                          | Files embedded in the binary so it needs nothing beside it: the rulebook fields and the robot height table.                             |
 | `internal/geometry`                          | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state.                                         |
@@ -284,7 +284,7 @@ JSON float and YAML decodes integers as ints, so without this every edit would s
 
 ## HTTP API
 
-Every route is registered in `cmd/ssl-vision-processor-gui/routes.go` through `internal/api`, which builds an
+Every route is registered in `cmd/rcssl-vision-processor-gui/routes.go` through `internal/api`, which builds an
 OpenAPI 3.1 spec from each handler's request and response types, and its summary, descriptions and field docs
 from their Go doc comments. The host serves the spec at `GET /api/openapi.json` and a reference for it at
 `GET /api/docs` (Redoc, embedded, so it works offline), linked from the GUI's settings menu.

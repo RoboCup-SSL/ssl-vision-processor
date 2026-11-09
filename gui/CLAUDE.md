@@ -47,7 +47,7 @@ cd frontend && npm run dev   # Vite HMR on :5173, proxies /api and /ws to :8085
 ## Repository layout
 
 ```
-cmd/ssl-vision-processor-gui/   entry point: flags, paths, wiring, HTTP server
+cmd/rcssl-vision-processor-gui/   entry point: flags, paths, wiring, HTTP server
 internal/
   config/      vision.yml store: working/disk copies, save/load, locked
                calibrations, disk watcher, generated config.yml files
@@ -70,6 +70,10 @@ internal/
   gamecontroller/  generated Go protobuf, not committed
 frontend/      Svelte 5 + TypeScript + Vite, embedded via //go:embed
                (src/proto/ is generated, not committed)
+packaging/     the .deb (make deb): nfpm config, systemd units, debconf,
+               maintainer scripts; nfpm pinned in its own go.mod
+scripts/       release-check.sh, deb-check.sh (root, CI only),
+               deb-version.sh, third-party-notices.sh
 buf.gen.yaml   generates both internal/{vision,gamecontroller} and
                frontend/src/proto from ../proto/proto (the submodule, read
                directly -- no vendored copy)
