@@ -87,6 +87,48 @@ jobs:
             make generate-check
           '
 
+  gui-apt:
+    name: Go and frontend (gui, Ubuntu 24.04, no nix)
+    # The non-nix counterpart of gui-go and frontend: the same make targets,
+    # with every tool from its own pin instead of the flake. Formatting and
+    # generated-file checks stay in the nix jobs; this job only shows the GUI
+    # builds and passes its tests with these tool versions.
+    runs-on: ubuntu-24.04
+    env:
+      # As in the flake: a go.mod newer than the installed Go fails here
+      # instead of quietly downloading a toolchain.
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: gui/go.mod
+          cache-dependency-path: gui/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: gui/frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: gui/frontend/package-lock.json
+
+      # Ubuntu doesn't package buf. Keep the version in step with the flake's
+      # (nix develop -c buf --version) and gui/DEVELOPMENT.md.
+      - name: Install buf
+        run: go install github.com/bufbuild/buf/cmd/buf@v1.72.0
+
+      - name: Enable loopback multicast
+        run: sudo scripts/lo-multicast.sh on
+
+      - name: Build and test
+        working-directory: gui
+        run: |
+          make build
+          make go-test
+          make frontend-test
+
   gui-release:
     name: Release build (gui)
     runs-on: ubuntu-latest

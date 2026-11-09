@@ -15,7 +15,7 @@ The root `flake.nix` provides everything needed: `go`, `buf`, `nodejs_22`, and t
 the repo. Run `nix develop` from the repo root before any command below, and `git submodule update --init` once
 for the protobuf definitions in `proto/`.
 
-Without nix, you need `buf` on your `PATH`, a Go toolchain matching the `go` directive in `gui/go.mod`, and
+Without nix, you need `buf` 1.72.0 on your `PATH` (`go install github.com/bufbuild/buf/cmd/buf@v1.72.0`), a Go toolchain matching the `go` directive in `gui/go.mod`, and
 Node 22 (`frontend/.nvmrc`). `protoc-gen-go` and `protoc-gen-es` do not need to be installed separately:
 `go tool protoc-gen-go` is resolved from `gui/go.mod`'s `tool` directive, and `protoc-gen-es` is a
 `frontend/package.json` devDependency.
