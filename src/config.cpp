@@ -25,7 +25,7 @@ void init_config(const std::string& configPath) {
     YAML::Node yaml = YAML::LoadFile(configPath);
     config.set_camera_id(yaml["cam_id"].as<int>(0));
     for (auto const& x : YAML::LoadFile(yaml["bot_heights_file"].as<std::string>("robot-heights.yml")).as<std::map<std::string, double>>()) {
-        config.mutable_robot_heights()->insert(x);
+        config.mutable_robot_heights()->insert({x.first, static_cast<float>(x.second)});
     }
 
     std::string driver = getOptional(yaml["camera"])["driver"].as<std::string>("SPINNAKER");
