@@ -133,11 +133,15 @@
   }
 </script>
 
-<div class="live-field">
+<!-- A container, so the columns follow this page's own width rather than the
+     window's: the sidebar and an open setup checklist take some of it. -->
+<div class="live-field @container">
   <Heading tag="h2" class="mb-2 text-xl font-semibold">{text.heading}</Heading>
   <P size="sm" class="mb-3 text-gray-600 dark:text-gray-400">{text.intro}</P>
 
-  <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+  <!-- The field beside its settings when there's room; when there isn't,
+       the settings go under it, so the field keeps the full width. -->
+  <div class="grid gap-4 @4xl:grid-cols-[minmax(0,1fr)_20rem]">
     <div>
       {#if teams}
         <P size="sm" class="mb-1 text-gray-600 dark:text-gray-400">{teams}</P>
