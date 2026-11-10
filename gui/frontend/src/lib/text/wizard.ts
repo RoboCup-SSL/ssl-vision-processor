@@ -14,7 +14,7 @@ export const wizard = {
     `Half length: goal line to halfway line (full: ${String(full)}mm)`,
   fieldWidth: "Field width: along the goal line",
   layoutCount: (regions: number, half: boolean): string =>
-    `Sets the layout to ${String(regions)} ${plural(regions, "region")}${half ? ", since a half field is half of a full one" : ""}. Assign cameras to regions on the Camera Layout page.`,
+    `Sets the layout to ${String(regions)} ${plural(regions, "region")}${half ? ", since a half field is half of a full one" : ""}. Assign cameras to regions on the Layout page.`,
   finishCameras: (regions: number, changes: boolean): string =>
     `Cameras: ${String(regions)} ${plural(regions, "region")}${changes ? ". This changes every camera's region: their line corners need re-picking and locked calibrations are removed." : ""}`,
 };

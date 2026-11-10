@@ -9,7 +9,7 @@ import { config } from "./config.svelte";
 import { topic } from "./wrapper-bus";
 import { fallback } from "./schema.svelte";
 import { network as text } from "./text/network";
-import type { HostInterface, NetworkState } from "./apiTypes";
+import type { HostInterface, NetworkState, SocketStatus } from "./apiTypes";
 
 // What the host's sockets hear (network.state), from the host's spec.
 export type {
@@ -72,6 +72,44 @@ export function networkFromDoc(): NetworkConfig {
     tracker_ip: tracker?.ip ?? STANDARD.tracker.ip,
     tracker_port: tracker?.port ?? STANDARD.tracker.port,
   };
+}
+
+// One of the header's multicast badges (layout/NetworkStatus.svelte).
+export interface Socket {
+  label: string;
+  status: SocketStatus | undefined;
+  // The configured address, until the first network.state lands.
+  fallback: string | undefined;
+}
+
+// The address each host socket is open on, green while packets arrive there.
+// Until the first network.state lands, the configured address stands in, once
+// the document (and the schema's fallbacks) has loaded.
+export function headerSockets(): Socket[] {
+  const configured = config.doc ? networkFromDoc() : undefined;
+
+  return [
+    {
+      label: "Vision",
+      status: network.state?.vision,
+      fallback:
+        configured &&
+        `${configured.vision_ip}:${String(configured.vision_port)}`,
+    },
+    {
+      label: "Game Controller",
+      status: network.state?.gc,
+      fallback:
+        configured && `${configured.gc_ip}:${String(configured.gc_port)}`,
+    },
+    {
+      label: "Autoref Tracker",
+      status: network.state?.tracker,
+      fallback:
+        configured &&
+        `${configured.tracker_ip}:${String(configured.tracker_port)}`,
+    },
+  ];
 }
 
 export function writeNetwork<K extends NetworkKey>(

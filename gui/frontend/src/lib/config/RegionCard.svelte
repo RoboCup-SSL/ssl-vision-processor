@@ -146,7 +146,7 @@
 
     <div class="mt-2 flex flex-wrap gap-2">
       <Button size="xs" color="alternative" href={navHref(selected, "camera")}>
-        Camera Settings →
+        Camera →
       </Button>
       <Button
         size="xs"

@@ -29,7 +29,7 @@ export const RESOLUTION_DOCS = {
     cause:
       "Each vision_processor must have its own cam_id. Two with the same one overwrite each other's detections and fight over one calibration.",
     steps: [
-      "Open Camera Layout and note the addresses listed for this camera ID.",
+      "Open Layout and note the addresses listed for this camera ID.",
       "On one of those machines, change cam_id in its config.yml to the free region it actually covers.",
       "Restart that vision_processor. The conflict clears within a few seconds.",
     ],
@@ -106,7 +106,7 @@ export const RESOLUTION_DOCS = {
     cause:
       "vision_processor looks each team up in its height table by its exact game controller name. A team that isn't listed keeps that color's previous height: the table's mean before any known team has played, otherwise the last known team's, which after a color switch is the other team's. Robots are then placed at the wrong height, which shifts them on the field.",
     steps: [
-      "Open the Team Assignment page and find the team under Teams.",
+      "Open the Teams page and find the team in its list.",
       "Turn off Derive from game controller, then pick the table entry that matches the team, or Custom and enter its robot height in mm.",
       "Save. The override is kept by team name, so it follows the team if the colors are switched.",
       "Until vision_processor reads these overrides, also add the team to the height table (bot_heights_file, robot-heights.yml by default) under its exact game controller name, and restart the vision_processors.",
@@ -117,7 +117,7 @@ export const RESOLUTION_DOCS = {
     cause:
       "The host runs every camera's vision_processor itself (-runCameras), and two cameras name the same capture device: the same driver and device, or two names for one /dev/video node. Only the lower camera ID is started; the other waits, so they don't fight over the camera.",
     steps: [
-      "Open the camera on the Camera Settings page and choose its own device under camera, or remove the camera if it's a leftover.",
+      "Open the camera on the Camera page and choose its own device under camera, or remove the camera if it's a leftover.",
       "It starts by itself as soon as its device is free. Nothing needs restarting.",
     ],
   },
@@ -154,7 +154,7 @@ export const RESOLUTION_DOCS = {
     cause:
       "The camera count splits the field into regions, and no camera is assigned to this one. Nothing there is detected.",
     steps: [
-      "Open Camera Layout.",
+      "Open Layout.",
       "Assign a camera to the region, add the vision_processor heard for it, or lower the camera count.",
     ],
   },
@@ -163,7 +163,7 @@ export const RESOLUTION_DOCS = {
     cause:
       "Detections arrive with a camera ID that no camera in vision.yml has, so the GUI can't configure or calibrate it.",
     steps: [
-      "Open Camera Layout and find it under Heard but not placed.",
+      "Open Layout and find it under Heard but not placed.",
       "Add it as a camera, or fix its cam_id if it's wrong.",
     ],
   },
@@ -179,7 +179,7 @@ export const RESOLUTION_DOCS = {
   "seed-stale": {
     title: "Line corners were picked for another region",
     cause:
-      "The camera moved to a different region (Camera Layout), so its picked corners mark the wrong field corners.",
+      "The camera moved to a different region (Layout), so its picked corners mark the wrong field corners.",
     steps: [
       "Open the camera's Geometry tab.",
       "Move the corner markers onto the corners of the new region; the first goes on the region's (minX, minY) corner, as the picker says.",

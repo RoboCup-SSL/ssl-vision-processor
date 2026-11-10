@@ -111,7 +111,7 @@
               <Button
                 size="xs"
                 color="alternative"
-                href={categoryHref("layout")}>Camera Layout →</Button
+                href={categoryHref("layout")}>Layout →</Button
               >
             </span>
           </FormRow>

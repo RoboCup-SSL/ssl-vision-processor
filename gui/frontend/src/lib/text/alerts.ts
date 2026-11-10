@@ -15,8 +15,8 @@ export const alerts = {
   // Action buttons.
   howToFix: "How to fix",
   pages: {
-    teamAssignment: "Team Assignment",
-    layout: "Camera Layout",
+    teamAssignment: "Teams",
+    layout: "Layout",
     geometry: "Geometry",
     network: "Network",
   },

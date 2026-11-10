@@ -23,6 +23,7 @@ import {
   planCount,
   setHalfField,
 } from "../cameraLayout";
+import { setTicked } from "../checklist/checklist.svelte";
 
 export const WIZARD_STEPS = [
   "start",
@@ -122,6 +123,8 @@ export function finishWizard(): void {
     applyPlan(planCount(config.doc, count), count);
     // Remembered, so the other pages show the field as the half it is.
     setHalfField(wizard.fieldLayout === "half");
+    // Applying the wizard is confirming the field, for the setup checklist.
+    setTicked("field", true);
   }
 
   wizard.open = false;
