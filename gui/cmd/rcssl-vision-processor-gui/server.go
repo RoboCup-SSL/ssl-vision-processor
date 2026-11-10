@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/alerts"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/buildinfo"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/defaults"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/discovery"
@@ -66,7 +67,7 @@ type healthResponse struct {
 
 // health reports that the host is up and serving.
 func (s *VisionServer) health(*http.Request, none) (healthResponse, error) {
-	return healthResponse{Status: "ok", Version: version}, nil
+	return healthResponse{Status: "ok", Version: buildinfo.Version()}, nil
 }
 
 // topics lists the WebSocket topics /ws accepts.

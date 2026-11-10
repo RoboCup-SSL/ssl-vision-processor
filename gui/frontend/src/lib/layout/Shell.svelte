@@ -15,6 +15,7 @@
   import ConfigNav from "./ConfigNav.svelte";
   import MainContent from "./MainContent.svelte";
   import { untrack, type Snippet } from "svelte";
+  import { CogOutline } from "flowbite-svelte-icons";
   import {
     Dropdown,
     DropdownGroup,
@@ -34,6 +35,10 @@
   import { config, reloadFromDisk } from "../config.svelte";
   import { fileDialogs } from "./fileDialogs.svelte";
   import ConfigDialogs from "./ConfigDialogs.svelte";
+  import AboutDialog from "../report/AboutDialog.svelte";
+  import SystemReportDialog from "../report/SystemReportDialog.svelte";
+  import { hostSystem, loadHostSystem } from "../report/hostSystem.svelte";
+  import { issueUrl } from "../report/issue";
   import { headerSockets } from "../network.svelte";
 
   // `below` is where App.svelte puts the existing snapshot grid / WS dev
@@ -117,6 +122,16 @@
 
   let confirmingRevert = $state(false);
 
+  let aboutOpen = $state(false);
+  let reportOpen = $state(false);
+
+  // Report An Issue starts an issue with the build filled in, so the build is
+  // asked for when the menu opens, before the link can be clicked.
+  $effect(() => {
+    if (settingsOpen) void loadHostSystem();
+  });
+  let newIssue = $derived(issueUrl(hostSystem.info?.build ?? null));
+
   function revert(): void {
     settingsOpen = false;
 
@@ -135,6 +150,14 @@
 />
 
 <ConfigDialogs />
+
+<AboutDialog
+  bind:open={aboutOpen}
+  onreport={() => {
+    reportOpen = true;
+  }}
+/>
+<SystemReportDialog bind:open={reportOpen} />
 
 <div class="shell" class:with-checklist={checklist.open}>
   <header>
@@ -169,8 +192,12 @@
            the right. -->
       <div class="flex shrink-0 items-center gap-2">
         {#if config.doc}
+          <!-- A pill like its neighbours: class lands on Toggle's <label>, so
+               the whole pill is the click target. Colors are Button's
+               "alternative" ones. -->
           <Toggle
             size="small"
+            class="h-8 shrink-0 cursor-pointer rounded-full border border-gray-200 px-3 text-gray-900 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
             checked={config.doc.competitionField === true}
             title={text.competitionField.title}
             onchange={(e: Event) => {
@@ -178,7 +205,7 @@
                 (e.currentTarget as HTMLInputElement).checked,
               );
             }}
-            ><span class="text-sm whitespace-nowrap"
+            ><span class="text-xs font-medium whitespace-nowrap"
               >{text.competitionField.label}</span
             ></Toggle
           >
@@ -201,11 +228,12 @@
             class="relative h-8 w-8 p-0 text-base"
             aria-label="Settings"
           >
-            <!-- U+FE0E asks for the plain text glyph; without it the button's
-             font stack picks the color emoji. -->
-            <span class="text-lg leading-none text-gray-700 dark:text-gray-300"
-              >⚙︎</span
-            >{#if unsaved > 0}<Indicator
+            <!-- An SVG, not the ⚙ character: a font's glyph doesn't sit at
+                 the center of its box, so it never quite centered here. -->
+            <CogOutline
+              class="text-gray-700 dark:text-gray-300"
+              size="md"
+            />{#if unsaved > 0}<Indicator
                 color="primary"
                 size="sm"
                 placement="top-right"
@@ -287,9 +315,25 @@
               >
               <DropdownItem
                 class={ITEM_CLASS}
-                href={links.issues}
+                href={newIssue}
                 target="_blank"
                 rel="noopener noreferrer">Report An Issue ↗︎</DropdownItem
+              >
+            </DropdownGroup>
+            <DropdownGroup>
+              <DropdownItem
+                class={ITEM_CLASS}
+                onclick={() => {
+                  settingsOpen = false;
+                  reportOpen = true;
+                }}>System report…</DropdownItem
+              >
+              <DropdownItem
+                class={ITEM_CLASS}
+                onclick={() => {
+                  settingsOpen = false;
+                  aboutOpen = true;
+                }}>About…</DropdownItem
               >
             </DropdownGroup>
           </Dropdown>

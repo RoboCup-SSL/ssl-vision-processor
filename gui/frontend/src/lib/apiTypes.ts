@@ -66,3 +66,6 @@ export type ErrorCode = ApiError["error"];
 export type LiveFieldSnapshot = Schemas["LivefieldSnapshot"];
 export type LiveFieldCamera = Schemas["LivefieldCamera"];
 export type LiveFieldTracker = Schemas["LivefieldTracker"];
+export type SystemInfo = Schemas["SystemResponse"];
+export type BuildInfo = Schemas["BuildinfoInfo"];
+export type GitState = Schemas["BuildinfoGit"];
