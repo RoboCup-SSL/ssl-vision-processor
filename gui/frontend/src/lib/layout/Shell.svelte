@@ -4,12 +4,17 @@
   import { preferences } from "../preferences.svelte";
   import InstanceList from "./InstanceList.svelte";
   import AlertSummary from "../alerts/AlertSummary.svelte";
+  import ChecklistPill from "../checklist/ChecklistPill.svelte";
+  import NetworkStatus from "./NetworkStatus.svelte";
+  import ChecklistPanel from "../checklist/ChecklistPanel.svelte";
+  import { checklist, openChecklist } from "../checklist/checklist.svelte";
+  import { checklist as checklistText } from "../text/checklist";
   import { app as text } from "../text/app";
   import { links } from "../text/links";
   import { setCompetitionField } from "../teams.svelte";
   import ConfigNav from "./ConfigNav.svelte";
   import MainContent from "./MainContent.svelte";
-  import type { Snippet } from "svelte";
+  import { untrack, type Snippet } from "svelte";
   import {
     Dropdown,
     DropdownGroup,
@@ -29,8 +34,7 @@
   import { config, reloadFromDisk } from "../config.svelte";
   import { fileDialogs } from "./fileDialogs.svelte";
   import ConfigDialogs from "./ConfigDialogs.svelte";
-  import { categoryHref } from "./nav.svelte";
-  import { network, networkFromDoc } from "../network.svelte";
+  import { headerSockets } from "../network.svelte";
 
   // `below` is where App.svelte puts the existing snapshot grid / WS dev
   // panel for now, until they become the mockup's real Video + Debug Console
@@ -60,33 +64,46 @@
 
   let unsaved = $derived(config.state?.changes.length ?? 0);
 
-  // Multicast badges: the address each host socket is open on, green while
-  // packets arrive there. Until the first network.state lands, the configured
-  // address stands in, once the document (and the schema's fallbacks) has
-  // loaded.
-  let configured = $derived(config.doc ? networkFromDoc() : undefined);
-  let sockets = $derived([
-    {
-      label: "Vision",
-      status: network.state?.vision,
-      fallback:
-        configured &&
-        `${configured.vision_ip}:${String(configured.vision_port)}`,
-    },
-    {
-      label: "Game Controller",
-      status: network.state?.gc,
-      fallback:
-        configured && `${configured.gc_ip}:${String(configured.gc_port)}`,
-    },
-    {
-      label: "Autoref Tracker",
-      status: network.state?.tracker,
-      fallback:
-        configured &&
-        `${configured.tracker_ip}:${String(configured.tracker_port)}`,
-    },
-  ]);
+  let sockets = $derived(headerSockets());
+
+  // The socket badges show their addresses while the header has room for
+  // them, since teams read where to connect from there, and fold into one
+  // Network dropdown when it hasn't. Measured rather than a breakpoint, as
+  // addresses vary in length: the width the full badges needed is
+  // remembered, and they come back once the header is that wide again.
+  let headerLeft = $state<HTMLElement>();
+  let socketsCollapsed = $state(false);
+  let expandedWidth = 0;
+
+  function fitSockets(): void {
+    if (!headerLeft) return;
+
+    if (!socketsCollapsed && headerLeft.scrollWidth > headerLeft.clientWidth) {
+      expandedWidth = headerLeft.scrollWidth;
+      socketsCollapsed = true;
+    } else if (socketsCollapsed && headerLeft.clientWidth >= expandedWidth) {
+      socketsCollapsed = false;
+    }
+  }
+
+  $effect(() => {
+    if (!headerLeft) return;
+
+    const observer = new ResizeObserver(fitSockets);
+    observer.observe(headerLeft);
+
+    return () => {
+      observer.disconnect();
+    };
+  });
+
+  // The group's own size doesn't change when its contents do, so measure
+  // again after expanding, and when an address changes length.
+  $effect(() => {
+    void socketsCollapsed;
+    void sockets.map((s) => s.status?.address ?? s.fallback).join();
+    untrack(fitSockets);
+  });
 
   // Matches the preference checkboxes below: same text, same left inset as
   // their p-3 group.
@@ -119,47 +136,38 @@
 
 <ConfigDialogs />
 
-<div class="shell">
+<div class="shell" class:with-checklist={checklist.open}>
   <header>
-    <Navbar fluid class="px-6 py-2" closeOnClickOutside={false}>
-      <div class="flex flex-wrap items-center gap-3">
+    <!-- Never wraps: a second row would push the page down and split the
+         right-hand controls from each other. -->
+    <Navbar
+      fluid
+      class="px-6 py-2"
+      navContainerClass="flex-nowrap gap-4"
+      closeOnClickOutside={false}
+    >
+      <div
+        bind:this={headerLeft}
+        class="flex min-w-0 flex-1 items-center gap-3 overflow-hidden"
+      >
         <NavBrand>
           <h1 class="text-lg font-semibold whitespace-nowrap">
             SSL Vision Processor
           </h1>
         </NavBrand>
-        {#each sockets as socket (socket.label)}
-          <a
-            href={categoryHref("network")}
-            class="badge-link"
-            title={socket.status?.problem
-              ? text.socketBadge.notOpen(socket.status.problem)
-              : socket.status?.receiving
-                ? text.socketBadge.receiving(socket.status.address)
-                : text.socketBadge.silent}
-          >
-            <Badge
-              rounded
-              color={socket.status?.problem
-                ? "yellow"
-                : socket.status?.receiving
-                  ? "green"
-                  : "gray"}
-            >
-              {@const address = socket.status?.address ?? socket.fallback}
-              {socket.label}{#if address}
-                ({address}){/if}
-            </Badge>
-          </a>
-        {/each}
-        <Badge rounded color={CONNECTION_COLOR[$connectionState]}>
+        <NetworkStatus {sockets} collapsed={socketsCollapsed} />
+        <Badge
+          rounded
+          color={CONNECTION_COLOR[$connectionState]}
+          class="shrink-0 whitespace-nowrap"
+        >
           User Interface - {$connectionState.toUpperCase()} ({location.host})
         </Badge>
       </div>
 
       <!-- One flex item, so the Navbar's spacing keeps the two together on
            the right. -->
-      <div class="flex items-center gap-2">
+      <div class="flex shrink-0 items-center gap-2">
         {#if config.doc}
           <Toggle
             size="small"
@@ -174,6 +182,9 @@
               >{text.competitionField.label}</span
             ></Toggle
           >
+        {/if}
+        {#if preferences.showChecklist || checklist.open}
+          <ChecklistPill />
         {/if}
         <DarkMode
           class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 p-0 dark:border-gray-600"
@@ -241,7 +252,19 @@
                 >Revert to disk</DropdownItem
               >
             </DropdownGroup>
+            <DropdownGroup>
+              <DropdownItem
+                class={ITEM_CLASS}
+                onclick={() => {
+                  settingsOpen = false;
+                  openChecklist();
+                }}>{checklistText.menuOpen}</DropdownItem
+              >
+            </DropdownGroup>
             <DropdownGroup class="flex flex-col gap-2 p-3">
+              <Checkbox bind:checked={preferences.showChecklist}
+                >{checklistText.menuShow}</Checkbox
+              >
               <Checkbox bind:checked={preferences.tooltipsEnabled}>
                 Show extra tooltips
               </Checkbox>
@@ -303,6 +326,10 @@
       </div>
     {/if}
   </main>
+
+  {#if checklist.open}
+    <ChecklistPanel />
+  {/if}
 </div>
 
 <style>
@@ -311,6 +338,11 @@
     grid-template-columns: 280px 1fr;
     grid-template-rows: auto 1fr;
     min-height: 100vh;
+  }
+
+  /* The setup checklist docks as a third column, only while it's open. */
+  .shell.with-checklist {
+    grid-template-columns: 280px 1fr 360px;
   }
 
   header {
@@ -322,17 +354,6 @@
   :global(.dark .sidebar),
   :global(.dark) .below {
     border-color: var(--color-gray-700);
-  }
-
-  /* Only a link around the badge inside it. A flex box rather than an
-     inline <a>, which would sit the badge on a text baseline, lower than the
-     connection badge beside it. */
-  .badge-link {
-    display: flex;
-  }
-
-  .badge-link:hover {
-    filter: brightness(0.95);
   }
 
   .settings {

@@ -37,7 +37,7 @@ export const camera = {
     output: "Output",
   },
   slotChip:
-    "Which region of the field this camera covers. Change it on the Camera Layout page.",
+    "Which region of the field this camera covers. Change it on the Layout page.",
   noInstance: SELECT_INSTANCE,
 
   driver: [

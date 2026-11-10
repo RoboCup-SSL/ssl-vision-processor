@@ -96,7 +96,7 @@ test("an edit applies live and shows as unsaved", async ({ page }) => {
   expect((await put).status()).toBe(200);
 
   await expect(
-    page.getByRole("link", { name: "Field Dimensions*" }).first(),
+    page.getByRole("link", { name: "Dimensions*" }).first(),
   ).toBeVisible();
 
   const geometry = (await (await page.request.get("/api/geometry")).json()) as {
@@ -240,7 +240,7 @@ test("saving writes the file and clears the unsaved marker", async ({
     await page.getByRole("button", { name: "Save 1 change" }).click();
 
     await expect(
-      page.getByRole("link", { name: "Field Dimensions", exact: true }).first(),
+      page.getByRole("link", { name: "Dimensions", exact: true }).first(),
     ).toBeVisible();
     expect(readFileSync(path, "utf8")).toContain("field_width: 6100");
   });

@@ -16,10 +16,17 @@ interface Preferences {
   // floor (WeightTriangle.svelte) starts unlocked instead of behind its
   // warning popup.
   expertUser: boolean;
+  // The setup checklist's pill in the top bar (checklist/). Off once a setup
+  // is done and it's only in the way; the settings menu still opens it.
+  showChecklist: boolean;
 }
 
 function loadPreferences(): Preferences {
-  const defaults: Preferences = { tooltipsEnabled: true, expertUser: false };
+  const defaults: Preferences = {
+    tooltipsEnabled: true,
+    expertUser: false,
+    showChecklist: true,
+  };
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -29,6 +36,7 @@ function loadPreferences(): Preferences {
     return {
       tooltipsEnabled: parsed.tooltipsEnabled ?? defaults.tooltipsEnabled,
       expertUser: parsed.expertUser ?? defaults.expertUser,
+      showChecklist: parsed.showChecklist ?? defaults.showChecklist,
     };
   } catch {
     return defaults;

@@ -49,7 +49,7 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
   },
   {
     id: "team_assignment",
-    label: "Team Assignment",
+    label: "Teams",
     scope: "shared",
     yamlKey: null, // vision.yml's teams
     fields: [],
@@ -65,14 +65,14 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
   },
   {
     id: "field_dimensions",
-    label: "Field Dimensions",
+    label: "Dimensions",
     scope: "shared",
     yamlKey: null, // geometry.yml's field: block, not config.yml
     fields: [],
   },
   {
     id: "layout",
-    label: "Camera Layout",
+    label: "Layout",
     scope: "shared",
     yamlKey: null, // vision.yml's layout: and each camera's camera_id
     fields: [],
@@ -87,7 +87,7 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
   },
   {
     id: "camera",
-    label: "Camera Settings",
+    label: "Camera",
     scope: "per-instance",
     yamlKey: "camera",
     fields: CONFIG_FIELDS.camera,
