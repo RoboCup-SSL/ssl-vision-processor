@@ -54,21 +54,89 @@
     if (body && atBottom) body.scrollTop = body.scrollHeight;
   });
 
+  // The records' height: dragged by the handle on the top edge, kept in the
+  // preferences once dropped. At least a few lines, and never so tall the
+  // page above disappears.
+  const MIN_HEIGHT = 64;
+  const PAGE_LEFT = 160;
+  const KEY_STEP = 32;
+
+  let innerHeight = $state(window.innerHeight);
+  let dragHeight = $state<number | null>(null);
+  let drag: { startY: number; startHeight: number } | null = null;
+
+  function clampHeight(h: number): number {
+    return Math.round(
+      Math.max(MIN_HEIGHT, Math.min(h, innerHeight - PAGE_LEFT)),
+    );
+  }
+
+  let height = $derived(clampHeight(dragHeight ?? preferences.logHeight));
+
+  function onpointerdown(e: PointerEvent): void {
+    // No text selection while dragging.
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    drag = { startY: e.clientY, startHeight: height };
+  }
+
+  function onpointermove(e: PointerEvent): void {
+    if (!drag) return;
+
+    dragHeight = clampHeight(drag.startHeight + drag.startY - e.clientY);
+  }
+
+  // Saved once, on drop, not on every move.
+  function endDrag(): void {
+    if (dragHeight !== null) preferences.logHeight = dragHeight;
+
+    drag = null;
+    dragHeight = null;
+  }
+
+  function onkeydown(e: KeyboardEvent): void {
+    const step = { ArrowUp: KEY_STEP, ArrowDown: -KEY_STEP }[e.key];
+    if (step === undefined) return;
+
+    e.preventDefault();
+    preferences.logHeight = clampHeight(height + step);
+  }
+
   // The host's wall clock, as its console prints it: HH:MM:SS.mmm.
   function clock(time: string): string {
     return time.slice(11, 23);
   }
 </script>
 
+<svelte:window bind:innerHeight />
+
 <section
-  class="flex flex-col border-t border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+  class="relative flex flex-col border-t border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
   aria-label={text.title}
 >
-  <div class="flex items-center gap-2 px-3 py-1">
+  {#if preferences.logExpanded}
+    <!-- Straddles the top border, so it's easy to grab without taking a row.
+         A raw button, unstyled on purpose: focusable and keyboard-usable
+         without any a11y exceptions. -->
+    <button
+      type="button"
+      aria-label={text.resize}
+      title={text.resize}
+      class="absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize hover:bg-primary-500/40 focus-visible:bg-primary-500/40 focus-visible:outline-none"
+      class:bg-primary-500={dragHeight !== null}
+      {onpointerdown}
+      {onpointermove}
+      onpointerup={endDrag}
+      onlostpointercapture={endDrag}
+      {onkeydown}
+    ></button>
+  {/if}
+
+  <div class="flex items-center gap-1.5 px-2 py-0.5">
     <Button
       color="alternative"
       size="xs"
-      class="h-7 w-7 p-0"
+      class="h-6 w-6 shrink-0 p-0"
       aria-label={preferences.logExpanded ? text.collapse : text.expand}
       title={preferences.logExpanded ? text.collapse : text.expand}
       onclick={() => {
@@ -76,18 +144,19 @@
       }}
     >
       {#if preferences.logExpanded}
-        <ChevronDownOutline size="sm" />
+        <ChevronDownOutline size="xs" />
       {:else}
-        <ChevronUpOutline size="sm" />
+        <ChevronUpOutline size="xs" />
       {/if}
     </Button>
-    <h2 class="text-sm font-semibold whitespace-nowrap">{text.title}</h2>
+    <h2 class="text-xs font-semibold whitespace-nowrap">{text.title}</h2>
 
     {#if preferences.logExpanded}
       <!-- An Input/Select keeps its own w-full, so the wrapper sizes it. -->
-      <div class="w-48">
+      <div class="w-40 shrink-0">
         <Select
           size="sm"
+          classes={{ select: "py-0.5 pl-2 pr-7" }}
           aria-label={text.level}
           title={text.level}
           placeholder=""
@@ -101,19 +170,22 @@
       <Button
         color="alternative"
         size="xs"
-        class="gap-1"
+        class="h-6 shrink-0 gap-1 px-2 py-0"
         onclick={() => {
           setPaused(!hostLog.paused);
         }}
       >
         {#if hostLog.paused}
-          <PlayOutline size="sm" />{text.resume}
+          <PlayOutline size="xs" />{text.resume}
         {:else}
-          <PauseOutline size="sm" />{text.pause}
+          <PauseOutline size="xs" />{text.pause}
         {/if}
       </Button>
-      <Button color="alternative" size="xs" onclick={clearLog}
-        >{text.clear}</Button
+      <Button
+        color="alternative"
+        size="xs"
+        class="h-6 shrink-0 px-2 py-0"
+        onclick={clearLog}>{text.clear}</Button
       >
       <span class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">
         {#if hostLog.error}
@@ -131,14 +203,14 @@
     <Button
       color="alternative"
       size="xs"
-      class="ml-auto h-7 w-7 shrink-0 p-0"
+      class="ml-auto h-6 w-6 shrink-0 p-0"
       aria-label={text.close}
       title={text.close}
       onclick={() => {
         preferences.logPanel = false;
       }}
     >
-      <CloseOutline size="sm" />
+      <CloseOutline size="xs" />
     </Button>
   </div>
 
@@ -146,12 +218,14 @@
     <div
       bind:this={body}
       {onscroll}
-      class="h-64 overflow-y-auto border-t border-gray-200 px-3 py-1 font-mono text-xs dark:border-gray-700"
+      style:height={`${String(height)}px`}
+      class="overflow-y-auto border-t border-gray-200 px-2 py-0.5 font-mono text-xs dark:border-gray-700"
     >
       {#each records as r (r.seq)}
-        <div class="leading-5 break-all whitespace-pre-wrap" title={r.source}>
+        <div class="leading-4 break-all whitespace-pre-wrap" title={r.source}>
           <span class="text-gray-500 dark:text-gray-400">{clock(r.time)}</span>
-          <span class={`inline-block w-12 font-semibold ${LEVEL_CLASS[r.level]}`}
+          <span
+            class={`inline-block w-12 font-semibold ${LEVEL_CLASS[r.level]}`}
             >{r.level.toUpperCase()}</span
           >
           <span class={LEVEL_CLASS[r.level]}>{r.message}</span>
@@ -164,7 +238,7 @@
           {/each}
         </div>
       {:else}
-        <p class="py-2 text-gray-500 dark:text-gray-400">{text.empty}</p>
+        <p class="py-1 text-gray-500 dark:text-gray-400">{text.empty}</p>
       {/each}
     </div>
   {/if}

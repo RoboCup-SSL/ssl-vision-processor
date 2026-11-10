@@ -11,6 +11,7 @@ export const logs = {
     warn: "Warnings and errors",
     error: "Errors only",
   },
+  resize: "Drag to resize the log. Arrow keys work too.",
   expand: "Show the log",
   collapse: "Hide the log",
   close: "Close the log panel. The settings menu opens it again.",

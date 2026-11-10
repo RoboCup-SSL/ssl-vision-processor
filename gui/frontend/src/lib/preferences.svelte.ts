@@ -23,10 +23,12 @@ interface Preferences {
   showChecklist: boolean;
   // The host log panel docked at the bottom (logs/LogPanel.svelte): shown at
   // all, expanded or folded to its title bar, and the lowest level it shows.
-  // Its own level, whatever the host's console logs at.
+  // Its own level, whatever the host's console logs at. logHeight is its
+  // records' height in pixels, as last dragged.
   logPanel: boolean;
   logExpanded: boolean;
   logLevel: LogLevel;
+  logHeight: number;
 }
 
 function loadPreferences(): Preferences {
@@ -37,6 +39,7 @@ function loadPreferences(): Preferences {
     logPanel: false,
     logExpanded: true,
     logLevel: "info",
+    logHeight: 256,
   };
 
   try {
@@ -51,6 +54,7 @@ function loadPreferences(): Preferences {
       logPanel: parsed.logPanel ?? defaults.logPanel,
       logExpanded: parsed.logExpanded ?? defaults.logExpanded,
       logLevel: parsed.logLevel ?? defaults.logLevel,
+      logHeight: parsed.logHeight ?? defaults.logHeight,
     };
   } catch {
     return defaults;
