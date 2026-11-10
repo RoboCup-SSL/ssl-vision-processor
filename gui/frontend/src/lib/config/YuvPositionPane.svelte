@@ -765,12 +765,22 @@
      size, so resizing here needs no script changes. */
   .yuv-pane {
     max-width: 1100px;
+    container: yuv-pane / inline-size;
+  }
+
+  /* The plane's size: 660px, shrunk when the pane is too narrow for it plus
+     the slider and side column, so the side column stays in view. Used by
+     everything sized to match the plane; 100cqi resolves there, against the
+     pane. Below the minimum, the side column wraps under the plane. */
+  .pane-header,
+  .plane-row {
+    --plane: clamp(16rem, calc(100cqi - 2.1rem - 2rem - 13rem), 660px);
   }
 
   /* Same width as .plane, so Undo/Redo's right edge lines up with the color
      window's rather than the far side of the side column. */
   .pane-header {
-    width: 660px;
+    width: var(--plane);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -785,14 +795,15 @@
 
   .plane-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     gap: 1rem;
   }
 
   .plane {
     position: relative;
-    width: 660px;
-    height: 660px;
+    width: var(--plane);
+    height: var(--plane);
     flex-shrink: 0;
     touch-action: none;
     border: 1px solid var(--line);
@@ -871,7 +882,7 @@
   .y-slider-wrap {
     position: relative;
     width: 2.1rem;
-    height: 660px;
+    height: var(--plane);
     flex-shrink: 0;
   }
 
@@ -899,7 +910,7 @@
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 660px;
+    width: var(--plane);
     height: 2.1rem;
     margin: 0;
     transform: translate(-50%, -50%) rotate(-90deg);
@@ -960,10 +971,12 @@
     border: 0;
   }
 
+  /* A fixed width, which the plane's size above leaves room for. */
   .side-column {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    width: 13rem;
   }
 
   .class-list {
