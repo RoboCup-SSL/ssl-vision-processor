@@ -100,7 +100,8 @@ before returning.
 | `internal/peers`                             | Names senders (IP, port, hostname) and logs and alerts when two of them claim one thing.                                                |
 | `internal/supervisor`                        | `-runCameras`: runs every camera's vision_processor and restarts it when a startup-only setting changes.                                |
 | `internal/v4l`                               | Lists this host's Video4Linux capture devices for the camera path picker.                                                               |
-| `internal/logging`                           | slog setup: a coloured console handler and a rotating file handler.                                                                     |
+| `internal/logging`                           | slog setup: a coloured console handler, a rotating file handler, and the last warnings and errors kept in memory for the system report. |
+| `internal/buildinfo`                         | What the binary was built from: the git state of this repository and the proto submodule, stamped by the Makefile.                      |
 | `internal/vision`, `internal/gamecontroller` | Generated protobuf bindings. Not committed, see Build-time codegen below.                                                               |
 | `frontend`                                   | Svelte 5 and TypeScript, embedded into the binary via `//go:embed`.                                                                     |
 

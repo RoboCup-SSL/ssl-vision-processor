@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/buildinfo"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/defaults"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
@@ -63,9 +64,6 @@ var logFile = flag.String("logFile", "", "Rotating log file to write alongside s
 var showVersion = flag.Bool("version", false, "Print the version and exit")
 var showReadme = flag.Bool("readme", false, "Print the user guide (setup, file locations, network, troubleshooting) and exit")
 
-// version is set at build time (make release); see the Makefile's LDFLAGS.
-var version = "dev"
-
 func main() {
 	// Deferred cleanup (closeLog) must run even on a fatal startup error, which
 	// os.Exit would skip -- so main just reports run's exit code instead of
@@ -77,7 +75,7 @@ func run() int {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("rcssl-vision-processor-gui", version)
+		fmt.Println("rcssl-vision-processor-gui", buildinfo.Version())
 
 		return 0
 	}
@@ -117,7 +115,8 @@ func run() int {
 		slog.Warn("file logging disabled", "err", logErr)
 	}
 
-	slog.Info("Init VP GUI", "version", version)
+	build := buildinfo.Get()
+	slog.Info("Init VP GUI", "version", build.Version, "commit", build.Repo.Commit, "dirty", build.Repo.Dirty, "proto", build.Proto.Commit)
 	logPaths(p)
 
 	var vpCommand []string

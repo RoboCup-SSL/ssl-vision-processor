@@ -65,7 +65,10 @@ internal/
   supervisor/  -runCameras: runs a vision_processor per config_path, restarting
                it on startup-only setting changes (config.RestartKeys); holds
                a camera whose device another already uses
-  logging/     slog setup: tint console + lumberjack file
+  logging/     slog setup: tint console + lumberjack file, plus the last 50
+               warnings/errors in memory for the system report
+  buildinfo/   git state of this repo and proto/, stamped by the Makefile
+               (scripts/build-ldflags.sh); GET /api/system, the About dialog
   vision/      generated Go protobuf, not committed -- run `make proto` (DO NOT EDIT)
   gamecontroller/  generated Go protobuf, not committed
 frontend/      Svelte 5 + TypeScript + Vite, embedded via //go:embed

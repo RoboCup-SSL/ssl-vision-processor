@@ -6,4 +6,6 @@ export const links = {
   apiDocs: "/api/docs",
   repository: "https://github.com/RoboCup-SSL/ssl-vision-processor",
   issues: "https://github.com/RoboCup-SSL/ssl-vision-processor/issues",
+  // Report An Issue's page, given a filled-in body (report/issue.ts).
+  newIssue: "https://github.com/RoboCup-SSL/ssl-vision-processor/issues/new",
 };

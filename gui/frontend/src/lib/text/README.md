@@ -16,6 +16,7 @@ don't need to touch the components that show them.
 | `docs.ts`           | The Alerts page's "How to fix" resolution docs            |
 | `video.ts`          | Messages over live video                                  |
 | `app.ts`            | Header badges, settings menu prompts, edit conflicts      |
+| `about.ts`          | About dialog and system report                            |
 | `wizard.ts`         | Setup wizard                                              |
 | `color.ts`          | Color page, color picker, and update weights              |
 | `placeholder.ts`    | Unbuilt pages and the Stream page                         |

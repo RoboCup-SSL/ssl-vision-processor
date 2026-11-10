@@ -86,6 +86,7 @@ func Setup(cfg Config) (func(), error) {
 			TimeFormat: "15:04:05.000",
 			NoColor:    !colorSupported(os.Stderr),
 		}),
+		recentHandler(),
 	}
 	closeLog := func() {}
 	var setupErr error

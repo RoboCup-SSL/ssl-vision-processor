@@ -37,11 +37,18 @@ help: ## List these targets
 # Run from the repo root, as vision_processor is, keeping everything in it
 # rather than the installed default folders. ARGS come last, so they win.
 run: frontend ## Build everything and run the host from the repo root; flags go in ARGS="..."
-	go build -o bin/$(BINARY) ./cmd/$(BINARY)
+	go build -ldflags "$(BUILD_LDFLAGS)" -o bin/$(BINARY) ./cmd/$(BINARY)
 	cd .. && gui/bin/$(BINARY) -configDir . -imgDir img -logFile logs/vision-processor-gui.log $(ARGS)
 
 install: frontend ## go install the host
-	go install -v ./cmd/$(BINARY)
+	go install -v -ldflags "$(BUILD_LDFLAGS)" ./cmd/$(BINARY)
+
+# What the binary says it was built from (internal/buildinfo, shown in the
+# GUI's About dialog and system report): git describe's version, and the git
+# state of this repository and of the proto submodule. Recursive, so only the
+# targets that build the host run git.
+BUILDINFO = github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/buildinfo
+BUILD_LDFLAGS = -X $(BUILDINFO).version=$(VERSION) $(shell scripts/build-ldflags.sh $(BUILDINFO))
 
 ## Releasing
 
@@ -55,7 +62,7 @@ RELEASE_BIN = $(RELEASE_DIR)/$(BINARY)-$(VERSION)-linux-$(GOARCH)
 RELEASE_TAR = $(RELEASE_BIN).tar.gz
 # The release binary's build, shared by the tarball and the .deb so they ship
 # the same thing. GOARCH and -o are the caller's.
-RELEASE_BUILD = CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)"
+RELEASE_BUILD = CGO_ENABLED=0 go build -trimpath -ldflags "-s -w $(BUILD_LDFLAGS)"
 
 release: frontend ## Build the static release binary and its tarball, in bin/release
 	rm -rf $(RELEASE_DIR)
