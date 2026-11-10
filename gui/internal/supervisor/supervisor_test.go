@@ -20,6 +20,11 @@ import (
 // binary again, with the config path last. It logs each start beside the
 // config and behaves as the config's text says: "crash" exits 1 at once,
 // "ignore_term" ignores SIGTERM, anything else exits cleanly on SIGTERM.
+//
+// A start is logged only once its SIGTERM handling is in place, so starts
+// counts processes ready for a signal. StateRunning isn't that: it's set at
+// exec, and a test binary under -race takes long enough to start that a
+// SIGTERM sent then kills it before it has set anything up.
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv("SUPERVISOR_HELPER") != "1" {
 		return
@@ -29,22 +34,27 @@ func TestHelperProcess(t *testing.T) {
 	data, _ := os.ReadFile(path)
 	mode := string(data)
 
-	f, _ := os.OpenFile(path+".log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	fmt.Fprintf(f, "start %d\n", os.Getpid())
-	f.Close()
+	logStart := func() {
+		f, _ := os.OpenFile(path+".log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		fmt.Fprintf(f, "start %d\n", os.Getpid())
+		f.Close()
+	}
 
 	fmt.Println("hello from", path)
 
 	switch {
 	case strings.Contains(mode, "crash"):
+		logStart()
 		fmt.Fprintln(os.Stderr, "crashing")
 		os.Exit(1)
 	case strings.Contains(mode, "ignore_term"):
 		signal.Ignore(syscall.SIGTERM)
+		logStart()
 		time.Sleep(30 * time.Second)
 	default:
 		term := make(chan os.Signal, 1)
 		signal.Notify(term, syscall.SIGTERM)
+		logStart()
 
 		select {
 		case <-term:
@@ -268,7 +278,7 @@ func TestKillsWhatIgnoresSIGTERM(t *testing.T) {
 	h := newHarness(t, Options{StopTimeout: 200 * time.Millisecond})
 	path := h.camera(0, "ignore_term", nil)
 
-	eventually(t, "first start", func() bool { return h.status(0).State == StateRunning })
+	eventually(t, "first start", func() bool { return starts(path) == 1 && h.status(0).State == StateRunning })
 
 	if err := h.sup.Restart(0); err != nil {
 		t.Fatal(err)
@@ -368,7 +378,7 @@ func TestStopsAllOnCancel(t *testing.T) {
 
 	eventually(t, "running", func() bool {
 		st := sup.Statuses()
-		if len(st) == 1 && st[0].State == StateRunning {
+		if len(st) == 1 && st[0].State == StateRunning && starts(path) == 1 {
 			pid = st[0].PID
 
 			return true

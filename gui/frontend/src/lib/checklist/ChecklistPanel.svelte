@@ -99,11 +99,12 @@
 </aside>
 
 <style>
-  /* Stays in view while the page beside it scrolls. */
+  /* Stays in view while the page beside it scrolls, above the log panel
+     (--log-height, from Shell.svelte). */
   .checklist-panel {
     position: sticky;
     top: 0;
-    max-height: 100vh;
+    max-height: calc(100vh - var(--log-height, 0px));
     overflow-y: auto;
     border-left: 1px solid var(--color-gray-200);
   }

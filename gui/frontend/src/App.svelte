@@ -85,10 +85,10 @@
     <!--
       Everything in this snippet predates the two-column shell (see issue
       #18) and doesn't belong to any config category -- it's a stand-in for
-      the mockup's Video + Debug Console panels, which aren't built yet
-      (WHEP/live video is still undecided; the Debug Console is a live log
-      viewer over internal/hub that hasn't been started). Lift it into those
-      once they exist rather than growing it further here.
+      the mockup's Video panel, which isn't built yet (WHEP/live video is
+      still undecided). The mockup's Debug Console is lib/logs/LogPanel.svelte.
+      Lift this into the Video panel once it exists rather than growing it
+      further here.
     -->
     <!-- text-ok: temporary developer tooling, removed with it. -->
     <p class="below-hint">

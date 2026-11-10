@@ -4,6 +4,8 @@
 // Same module-level $state pattern as color.svelte.ts's colorConfig; any
 // component can import `preferences` and both read it and bind: to it
 // directly.
+import type { LogLevel } from "./apiTypes";
+
 const STORAGE_KEY = "vision-processor-gui:preferences";
 
 interface Preferences {
@@ -19,6 +21,12 @@ interface Preferences {
   // The setup checklist's pill in the top bar (checklist/). Off once a setup
   // is done and it's only in the way; the settings menu still opens it.
   showChecklist: boolean;
+  // The host log panel docked at the bottom (logs/LogPanel.svelte): shown at
+  // all, expanded or folded to its title bar, and the lowest level it shows.
+  // Its own level, whatever the host's console logs at.
+  logPanel: boolean;
+  logExpanded: boolean;
+  logLevel: LogLevel;
 }
 
 function loadPreferences(): Preferences {
@@ -26,6 +34,9 @@ function loadPreferences(): Preferences {
     tooltipsEnabled: true,
     expertUser: false,
     showChecklist: true,
+    logPanel: false,
+    logExpanded: true,
+    logLevel: "info",
   };
 
   try {
@@ -37,6 +48,9 @@ function loadPreferences(): Preferences {
       tooltipsEnabled: parsed.tooltipsEnabled ?? defaults.tooltipsEnabled,
       expertUser: parsed.expertUser ?? defaults.expertUser,
       showChecklist: parsed.showChecklist ?? defaults.showChecklist,
+      logPanel: parsed.logPanel ?? defaults.logPanel,
+      logExpanded: parsed.logExpanded ?? defaults.logExpanded,
+      logLevel: parsed.logLevel ?? defaults.logLevel,
     };
   } catch {
     return defaults;
