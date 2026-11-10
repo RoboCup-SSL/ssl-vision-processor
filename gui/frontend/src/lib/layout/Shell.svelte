@@ -67,6 +67,10 @@
     closed: "red",
   } as const;
 
+  // The setup checklist is for new users: expert mode hides it, its pill and
+  // its menu entries. Its open state and ticks are kept for when it's off.
+  let checklistOpen = $derived(!preferences.expertUser && checklist.open);
+
   let unsaved = $derived(config.state?.changes.length ?? 0);
 
   let sockets = $derived(headerSockets());
@@ -159,7 +163,7 @@
 />
 <SystemReportDialog bind:open={reportOpen} />
 
-<div class="shell" class:with-checklist={checklist.open}>
+<div class="shell" class:with-checklist={checklistOpen}>
   <header>
     <!-- Never wraps: a second row would push the page down and split the
          right-hand controls from each other. -->
@@ -210,7 +214,7 @@
             ></Toggle
           >
         {/if}
-        {#if preferences.showChecklist || checklist.open}
+        {#if !preferences.expertUser && (preferences.showChecklist || checklist.open)}
           <ChecklistPill />
         {/if}
         <DarkMode
@@ -280,19 +284,23 @@
                 >Revert to disk</DropdownItem
               >
             </DropdownGroup>
-            <DropdownGroup>
-              <DropdownItem
-                class={ITEM_CLASS}
-                onclick={() => {
-                  settingsOpen = false;
-                  openChecklist();
-                }}>{checklistText.menuOpen}</DropdownItem
-              >
-            </DropdownGroup>
+            {#if !preferences.expertUser}
+              <DropdownGroup>
+                <DropdownItem
+                  class={ITEM_CLASS}
+                  onclick={() => {
+                    settingsOpen = false;
+                    openChecklist();
+                  }}>{checklistText.menuOpen}</DropdownItem
+                >
+              </DropdownGroup>
+            {/if}
             <DropdownGroup class="flex flex-col gap-2 p-3">
-              <Checkbox bind:checked={preferences.showChecklist}
-                >{checklistText.menuShow}</Checkbox
-              >
+              {#if !preferences.expertUser}
+                <Checkbox bind:checked={preferences.showChecklist}
+                  >{checklistText.menuShow}</Checkbox
+                >
+              {/if}
               <Checkbox bind:checked={preferences.tooltipsEnabled}>
                 Show extra tooltips
               </Checkbox>
@@ -371,7 +379,7 @@
     {/if}
   </main>
 
-  {#if checklist.open}
+  {#if checklistOpen}
     <ChecklistPanel />
   {/if}
 </div>
