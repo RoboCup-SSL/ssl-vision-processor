@@ -6,7 +6,9 @@ export type ConnectionState = "connecting" | "open" | "closed";
 // wss:// when the page itself was loaded over https.
 const DEFAULT_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
 const BACKOFF_INITIAL_MS = 1_000;
-const BACKOFF_MAX_MS = 30_000;
+// Low, since the host is on the local network: a retry every few seconds
+// costs nothing, and the page comes back soon after a host restart.
+const BACKOFF_MAX_MS = 5_000;
 
 interface ClientMessage {
   action: "subscribe" | "unsubscribe";
