@@ -40,10 +40,12 @@
   import { hostSystem, loadHostSystem } from "../report/hostSystem.svelte";
   import { issueUrl } from "../report/issue";
   import { headerSockets } from "../network.svelte";
+  import LogPanel from "../logs/LogPanel.svelte";
+  import { logs as logsText } from "../text/logs";
 
   // `below` is where App.svelte puts the existing snapshot grid / WS dev
-  // panel for now, until they become the mockup's real Video + Debug Console
-  // (issue #18) -- see the note there. Keeping it a slot rather than baking
+  // panel for now, until they become the mockup's real Video panel (issue
+  // #18) -- see the note there. The Debug Console is the log panel below. Keeping it a slot rather than baking
   // it into this component so Shell stays just the layout, not a dumping
   // ground for whatever hasn't found a permanent home yet.
   interface Props {
@@ -72,6 +74,11 @@
   let checklistOpen = $derived(!preferences.expertUser && checklist.open);
 
   let unsaved = $derived(config.state?.changes.length ?? 0);
+
+  // The log panel is fixed to the bottom of the window; the page leaves room
+  // for it at its current height, so the end of every page can still be
+  // scrolled into view.
+  let logHeight = $state(0);
 
   let sockets = $derived(headerSockets());
 
@@ -163,7 +170,11 @@
 />
 <SystemReportDialog bind:open={reportOpen} />
 
-<div class="shell" class:with-checklist={checklistOpen}>
+<div
+  class="shell"
+  class:with-checklist={checklistOpen}
+  style:--log-height={preferences.logPanel ? `${String(logHeight)}px` : null}
+>
   <header>
     <!-- Never wraps: a second row would push the page down and split the
          right-hand controls from each other. -->
@@ -301,6 +312,9 @@
                   >{checklistText.menuShow}</Checkbox
                 >
               {/if}
+              <Checkbox bind:checked={preferences.logPanel}
+                >{logsText.menuShow}</Checkbox
+              >
               <Checkbox bind:checked={preferences.tooltipsEnabled}>
                 Show extra tooltips
               </Checkbox>
@@ -384,8 +398,15 @@
   {/if}
 </div>
 
+{#if preferences.logPanel}
+  <div class="log-dock" bind:clientHeight={logHeight}>
+    <LogPanel />
+  </div>
+{/if}
+
 <style>
   .shell {
+    padding-bottom: var(--log-height, 0px);
     display: grid;
     grid-template-columns: 280px 1fr;
     grid-template-rows: auto 1fr;
@@ -410,6 +431,15 @@
 
   .settings {
     position: relative;
+  }
+
+  /* Over the page, under Flowbite's dropdowns and modals (z-50). */
+  .log-dock {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
   }
 
   /* The Sidebar's <aside>, passed down as a class. */

@@ -1,6 +1,6 @@
 // Package logging configures the process wide slog handler: a condensed,
-// coloured console for whoever is watching the terminal, and a full fidelity
-// rotating file for reading after a match.
+// coloured console for whoever is watching the terminal, a full fidelity
+// rotating file for reading after a match, and in-memory history for the GUI.
 package logging
 
 import (
@@ -87,6 +87,7 @@ func Setup(cfg Config) (func(), error) {
 			NoColor:    !colorSupported(os.Stderr),
 		}),
 		recentHandler(),
+		historyHandler{log: history},
 	}
 	closeLog := func() {}
 	var setupErr error

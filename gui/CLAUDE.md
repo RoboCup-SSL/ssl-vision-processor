@@ -66,7 +66,9 @@ internal/
                it on startup-only setting changes (config.RestartKeys); holds
                a camera whose device another already uses
   logging/     slog setup: tint console + lumberjack file, plus the last 50
-               warnings/errors in memory for the system report
+               warnings/errors in memory for the system report, and the last
+               1000 records of each level for GET /api/logs (the log panel),
+               kept whatever -logLevel says
   buildinfo/   git state of this repo and proto/, stamped by the Makefile
                (scripts/build-ldflags.sh); GET /api/system, the About dialog
   vision/      generated Go protobuf, not committed -- run `make proto` (DO NOT EDIT)

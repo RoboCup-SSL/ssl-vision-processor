@@ -212,11 +212,18 @@ func run() int {
 		runBackground(&wg, "vision_processor supervisor", func() error { return h.procs.Run(ctx) })
 	}
 
+	// Shutdown waits for every request to finish, so the ones that wait for
+	// something to happen (GET /api/logs?wait=) are cancelled when it starts.
+	requests, cancelRequests := context.WithCancel(context.Background())
+	defer cancelRequests()
+
 	srv := &http.Server{
 		Addr:              *address,
 		Handler:           h.handler,
 		ReadHeaderTimeout: 10 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return requests },
 	}
+	srv.RegisterOnShutdown(cancelRequests)
 
 	serveFailed := make(chan struct{})
 
