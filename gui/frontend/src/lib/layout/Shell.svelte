@@ -364,6 +364,8 @@
     </Navbar>
   </header>
 
+  <!-- z-auto: Flowbite's z-50 still applies to a static grid item, and would
+       put the sidebar over the log panel. -->
   <Sidebar
     position="static"
     alwaysOpen
@@ -371,7 +373,7 @@
     backdrop={false}
     activateClickOutside={false}
     ariaLabel="Cameras and settings"
-    class="sidebar w-full"
+    class="sidebar z-auto w-full"
     classes={{
       div: "h-full overflow-y-auto bg-white px-3 py-4 dark:bg-gray-800",
       active:
