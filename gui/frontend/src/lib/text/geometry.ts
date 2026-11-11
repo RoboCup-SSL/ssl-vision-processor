@@ -56,21 +56,19 @@ export const geometry = {
   calibration: {
     locked: "Locked",
     lockedDetail: (when: string, resolution: string): string =>
-      `at ${when} (${resolution}). Published in place of anything the camera sends, and kept across restarts once saved.`,
+      `at ${when} (${resolution}).`,
     live: "Live, not locked",
     liveDetail:
       ". The camera calibrated itself; it recalibrates on its next restart unless you lock this.",
     none: "None.",
     noneDetail: "No calibration received from this camera yet.",
     unlock: "Unlock (recalibrates on processor restart)",
-    footer:
-      "Locking and unlocking apply immediately; Save writes them to the file. There's no way yet to make a running vision_processor recalibrate on request -- it needs a restart.",
   },
 
   cornerPicker: {
     title: "Corner picker",
     intro:
-      "Drag the four markers onto the real field corners in the image below, then click the number on whichever one sits where the goal line meets the touchline nearest this field's (0,0) corner -- that one turns green and becomes first in the output. The other three can be in any order; the calibration algorithm works that out itself. Changes apply when you let go of a marker; Save keeps them.",
+      "Drag the four markers onto the real field corners in the image below, then click the number on whichever one sits where the goal line meets the touchline nearest this field's (0,0) corner -- that one turns green and becomes first in the output. The other three can be in any order; the calibration algorithm works that out itself. The goal and penalty area this camera should see are drawn dashed through the markers, as vision_processor will read them: if they don't sit on the real ones, the green marker is on the wrong corner. Changes apply when you let go of a marker; Save keeps them.",
     region: (
       camera: number,
       count: number,

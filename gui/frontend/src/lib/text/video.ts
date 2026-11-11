@@ -1,6 +1,8 @@
 // Live video (video/VideoPlayer.svelte, video/videoStream.ts): what shows
 // over the picture while there's nothing to play.
 
+import { steady } from "./common";
+
 export const video = {
   connecting: "Connecting…",
   streamingOff:
@@ -11,8 +13,9 @@ export const video = {
     `Waiting for video on ${address}. Is the vision_processor running?`,
   waitingKeyframe: "Waiting for a keyframe…",
   // The rate frames arrive from vision_processor.
-  receivedFps: (fps: number): string => `${fps.toFixed(3)} fps received`,
-  fps: (fps: number): string => `${fps.toFixed(3)} fps`,
+  receivedFps: (fps: number): string =>
+    `${steady(fps.toFixed(3), 7)} fps received`,
+  fps: (fps: number): string => `${steady(fps.toFixed(3), 7)} fps`,
   fpsTitle:
     "Frames per second arriving from vision_processor, not the rate shown here.",
   noMSE: "This browser doesn't support Media Source Extensions.",

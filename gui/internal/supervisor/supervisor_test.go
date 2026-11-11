@@ -574,8 +574,13 @@ func TestWorkDirLinksImages(t *testing.T) {
 	// The config path is passed whole, relative to ConfigDir.
 	eventually(t, "running", func() bool { return starts(filepath.Join(configDir, "cam3.yml")) == 1 })
 
-	if target, err := os.Readlink(filepath.Join(run, "cam3", "img")); err != nil || target != img {
-		t.Errorf("cam3/img -> %q, %v; want %q", target, err, img)
+	// Its own image folder, since not every debug file is prefixed by camera_id.
+	if target, err := os.Readlink(filepath.Join(run, "cam3", "img")); err != nil || target != filepath.Join(img, "cam3") {
+		t.Errorf("cam3/img -> %q, %v; want %q", target, err, filepath.Join(img, "cam3"))
+	}
+
+	if info, err := os.Stat(filepath.Join(img, "cam3")); err != nil || !info.IsDir() {
+		t.Errorf("image folder cam3 not made: %v", err)
 	}
 
 	// Something real in the way is left alone, and the camera doesn't start.

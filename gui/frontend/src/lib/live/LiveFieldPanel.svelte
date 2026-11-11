@@ -147,7 +147,12 @@
         <P size="sm" class="mb-1 text-gray-600 dark:text-gray-400">{teams}</P>
       {/if}
       {#if field}
-        <FieldCanvas {field} {layers} flipped={liveView.flipped} />
+        <FieldCanvas
+          {field}
+          {layers}
+          flipped={liveView.flipped}
+          axes={liveView.axes}
+        />
       {:else}
         <StatusAlert color="gray" class="p-2 text-sm"
           >{text.waitingForField}</StatusAlert
@@ -189,6 +194,9 @@
           <Toggle size="small" bind:checked={liveView.flipped}
             >{text.view.flipped}</Toggle
           >
+          <Toggle size="small" bind:checked={liveView.axes}
+            >{text.view.axes}</Toggle
+          >
           <Toggle size="small" bind:checked={liveView.cameraTint}
             >{text.view.cameraTint}</Toggle
           >
@@ -223,7 +231,7 @@
                 >
               {/if}
               <span
-                class="ms-auto flex items-center gap-1 text-xs text-gray-500"
+                class="ms-auto flex items-center gap-1 text-xs text-gray-500 tabular-nums"
               >
                 <Indicator size="xs" color={s.receiving ? "green" : "gray"} />
                 {status(s, s.ageMs)}
@@ -269,7 +277,7 @@
             >{text.cameras.none}</P
           >
         {:else}
-          <table class="w-full text-xs">
+          <table class="w-full text-xs tabular-nums">
             <thead class="text-left text-gray-500">
               <tr>
                 <th>{text.cameras.shown}</th>

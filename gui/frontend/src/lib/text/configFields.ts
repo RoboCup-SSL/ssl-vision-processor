@@ -13,18 +13,6 @@ export const CONFIG_FIELDS = {
     { name: "gamma", comment: "1.0 = no gamma" },
     { name: "white_balance", comment: "OUTDOOR/INDOOR, or manual red/blue" },
   ],
-  geometry: [
-    { name: "camera_amount", comment: "Total cameras over the field" },
-    {
-      name: "camera_height",
-      comment: "mm; 0.0 = automatic (fails if camera looks perpendicular)",
-    },
-    {
-      name: "line_corners",
-      comment:
-        "Pixel corners for calibration seeding -- this is what the Corner Picker below produces",
-    },
-  ],
   color: [
     { name: "reference_force", comment: "0.0 - 0.5-history_force/2" },
     { name: "history_force", comment: "0.0 - 1.0-reference_force" },

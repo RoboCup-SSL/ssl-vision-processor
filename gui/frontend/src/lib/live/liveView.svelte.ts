@@ -25,6 +25,8 @@ export interface LiveView {
   velocities: boolean;
   // Swaps sides: draws the field rotated by 180 degrees.
   flipped: boolean;
+  // Marks the origin and the +x and +y directions.
+  axes: boolean;
 }
 
 export const DEFAULT_OVERLAY: Overlay = { on: false, opacity: 0.4 };
@@ -38,6 +40,7 @@ function defaults(): LiveView {
     cameraTint: false,
     velocities: false,
     flipped: false,
+    axes: false,
   };
 }
 

@@ -140,12 +140,12 @@ grep -qF "bot_heights_file: $config/robot-heights.yml" "$config/cam0.yml" ||
 grep -qF "$fakebin/vision_processor" "$work/local.log" || fail "startup didn't print which vision_processor it runs"
 
 for _ in $(seq 1 100); do
-	[ -e "$state/run/cam0/args" ] && [ -e "$state/img/0.raw.jpg" ] && break
+	[ -e "$state/run/cam0/args" ] && [ -e "$state/img/cam0/0.raw.jpg" ] && break
 	sleep 0.1
 done
 [ "$(cat "$state/run/cam0/args" 2>/dev/null)" = "$config/cam0.yml" ] ||
 	fail "vision_processor wasn't run with cam0.yml's full path: $(cat "$state/run/cam0/args" 2>/dev/null)"
-[ -e "$state/img/0.raw.jpg" ] || fail "the snapshot didn't reach the image directory"
+[ -e "$state/img/cam0/0.raw.jpg" ] || fail "the snapshot didn't reach camera 0's image folder"
 [ -e "$state/run/cam0/.flat.1.png" ] || fail "the debug dump isn't in camera 0's own directory"
 [ -z "$(ls -A "$config" | grep -v '\.yml$')" ] || fail "something besides config files landed in the config folder: $(ls -A "$config")"
 

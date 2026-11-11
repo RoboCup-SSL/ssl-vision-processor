@@ -97,7 +97,7 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
     label: "Geometry",
     scope: "per-instance",
     yamlKey: "geometry", // config.yml's geometry: block -- NOT geometry.yml's field:
-    fields: CONFIG_FIELDS.geometry,
+    fields: [], // edited by config/GeometryPanel.svelte
   },
   {
     id: "color",

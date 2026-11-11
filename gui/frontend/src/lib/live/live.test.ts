@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { LiveFieldSnapshot } from "../apiTypes";
-import { extentOf, toScreen, viewFor } from "./draw";
+import { PALETTE, extentOf, goalColors, toScreen, viewFor } from "./draw";
 import { fromDetection, fromTracked } from "./model";
 import { idDots } from "./patterns";
 import { VISION, layersOf, processingMs, sourcesOf } from "./sources";
+
+describe("goalColors", () => {
+  it("colors each goal by the team defending it", () => {
+    const { yellow, blue } = PALETTE.team;
+
+    expect(goalColors(true)).toEqual([yellow, blue]);
+    expect(goalColors(false)).toEqual([blue, yellow]);
+    expect(goalColors(undefined)).toEqual([PALETTE.goal, PALETTE.goal]);
+  });
+});
 
 describe("fromDetection", () => {
   it("keeps mm, both teams, and drops robots without a position", () => {

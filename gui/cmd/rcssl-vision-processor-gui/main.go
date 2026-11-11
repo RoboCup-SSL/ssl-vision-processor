@@ -25,6 +25,7 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/defaults"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/discovery"
+	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/gamecontroller"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/geometry"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/livefield"
@@ -320,9 +321,9 @@ func newHost(path string, opts hostOptions) (*host, error) {
 	instances := discovery.NewRegistry()
 	match := &referee.Match{}
 	watches := newPeerWatches()
-	trackTeams := func(yellow, blue string, from *net.UDPAddr) {
+	trackReferee := func(r *gamecontroller.Referee, from *net.UDPAddr) {
 		now := time.Now()
-		match.Teams.Record(yellow, blue, now)
+		match.Teams.Record(r.GetYellow().GetName(), r.GetBlue().GetName(), r.BlueTeamOnPositiveHalf, now)
 		watches.referee.Record("game controller", nil, from, now)
 	}
 	live := livefield.NewFeed()
@@ -338,7 +339,7 @@ func newHost(path string, opts hostOptions) (*host, error) {
 	sockets := &networkSockets{
 		vision:     multicast.NewEndpoint("vision", addrs.VisionAddress(), ifaces, withSend(mcOpts), multicast.VisionConsumer(watches.absorber(geom), track, watches.announcer(instances))),
 		detections: tracker,
-		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, mcOpts, multicast.RefereeConsumer(trackTeams)),
+		gc:         multicast.NewEndpoint("game controller", addrs.GCAddress(), ifaces, mcOpts, multicast.RefereeConsumer(trackReferee)),
 		tracker:    multicast.NewEndpoint("tracker", doc.TrackerAddress(), ifaces, mcOpts, multicast.TrackerConsumer(trackAutoref)),
 		video:      videos,
 		peers:      watches,
@@ -447,7 +448,7 @@ func bootstrapConfig(dir, name string, local bool) error {
 	}
 
 	if local {
-		doc.AssignConfigPaths(name)
+		doc.AssignLocal(name)
 	}
 
 	data, err := config.Marshal(doc)

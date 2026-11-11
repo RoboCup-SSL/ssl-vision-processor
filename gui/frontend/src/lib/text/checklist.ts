@@ -2,7 +2,7 @@
 // Each item has a title, why it matters, and what "done" looks like; notes
 // are the short per-item or per-camera status lines.
 
-import { plural } from "./common";
+import { plural, steady } from "./common";
 
 export const checklist = {
   pill: "Setup Checklist",
@@ -50,7 +50,9 @@ export const checklist = {
     networkProblem: "A network alert is open.",
     layoutProblem: "A camera layout alert is open.",
     heard: (fps: number | undefined): string =>
-      fps ? `Sending detections, ${String(fps)} fps` : "Sending detections",
+      fps
+        ? `Sending detections, ${steady(String(fps), 3)} fps`
+        : "Sending detections",
     notHeard: "Nothing heard from this camera yet",
     notCalibrated: "Not calibrated yet",
     calibratedNotLocked:

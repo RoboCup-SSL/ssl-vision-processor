@@ -42,6 +42,16 @@ export function teamName(color: Color): string {
     : "";
 }
 
+// Whether blue defends the goal at +x, as the game controller says: undefined
+// when it's quiet or doesn't say.
+export function blueOnPositiveHalf(): boolean | undefined {
+  const state = network.state;
+
+  return state?.gc.receiving && state.referee.heard
+    ? state.referee.blueOnPositiveHalf
+    : undefined;
+}
+
 // Where a color's choice is kept right now: by team on a competition field
 // (none until the game controller names the team), by color otherwise.
 export type Slot = { team: string } | { color: Color };

@@ -18,27 +18,34 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Teams records the team names from the latest referee message.
-// Safe for concurrent use.
+// Teams records the team names, and the half blue defends, from the latest
+// referee message. Safe for concurrent use.
 type Teams struct {
 	mu     sync.Mutex
 	yellow string
 	blue   string
-	at     time.Time
+	// blueOnPositive is nil when the referee message doesn't say.
+	blueOnPositive *bool
+	at             time.Time
 }
 
-func (t *Teams) Record(yellow, blue string, now time.Time) {
+func (t *Teams) Record(yellow, blue string, blueOnPositive *bool, now time.Time) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.yellow, t.blue, t.at = yellow, blue, now
+	if blueOnPositive != nil {
+		b := *blueOnPositive
+		blueOnPositive = &b
+	}
+
+	t.yellow, t.blue, t.blueOnPositive, t.at = yellow, blue, blueOnPositive, now
 }
 
-func (t *Teams) snapshot() (yellow, blue string, at time.Time) {
+func (t *Teams) snapshot() (yellow, blue string, blueOnPositive *bool, at time.Time) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	return t.yellow, t.blue, t.at
+	return t.yellow, t.blue, t.blueOnPositive, t.at
 }
 
 // Heights is a robot height table file (team name: height in mm), re-read
@@ -107,6 +114,9 @@ type State struct {
 	Heard  *time.Time `json:"heard,omitempty"`
 	Yellow Team       `json:"yellow"`
 	Blue   Team       `json:"blue"`
+	// BlueOnPositiveHalf is whether blue defends the goal at +x, from the
+	// referee's blue_team_on_positive_half; absent when it doesn't say.
+	BlueOnPositiveHalf *bool `json:"blueOnPositiveHalf,omitempty"`
 	// HeightsFile is the table vision_processor reads (bot_heights_file).
 	HeightsFile  string `json:"heightsFile"`
 	HeightsError string `json:"heightsError,omitempty"`
@@ -122,11 +132,12 @@ type State struct {
 // Describe combines the latest team names with the height table at
 // heightsFile.
 func Describe(teams *Teams, heights *Heights, heightsFile string) State {
-	yellow, blue, at := teams.snapshot()
+	yellow, blue, blueOnPositive, at := teams.snapshot()
 	state := State{
-		Yellow:      Team{Name: yellow},
-		Blue:        Team{Name: blue},
-		HeightsFile: heightsFile,
+		Yellow:             Team{Name: yellow},
+		Blue:               Team{Name: blue},
+		BlueOnPositiveHalf: blueOnPositive,
+		HeightsFile:        heightsFile,
 	}
 
 	if !at.IsZero() {

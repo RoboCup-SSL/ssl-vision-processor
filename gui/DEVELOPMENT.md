@@ -75,7 +75,7 @@ Without one, the host creates a default from the files embedded in `internal/def
 With `-runCameras`, the host starts one vision_processor per camera, using the `vision_processor` it finds on `PATH`.
 There's no flag to name another binary: to use your own build, put it first on `PATH`. Every camera gets a
 `config_path`, `cam<id>.yml`, if it has none. Each runs in its own folder, `run/cam<id>` in the state folder
-(`~/.local/state/rcssl/vision-processor-gui`), with `img` there linking to `-imgDir`. It gets the full path of its
+(`~/.local/state/rcssl/vision-processor-gui`), with `img` there linking to its own folder in `-imgDir`, `cam<id>`. It gets the full path of its
 config file. A camera whose capture device another camera already uses isn't started until that's fixed.
 
 Settings vision_processor hot reloads (thresholds, tracking, color, debug) only rewrite the file. A change to any

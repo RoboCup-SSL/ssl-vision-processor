@@ -64,8 +64,9 @@ type Store struct {
 // Options configures a Store.
 type Options struct {
 	// LocalCameras is a host that runs every camera's vision_processor
-	// itself: each camera gets a config_path (Document.AssignConfigPaths) when
-	// loaded or edited without one.
+	// itself: every region gets a camera, each with this host as its instance
+	// and a config_path of its own (Document.AssignLocal), when loaded or
+	// edited.
 	LocalCameras bool
 }
 
@@ -99,6 +100,9 @@ type State struct {
 	External     *ExternalState `json:"external,omitempty"`
 	Cameras      []CameraStatus `json:"cameras"`
 	RenderErrors map[int]string `json:"renderErrors,omitempty"`
+	// LocalCameras is Options.LocalCameras: the host runs every camera
+	// itself, and gives every region one.
+	LocalCameras bool `json:"localCameras"`
 }
 
 // ExternalState describes a change made to the file on disk by something
@@ -233,7 +237,7 @@ func (s *Store) update(rev int64, doc Document) (int64, error) {
 		own := filepath.Base(s.path)
 		s.mu.Unlock()
 
-		doc.AssignConfigPaths(own)
+		doc.AssignLocal(own)
 	}
 
 	doc.normalize()
@@ -470,7 +474,7 @@ func (s *Store) loadLocked(path string) error {
 	disk := doc.clone()
 
 	if s.local {
-		doc.AssignConfigPaths(filepath.Base(path))
+		doc.AssignLocal(filepath.Base(path))
 	}
 
 	if err := checkNotOverActive(doc, path); err != nil {
@@ -580,6 +584,7 @@ func (s *Store) State() State {
 		Changes:      nonNil(Diff(s.disk, s.working)),
 		Cameras:      make([]CameraStatus, 0, len(s.working.Cameras)),
 		RenderErrors: s.renderErrs,
+		LocalCameras: s.local,
 	}
 
 	for _, c := range s.working.Cameras {

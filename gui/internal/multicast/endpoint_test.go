@@ -340,7 +340,9 @@ func TestVisionConsumerDropsOwnSends(t *testing.T) {
 func TestRefereeConsumer(t *testing.T) {
 	var yellow, blue string
 
-	refereeConsume := RefereeConsumer(func(y, b string, _ *net.UDPAddr) { yellow, blue = y, b })
+	refereeConsume := RefereeConsumer(func(r *gamecontroller.Referee, _ *net.UDPAddr) {
+		yellow, blue = r.GetYellow().GetName(), r.GetBlue().GetName()
+	})
 	consume := func(data []byte) bool { return refereeConsume(data, nil) }
 
 	team := func(name string) *gamecontroller.Referee_TeamInfo {

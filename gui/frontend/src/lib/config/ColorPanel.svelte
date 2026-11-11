@@ -32,9 +32,9 @@
     P,
   } from "flowbite-svelte";
 
-  // No `category` prop, unlike GeometryPanel/ConfigCategoryPlaceholder:
-  // those still show category.fields via the doc-only ConfigFieldList
-  // because they have numeric placeholders alongside a partial real editor.
+  // No `category` prop, unlike ConfigCategoryPlaceholder: it still shows
+  // category.fields via the doc-only ConfigFieldList for categories that
+  // have no real editor yet.
   // Every field this category lists is already a live editor below, so
   // there's nothing left for that list to document.
   interface Props {

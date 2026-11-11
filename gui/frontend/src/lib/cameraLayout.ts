@@ -9,6 +9,7 @@ import {
   type ConfigDocument,
 } from "./config.svelte";
 import { computeFieldSlice, type FieldSlice } from "./fieldSplit";
+import { steady } from "./text/common";
 import { network, type DetectionSource } from "./network.svelte";
 
 // Detection sources heard for cameraId, receiving ones first.
@@ -23,7 +24,7 @@ export function liveLabel(sources: DetectionSource[]): string {
   const receiving = sources.filter((s) => s.receiving);
   if (receiving.length > 0) {
     return receiving
-      .map((s) => `${s.address}, ${String(s.fps)} fps`)
+      .map((s) => `${s.address}, ${steady(String(s.fps), 3)} fps`)
       .join("; ");
   }
 
@@ -173,6 +174,8 @@ export interface Consequence {
   to: number;
   seedStale: boolean;
   calibrationRemoved: boolean;
+  // Its region is gone and the host runs it, so it goes too.
+  removed: boolean;
 }
 
 function consequence(camera: CameraDoc, to: number): Consequence {
@@ -182,7 +185,15 @@ function consequence(camera: CameraDoc, to: number): Consequence {
     to,
     seedStale: (camera.seed?.lineCorners.length ?? 0) === 4,
     calibrationRemoved: camera.calibration !== undefined,
+    removed: false,
   };
+}
+
+// Whether the host runs every camera's vision_processor itself
+// (-runCameras). It then gives every region a camera, so a smaller count
+// removes the cameras whose regions are gone.
+export function hostRunsCameras(): boolean {
+  return config.state?.localCameras === true;
 }
 
 // A move, swap, or camera count change waiting on confirmation.
@@ -245,11 +256,27 @@ export function planMove(
 export function planCount(doc: ConfigDocument, count: number): Consequence[] {
   if (count === cameraCount(doc)) return [];
 
-  return doc.cameras.map((c) => consequence(c, c.cameraId));
+  return doc.cameras.map((c) => ({
+    ...consequence(c, c.cameraId),
+    removed: hostRunsCameras() && c.cameraId >= count,
+  }));
 }
 
-// The smallest count every current camera_id still fits in.
+// The regions a count change adds a camera to: under hostRunsCameras, the
+// host fills every one that has none.
+export function addedCameras(doc: ConfigDocument, count: number): number[] {
+  if (!hostRunsCameras()) return [];
+
+  return Array.from({ length: count }, (_, id) => id).filter(
+    (id) => !doc.cameras.some((c) => c.cameraId === id),
+  );
+}
+
+// The smallest count every current camera_id still fits in. Any count, when
+// a smaller one removes the cameras it leaves out.
 export function minCameraCount(doc: ConfigDocument): number {
+  if (hostRunsCameras()) return CAMERA_COUNTS[0] ?? 1;
+
   const top = Math.max(-1, ...doc.cameras.map((c) => c.cameraId));
 
   return CAMERA_COUNTS.find((n) => n > top) ?? Infinity;
@@ -296,11 +323,16 @@ export function applyPlan(plan: Consequence[], count?: number): void {
 
   const oldCount = cameraCount(doc);
 
+  const removed = new Set(plan.filter((s) => s.removed).map((s) => s.from));
+  doc.cameras = doc.cameras.filter((c) => !removed.has(c.cameraId));
+
   // Look every camera up before changing any id: a swap reuses both ids.
-  const steps = plan.map((step) => ({
-    step,
-    camera: doc.cameras.find((c) => c.cameraId === step.from),
-  }));
+  const steps = plan
+    .filter((step) => !step.removed)
+    .map((step) => ({
+      step,
+      camera: doc.cameras.find((c) => c.cameraId === step.from),
+    }));
 
   for (const { step, camera } of steps) {
     if (!camera) continue;

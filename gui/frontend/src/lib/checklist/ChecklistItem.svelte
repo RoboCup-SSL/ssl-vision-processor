@@ -102,8 +102,8 @@
     {#if item.note}
       <p
         class={item.status === "attention"
-          ? "font-medium text-yellow-700 dark:text-yellow-300"
-          : "text-gray-500 dark:text-gray-400"}
+          ? "font-medium text-yellow-700 tabular-nums dark:text-yellow-300"
+          : "text-gray-500 tabular-nums dark:text-gray-400"}
       >
         {noteText(item.note)}
       </p>
@@ -145,7 +145,8 @@
                 <span class="font-medium">{text.camera(row.cameraId)}</span>
               {/if}
               {#if row.note}
-                <span class="text-xs text-gray-500 dark:text-gray-400"
+                <span
+                  class="text-xs text-gray-500 tabular-nums dark:text-gray-400"
                   >{noteText(row.note)}</span
                 >
               {/if}

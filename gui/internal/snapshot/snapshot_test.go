@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -81,6 +82,31 @@ func TestListDedupesSameCameraAndView(t *testing.T) {
 
 	if len(entries) != 1 {
 		t.Fatalf("entries = %v, want a single deduped entry", entries)
+	}
+}
+
+func TestListReadsEachCameraFolder(t *testing.T) {
+	dir := t.TempDir()
+	for _, cam := range []string{"cam0", "cam1", "other"} {
+		if err := os.Mkdir(filepath.Join(dir, cam), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	writeFile(t, filepath.Join(dir, "cam0"), "0.raw.jpg")
+	writeFile(t, filepath.Join(dir, "cam1"), "1.lines.png")
+	writeFile(t, filepath.Join(dir, "cam1"), "spinnaker.calib.json")
+	writeFile(t, filepath.Join(dir, "other"), "2.raw.jpg") // not a camera's folder
+	writeFile(t, dir, "3.raw.jpg")
+
+	entries, err := List(dir)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+
+	want := []Entry{{CameraID: 0, View: "raw"}, {CameraID: 1, View: "lines"}, {CameraID: 3, View: "raw"}}
+	if !reflect.DeepEqual(entries, want) {
+		t.Errorf("entries = %v, want %v", entries, want)
 	}
 }
 
@@ -167,5 +193,28 @@ func TestHandleGetRejectsUnsafeSegments(t *testing.T) {
 		if rec.Code == http.StatusOK {
 			t.Errorf("view=%q: status = 200, want rejected", view)
 		}
+	}
+}
+
+func TestHandleGetServesFromTheCameraFolder(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "cam1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	writeFile(t, dir, "1.raw.jpg")
+
+	oldPath := filepath.Join(dir, "1.raw.jpg")
+	if err := os.Chtimes(oldPath, time.Now().Add(-time.Hour), time.Now().Add(-time.Hour)); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	writeFile(t, filepath.Join(dir, "cam1"), "1.raw.png") // newer, in the camera's folder
+
+	rec := httptest.NewRecorder()
+	snapshotMux(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshot/1/raw", nil))
+
+	if rec.Body.String() != "1.raw.png" {
+		t.Errorf("body = %q, want the camera folder's newer file", rec.Body.String())
 	}
 }

@@ -223,7 +223,7 @@
 
         {#if !video}
           <span
-            class="flex items-center gap-1"
+            class="flex items-center gap-1 tabular-nums"
             class:text-red-700={slot.conflict}
             class:text-gray-500={!slot.conflict}
           >

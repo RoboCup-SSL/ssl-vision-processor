@@ -258,15 +258,15 @@ There are two ways to run the cameras:
    camera 0 is ready to go, on the first webcam (`/dev/video0`) once its driver is set to OPENCV on the Camera
    Settings page.
 
-3. Camera Settings shows each vision_processor's state, its last lines of output, and a Restart button. Each camera
-   you add gets its own config file automatically.
+3. Camera Settings shows each vision_processor's state, its last lines of output, and a Restart button. Choosing the
+   number of cameras on the Camera Layout page adds or removes cameras to match, each with its own config file.
 
 Each camera needs its own capture device. If two cameras name the same one, only the lower camera ID starts, and
 an alert says which. The GUI doesn't know about a vision_processor started some other way: if one already has the
 camera open, the GUI's copy says so in its output.
 
 Each vision_processor runs in its own folder, `~/.local/state/rcssl/vision-processor-gui/run/cam<id>`, so its debug
-files stay apart. Its snapshots go to the image folder.
+files stay apart. Its snapshots go to its own folder in the image folder, `img/cam<id>`.
 
 ## Troubleshooting
 

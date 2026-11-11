@@ -21,12 +21,17 @@ func writeTable(t *testing.T, content string) string {
 func TestDescribeLooksTeamsUp(t *testing.T) {
 	path := writeTable(t, "ER-Force: 148.0\nTIGERs Mannheim: 150.0\nibis: 90.0\n")
 	teams := &Teams{}
-	teams.Record("ER-Force", "Unknown FC", time.Unix(1000, 0))
+	positive := true
+	teams.Record("ER-Force", "Unknown FC", &positive, time.Unix(1000, 0))
 
 	s := Describe(teams, &Heights{}, path)
 
 	if s.Heard == nil || s.HeightsError != "" {
 		t.Fatalf("state = %+v, want heard and a readable table", s)
+	}
+
+	if s.BlueOnPositiveHalf == nil || !*s.BlueOnPositiveHalf {
+		t.Errorf("blueOnPositiveHalf = %v, want true", s.BlueOnPositiveHalf)
 	}
 
 	if s.Yellow.Height == nil || *s.Yellow.Height != 148 {
@@ -71,7 +76,7 @@ func TestHeightsRereadsAChangedFile(t *testing.T) {
 func TestMatchUsesTheChosenHeightsFile(t *testing.T) {
 	path := writeTable(t, "ER-Force: 148\n")
 	m := &Match{}
-	m.Teams.Record("ER-Force", "", time.Unix(1000, 0))
+	m.Teams.Record("ER-Force", "", nil, time.Unix(1000, 0))
 
 	if s := m.State(); s.HeightsError == "" {
 		t.Fatalf("state = %+v, want an error before a heights file is set", s)

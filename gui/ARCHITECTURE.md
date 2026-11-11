@@ -191,8 +191,10 @@ using the `vision_processor` it finds on `PATH` at startup; it exits if there is
 none, so in this mode every camera gets a `config_path`: `Document.AssignConfigPaths` names it `cam<id>.yml` (or
 `cam<id>-2.yml` and so on if taken) whenever a document is loaded or edited without one. One assigned on load shows
 as an unsaved change. Two cameras can't share a `config_path`. Each process runs in its own directory,
-`run/cam<id>` in the state folder, with `img` there linking to `-imgDir`, so the debug dumps vision_processor writes
-relative to its working directory never collide or land in the config folder. It gets its config file's full path,
+`run/cam<id>` in the state folder, with `img` there linking to `cam<id>` in `-imgDir`, so the debug files
+vision_processor writes relative to its working directory never collide or land in the config folder. Its own image
+folder matters because not every file it writes to `img/` is prefixed by camera_id; the snapshot routes read both
+`-imgDir` and its `cam<id>` folders. It gets its config file's full path,
 and the rendered file names `bot_heights_file` by its full path too.
 
 Before starting anything, the supervisor compares the cameras' capture devices, with vision_processor's fallbacks

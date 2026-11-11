@@ -60,6 +60,12 @@ export const layout = {
     moved: (from: number, to: number): string =>
       `camera ${String(from)} → ${String(to)}`,
     newRegion: (id: number): string => `camera ${String(id)}, new region`,
+    removed: (id: number): string =>
+      `camera ${String(id)} removed, with its settings, corners and calibration`,
+    added: (id: number): string =>
+      `Camera ${String(id)}: added, run by this host`,
+    addedDevice:
+      "Opens the driver's camera number equal to its camera ID. Pick its device on the Camera page.",
     settingsStay: "Camera and color settings stay with it.",
     seedStale:
       "Its line corners are kept but marked for re-picking: they were picked for the old region.",
