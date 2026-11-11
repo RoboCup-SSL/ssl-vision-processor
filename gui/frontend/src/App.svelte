@@ -3,7 +3,11 @@
   import { onMount } from "svelte";
   import { topic } from "./lib/wrapper-bus";
   import Shell from "./lib/layout/Shell.svelte";
-  import { nav, selectedCategory } from "./lib/layout/nav.svelte";
+  import {
+    nav,
+    selectedCategory,
+    selectedInstance,
+  } from "./lib/layout/nav.svelte";
   import { requestJSON } from "./lib/api";
   import type { SnapshotEntry } from "./lib/apiTypes";
   import SetupWizard from "./lib/wizard/SetupWizard.svelte";
@@ -47,10 +51,16 @@
   // color-tuning territory, not relevant to a geometry calibration.
   const COLOR_ONLY_VIEWS = new Set(["flat", "gradient", "blob"]);
 
+  // The selected camera's only, like the page above them.
+  let selectedCameraId = $derived(selectedInstance()?.cameraId);
+
   let visibleSnapshots = $derived(
-    nav.selectedCategoryId === "geometry"
-      ? snapshots.filter((s) => !COLOR_ONLY_VIEWS.has(s.view))
-      : snapshots,
+    snapshots.filter(
+      (s) =>
+        s.cameraId === selectedCameraId &&
+        (nav.selectedCategoryId !== "geometry" ||
+          !COLOR_ONLY_VIEWS.has(s.view)),
+    ),
   );
 
   async function refreshSnapshotList(): Promise<void> {
@@ -99,7 +109,10 @@
       <section>
         <h2>Snapshots</h2>
         {#if visibleSnapshots.length === 0}
-          <p class="hint">No images in img/ yet.</p>
+          <!-- text-ok: temporary developer tooling, removed with it. -->
+          <p class="hint">
+            No images for camera {selectedCameraId ?? "?"} in img/ yet.
+          </p>
         {:else}
           <div class="grid">
             {#each visibleSnapshots as snap (`${String(snap.cameraId)}.${snap.view}`)}

@@ -60,6 +60,7 @@ function state(
       }),
     ),
     cameras: over.cameras ?? [],
+    localCameras: false,
   };
   flushSync();
 }
@@ -77,8 +78,11 @@ function calibration(
   };
 }
 
-function alert(code: string): HostAlert {
-  return { id: code, code, severity: "warning" } as HostAlert;
+function alert(
+  code: string,
+  severity: HostAlert["severity"] = "warning",
+): HostAlert {
+  return { id: code, code, severity } as HostAlert;
 }
 
 beforeEach(() => {
@@ -143,6 +147,15 @@ describe("automatic items", () => {
     hostAlerts.list = [alert("socket_problem")];
     expect(itemState("network").status).toBe("attention");
     expect(itemState("layout").status).toBe("done");
+  });
+
+  it("a caution leaves its item done", () => {
+    hostAlerts.list = [
+      alert("loopback_multicast_off", "caution"),
+      alert("team_default_height", "caution"),
+    ];
+    expect(itemState("network").status).toBe("done");
+    expect(itemState("teams").status).toBe("done");
   });
 
   it("a per-camera item with no cameras isn't done", () => {

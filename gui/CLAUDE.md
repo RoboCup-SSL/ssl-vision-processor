@@ -208,11 +208,16 @@ host owns the flag: `Store.update` keeps it whatever an edit says, and
 
 **`-runCameras` runs every camera's vision_processor, for a single-machine
 setup such as a student lab's webcam; events run them as their own services
-instead.** All or nothing: a host with `-runCameras` gives every camera a
-`config_path` (`Document.AssignConfigPaths`, via `config.Options.LocalCameras`)
+instead.** All or nothing: a host with `-runCameras` gives every region a camera,
+each with this host as its instance, the driver's camera_id-th device and a
+`config_path` (`Document.AssignLocal`, via `config.Options.LocalCameras`;
+`config.state.localCameras` tells the frontend, whose smaller camera count
+then removes cameras instead of being refused)
 and finds `vision_processor` on `PATH` once at startup (no override flag: put
 `build/` first on `PATH`). Each process runs in `<state>/run/cam<id>` with an
-`img` link to `-imgDir`, so its relative debug writes stay apart; the config
+`img` link to `<-imgDir>/cam<id>`, so its relative debug writes stay apart (not
+every file vision_processor writes to `img/` is prefixed by camera_id;
+`internal/snapshot` reads the `cam<id>` folders too); the config
 path and the rendered `bot_heights_file` are absolute for that reason. A camera
 whose device (`Document.CaptureDevice`, symlinks resolved) a lower camera_id
 already uses is held in state `conflict`. `internal/supervisor` observes the store (`Sync` on every

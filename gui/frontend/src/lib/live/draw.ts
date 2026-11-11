@@ -17,6 +17,7 @@ export const PALETTE = {
   lines: "#ffffff",
   goal: "#d0d0d0",
   team: { yellow: "#fff33e", blue: "#417eff" },
+  axis: { x: "#ff5252", y: "#2fe3ff" },
   teamDark: { yellow: "#cc9d00", blue: "#123ba0" },
   shell: "#202020",
   dot: { green: "#40e040", pink: "#ff5ad2" },
@@ -128,10 +129,30 @@ function num(value: number | string | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// The goal colors at -x and +x: each the color of the team defending it, or
+// plain when the game controller doesn't say which.
+export function goalColors(
+  blueOnPositive: boolean | undefined,
+): [string, string] {
+  if (blueOnPositive === undefined) return [PALETTE.goal, PALETTE.goal];
+
+  const { yellow, blue } = PALETTE.team;
+
+  return blueOnPositive ? [yellow, blue] : [blue, yellow];
+}
+
+export interface FieldOptions {
+  // Which half blue defends, for the goal colors; unknown when undefined.
+  blueOnPositive?: boolean;
+  // Marks the origin and the +x and +y directions.
+  axes?: boolean;
+}
+
 export function drawField(
   ctx: CanvasRenderingContext2D,
   view: View,
   field: SSL_GeometryFieldSizeJson,
+  { blueOnPositive, axes = false }: FieldOptions = {},
 ): void {
   screenTransform(ctx, view);
   ctx.clearRect(0, 0, view.width, view.height);
@@ -168,10 +189,11 @@ export function drawField(
   const halfGoal = (field.goalWidth ?? 0) / 2;
   const depth = field.goalDepth ?? 0;
 
-  ctx.strokeStyle = PALETTE.goal;
+  const [negative, positive] = goalColors(blueOnPositive);
   ctx.lineWidth = 20;
 
   for (const side of [-1, 1]) {
+    ctx.strokeStyle = side < 0 ? negative : positive;
     ctx.beginPath();
     ctx.moveTo(side * halfLength, halfGoal);
     ctx.lineTo(side * (halfLength + depth), halfGoal);
@@ -179,6 +201,74 @@ export function drawField(
     ctx.lineTo(side * halfLength, -halfGoal);
     ctx.stroke();
   }
+
+  if (axes) drawAxes(ctx, view);
+}
+
+// Length of each axis arrow, mm.
+const AXIS_LENGTH = 500;
+
+// The origin and an arrow along +x and +y, drawn on screen from toScreen so
+// they follow a swapped view while their labels stay upright.
+function drawAxes(ctx: CanvasRenderingContext2D, view: View): void {
+  screenTransform(ctx, view);
+
+  const [ox, oy] = toScreen(view, 0, 0);
+  const head = 14;
+  const font = 20;
+
+  ctx.lineWidth = 5;
+  ctx.font = `bold ${String(font)}px sans-serif`;
+  ctx.textBaseline = "middle";
+
+  const arrows: [string, string, number, number][] = [
+    ["+x", PALETTE.axis.x, AXIS_LENGTH, 0],
+    ["+y", PALETTE.axis.y, 0, AXIS_LENGTH],
+  ];
+
+  for (const [label, color, x, y] of arrows) {
+    const [tx, ty] = toScreen(view, x, y);
+    const angle = Math.atan2(ty - oy, tx - ox);
+
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+
+    // The shaft stops inside the head, so its square end doesn't show past
+    // the head's sides.
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(
+      tx - head * 0.7 * Math.cos(angle),
+      ty - head * 0.7 * Math.sin(angle),
+    );
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(
+      tx - head * Math.cos(angle - Math.PI / 6),
+      ty - head * Math.sin(angle - Math.PI / 6),
+    );
+    ctx.lineTo(
+      tx - head * Math.cos(angle + Math.PI / 6),
+      ty - head * Math.sin(angle + Math.PI / 6),
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    // Past the arrowhead, along the axis.
+    ctx.textAlign = "center";
+    ctx.fillText(
+      label,
+      tx + (head + font) * Math.cos(angle),
+      ty + (head + font) * Math.sin(angle),
+    );
+  }
+
+  ctx.fillStyle = PALETTE.lines;
+  ctx.beginPath();
+  ctx.arc(ox, oy, 6, 0, 2 * Math.PI);
+  ctx.fill();
 }
 
 export interface LayerStyle {

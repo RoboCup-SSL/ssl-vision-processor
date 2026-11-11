@@ -9,15 +9,18 @@
     type DrawnLayer,
     type View,
   } from "./draw";
+  import { blueOnPositiveHalf } from "../teams.svelte";
 
   interface Props {
     field: SSL_GeometryFieldSizeJson;
     // Drawn in order, so the last is on top.
     layers: DrawnLayer[];
     flipped: boolean;
+    // Marks the origin and the +x and +y directions.
+    axes: boolean;
   }
 
-  let { field, layers, flipped }: Props = $props();
+  let { field, layers, flipped, axes }: Props = $props();
 
   // Two canvases: the field, redrawn only when it or the size changes, and
   // what's on it, redrawn on every new frame.
@@ -34,6 +37,9 @@
     Math.min(width * (extent.halfY / extent.halfX), maxHeight),
   );
   let view = $derived<View>(viewFor(extent, width, height, dpr, flipped));
+  // Goals in the color of the team defending them, once the game controller
+  // says which.
+  let blueOnPositive = $derived(blueOnPositiveHalf());
 
   $effect(() => {
     if (!container) return;
@@ -69,7 +75,7 @@
     if (!fieldCanvas || view.width === 0) return;
 
     const ctx = fit(fieldCanvas, view);
-    if (ctx) drawField(ctx, view, field);
+    if (ctx) drawField(ctx, view, field, { blueOnPositive, axes });
   });
 
   // At most one draw per display frame, of whatever arrived last: a frame

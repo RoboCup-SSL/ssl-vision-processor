@@ -1,6 +1,8 @@
 // Live Field page (live/LiveFieldPanel.svelte): detections and autoref
 // tracker output drawn on the field. `backticks` show as code.
 
+import { steady } from "./common";
+
 export const liveField = {
   heading: "Live Field",
   intro:
@@ -16,6 +18,7 @@ export const liveField = {
     pattern: "Shell pattern",
     velocities: "Velocities",
     flipped: "Swap sides",
+    axes: "Origin and axes",
     cameraTint: "Outline by camera",
   },
 
@@ -34,7 +37,7 @@ export const liveField = {
 
   status: {
     receiving: (fps: number, ageMs: number | null): string =>
-      `${String(fps)} fps${ageMs === null ? "" : `, ${ageMs.toFixed(0)} ms ago`}`,
+      `${steady(String(fps), 3)} fps${ageMs === null ? "" : `, ${steady(ageMs.toFixed(0), 4)} ms ago`}`,
     silent: "Silent",
   },
 
@@ -48,7 +51,7 @@ export const liveField = {
       "Capture to send, by the vision_processor's own clock. Age is since the host received the frame.",
     shown: "Shown",
     none: "No vision_processor heard yet.",
-    ms: (ms: number): string => `${ms.toFixed(1)} ms`,
+    ms: (ms: number): string => `${steady(ms.toFixed(1), 5)} ms`,
   },
 
   teams: (yellow: string, blue: string): string =>

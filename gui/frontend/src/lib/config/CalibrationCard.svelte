@@ -49,7 +49,7 @@
   onconfirm={() => void unlockCalibration(cameraId)}
 />
 
-<SettingsCard title="Calibration" class="my-4">
+<SettingsCard title="Calibration">
   {#if !status}
     <P
       size="sm"
@@ -106,9 +106,6 @@
         {text.calibration.unlock}
       </Button>
     </div>
-    <P size="sm" class="mb-2 text-gray-600 dark:text-gray-400">
-      {text.calibration.footer}
-    </P>
   {/if}
 </SettingsCard>
 

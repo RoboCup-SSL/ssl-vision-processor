@@ -70,7 +70,7 @@
               {deviceLabel(cameraDevice(doc, camera))}
             </TableBodyCell>
             <TableBodyCell
-              class={`px-2 py-1.5 ${s.conflict ? "text-red-700" : ""}`}
+              class={`px-2 py-1.5 tabular-nums ${s.conflict ? "text-red-700" : ""}`}
             >
               {liveLabel(s.sources)}
             </TableBodyCell>
@@ -99,7 +99,7 @@
               No camera
             </TableBodyCell>
             <TableBodyCell></TableBodyCell>
-            <TableBodyCell class="px-2 py-1.5"
+            <TableBodyCell class="px-2 py-1.5 tabular-nums"
               >{liveLabel(s.sources)}</TableBodyCell
             >
             <TableBodyCell class="px-2 py-1.5"></TableBodyCell>

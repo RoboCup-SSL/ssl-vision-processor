@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { plural } from "../text/common";
+  import { plural, steady } from "../text/common";
   import { Button, ButtonGroup, Heading, P } from "flowbite-svelte";
   import SettingsCard from "../SettingsCard.svelte";
   import FormRow from "../FormRow.svelte";
@@ -245,8 +245,10 @@
           <div class="flex items-center gap-3 py-1 text-sm">
             <span class="font-semibold">Camera {source.cameraId}</span>
             <span>{source.address}</span>
-            <span class="text-gray-500 dark:text-gray-400">
-              {source.receiving ? `${String(source.fps)} fps` : "silent"}
+            <span class="text-gray-500 tabular-nums dark:text-gray-400">
+              {source.receiving
+                ? `${steady(String(source.fps), 3)} fps`
+                : "silent"}
             </span>
             {#if source.cameraId < count}
               <Button

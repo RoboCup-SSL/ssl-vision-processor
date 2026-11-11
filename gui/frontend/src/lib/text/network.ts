@@ -2,7 +2,7 @@
 // and the address/port advice in network.svelte.ts. Advice warnings always
 // show; notes show with "Show extra tooltips".
 
-import { plural } from "./common";
+import { plural, steady } from "./common";
 export const network = {
   heading: "Network",
   // `backticks` show as code.
@@ -65,7 +65,7 @@ export const network = {
       via: string,
     ): string => `Receiving: ${String(heard)} ${what}, latest${from}${via}.`,
     silent: (seconds: string, from: string, via: string): string =>
-      `Silent for ${seconds} s (last${from})${via}.`,
+      `Silent for ${steady(seconds, 3)} s (last${from})${via}.`,
     from: (source: string): string => ` from ${source}`,
     visionWhat: "detection packets",
     gcWhat: "referee messages",

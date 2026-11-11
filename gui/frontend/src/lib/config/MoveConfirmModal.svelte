@@ -4,6 +4,7 @@
   import { layout as text } from "../text/layout";
   import type { ConfigDocument } from "../config.svelte";
   import {
+    addedCameras,
     cameraDevice,
     deviceLabel,
     hostName,
@@ -20,6 +21,10 @@
   }
 
   let { doc, pending = $bindable(null), onapply }: Props = $props();
+
+  let added = $derived(
+    pending?.count === undefined ? [] : addedCameras(doc, pending.count),
+  );
 </script>
 
 <Modal
@@ -38,23 +43,38 @@
           <span class="font-semibold">
             {`${hostName(step.camera)} · ${deviceLabel(cameraDevice(doc, step.camera))}:`}
           </span>
-          {step.from !== step.to
-            ? text.confirm.moved(step.from, step.to)
-            : text.confirm.newRegion(step.from)}
+          {#if step.removed}
+            {text.confirm.removed(step.from)}
+          {:else}
+            {step.from !== step.to
+              ? text.confirm.moved(step.from, step.to)
+              : text.confirm.newRegion(step.from)}
+            <List
+              position="outside"
+              class="ms-4 text-gray-600 dark:text-gray-400"
+            >
+              <Li>{text.confirm.settingsStay}</Li>
+              {#if step.seedStale}
+                <Li>{text.confirm.seedStale}</Li>
+              {/if}
+              {#if step.calibrationRemoved}
+                <Li>{text.confirm.calibrationRemoved}</Li>
+              {/if}
+              {#if !step.camera.configPath}
+                <Li>{text.confirm.remote}</Li>
+              {/if}
+            </List>
+          {/if}
+        </Li>
+      {/each}
+      {#each added as id (id)}
+        <Li>
+          <span class="font-semibold">{text.confirm.added(id)}</span>
           <List
             position="outside"
             class="ms-4 text-gray-600 dark:text-gray-400"
           >
-            <Li>{text.confirm.settingsStay}</Li>
-            {#if step.seedStale}
-              <Li>{text.confirm.seedStale}</Li>
-            {/if}
-            {#if step.calibrationRemoved}
-              <Li>{text.confirm.calibrationRemoved}</Li>
-            {/if}
-            {#if !step.camera.configPath}
-              <Li>{text.confirm.remote}</Li>
-            {/if}
+            <Li>{text.confirm.addedDevice}</Li>
           </List>
         </Li>
       {/each}

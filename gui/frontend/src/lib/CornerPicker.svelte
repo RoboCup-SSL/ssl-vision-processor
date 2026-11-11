@@ -7,6 +7,14 @@
   import { untrack } from "svelte";
   import { config, cameraDoc } from "./config.svelte";
   import { cameraCount, regionLabel, slotSlice } from "./cameraLayout";
+  import {
+    aroundFirst,
+    clockwiseFromFirst,
+    goalMarkings,
+    homography,
+    rotateTo,
+    type Point,
+  } from "./corners";
 
   // The corner-drag picker from the calibration UI plan. Corners live in the
   // host's working document as this camera's seed, together with the image
@@ -27,11 +35,6 @@
   let { cameraId }: Props = $props();
 
   const view = "geomcalib_input"; // GeomModel.cpp's calibration input snapshot
-
-  interface Point {
-    x: number;
-    y: number;
-  }
 
   let cacheBuster = $state(Date.now());
   let imageWidth = $state(0);
@@ -60,7 +63,8 @@
 
   // (Re)seats the markers whenever the image size is known and the seed
   // changed from outside this picker. Saved corners come first (already
-  // ordered goal-side first, so origin is index 0); otherwise an inset
+  // ordered goal-side first, so origin is index 0, and put back in order
+  // around the quadrilateral in case they were saved crossed); otherwise an inset
   // rectangle so all four handles are visible and draggable immediately.
   //
   // Corners that fall outside the current image (saved against a different
@@ -79,7 +83,7 @@
 
       const saved = (seed?.lineCorners ?? []).map(([x, y]) => ({ x, y }));
       if (saved.length === 4 && fitsImage(saved)) {
-        corners = saved;
+        corners = aroundFirst(saved);
 
         return;
       }
@@ -169,14 +173,13 @@
     cacheBuster = Date.now();
   }
 
-  // The chosen origin corner first, the other three following in whatever
-  // order they're already in -- correct per the note above, no sorting.
-  let orderedCorners = $derived.by(() => {
-    const origin = corners[originIndex];
-    if (!origin) return [];
-
-    return [origin, ...corners.filter((_, i) => i !== originIndex)];
-  });
+  // The chosen origin corner first, the other three following it around the
+  // quadrilateral. Any order of those three is correct per the note above,
+  // but the polygon is drawn in this order once it's re-seated, so moving
+  // the origin to the front without rotating would draw it crossed.
+  let orderedCorners = $derived(
+    corners[originIndex] ? rotateTo(corners, originIndex) : [],
+  );
 
   let yamlSnippet = $derived(
     "line_corners:\n" +
@@ -196,6 +199,33 @@
         }
       : undefined,
   );
+  // The goals and penalty areas of this camera's region, drawn through the
+  // corners as vision_processor will match them: the first to the region's
+  // (minX, minY) corner, the rest clockwise. If they don't land on the real
+  // ones, the wrong corner is marked first.
+  let markings = $derived.by(() => {
+    if (!region || !config.doc || orderedCorners.length !== 4) return [];
+
+    const { minX, minY, maxX, maxY } = region.slice;
+    const toImage = homography(
+      [
+        { x: minX, y: minY },
+        { x: minX, y: maxY },
+        { x: maxX, y: maxY },
+        { x: maxX, y: minY },
+      ],
+      clockwiseFromFirst(orderedCorners),
+    );
+    if (!toImage) return [];
+
+    return goalMarkings(config.doc.field, region.slice).flatMap(([a, b]) => {
+      const p = toImage(a);
+      const q = toImage(b);
+
+      return p && q ? [{ x1: p.x, y1: p.y, x2: q.x, y2: q.y }] : [];
+    });
+  });
+
   // How the saved seed relates to the image now being served.
   let resolutionStatus = $derived.by(() => {
     if (seed?.lineCorners.length !== 4 || imageWidth === 0) {
@@ -337,6 +367,17 @@
               .map((c) => `${String(c.x)},${String(c.y)}`)
               .join(" ")}
           />
+          {#each markings as m, i (i)}
+            <line
+              class="marking"
+              x1={m.x1}
+              y1={m.y1}
+              x2={m.x2}
+              y2={m.y2}
+              stroke-width={handleStrokeWidth * 1.5}
+              stroke-dasharray={`${String(handleRadius)} ${String(handleRadius * 0.6)}`}
+            />
+          {/each}
         {/if}
       </svg>
     {/if}
@@ -386,6 +427,11 @@
     paint-order: stroke;
     stroke: black;
     cursor: pointer;
+  }
+
+  .marking {
+    stroke: white;
+    pointer-events: none;
   }
 
   polygon {

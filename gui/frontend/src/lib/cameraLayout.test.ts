@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { blankField } from "./geometry.svelte";
-import { config, type CameraDoc, type ConfigDocument } from "./config.svelte";
 import {
+  config,
+  type CameraDoc,
+  type ConfigDocument,
+  type ConfigState,
+} from "./config.svelte";
+import {
+  addedCameras,
   applyPlan,
   cameraCount,
   isHalfField,
@@ -154,6 +160,29 @@ describe("planMove and applyPlan", () => {
   it("won't shrink below the highest camera_id", () => {
     expect(minCameraCount(doc([camera(0), camera(3)]))).toBe(4);
     expect(minCameraCount(doc([camera(1)]))).toBe(2);
+  });
+});
+
+describe("count changes when the host runs the cameras", () => {
+  beforeEach(() => {
+    config.state = { localCameras: true } as ConfigState;
+  });
+
+  it("removes the cameras a smaller count leaves out", () => {
+    config.doc = doc([camera(0), camera(1), camera(2), camera(3)], 4);
+    expect(minCameraCount(config.doc)).toBe(1);
+
+    applyPlan(planCount(config.doc, 2), 2);
+
+    expect(config.doc.cameras.map((c) => c.cameraId)).toEqual([0, 1]);
+    expect(config.doc.layout).toEqual({ cameraCount: 2 });
+  });
+
+  it("lists the regions a larger count adds a camera to", () => {
+    expect(addedCameras(doc([camera(0), camera(2)], 2), 4)).toEqual([1, 3]);
+
+    config.state = null;
+    expect(addedCameras(doc([camera(0)]), 4)).toEqual([]);
   });
 });
 

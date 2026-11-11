@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -602,14 +603,49 @@ func TestLocalCamerasGetConfigPaths(t *testing.T) {
 		t.Error("no unsaved changes after assigning a config_path")
 	}
 
-	// An edit that leaves one out gets it back.
+	// An edit that leaves one out gets it back, and this host as its instance.
 	doc.camera(1).ConfigPath = ""
+	doc.camera(1).Instance = ""
 	if _, err := s.Update(rev, doc); err != nil {
 		t.Fatal(err)
 	}
 
-	if doc, _ := s.Working(); doc.camera(1).ConfigPath != "cam1.yml" {
-		t.Errorf("after edit, camera 1 config_path = %q, want cam1.yml", doc.camera(1).ConfigPath)
+	host, _ := os.Hostname()
+	doc, rev = s.Working()
+	if doc.camera(1).ConfigPath != "cam1.yml" || doc.camera(1).Instance != host {
+		t.Errorf("after edit, camera 1 config_path = %q, instance = %q, want cam1.yml, %q", doc.camera(1).ConfigPath, doc.camera(1).Instance, host)
+	}
+
+	if !s.State().LocalCameras {
+		t.Error("state.localCameras = false, want true")
+	}
+
+	// More regions each get a camera, on its own device.
+	doc.Layout = &Layout{CameraCount: 4}
+	if _, err := s.Update(rev, doc); err != nil {
+		t.Fatal(err)
+	}
+
+	doc, _ = s.Working()
+	for id := 2; id < 4; id++ {
+		c := doc.camera(id)
+		if c == nil {
+			t.Fatalf("camera %d not added for the 4-camera layout", id)
+		}
+
+		if c.Instance != host || c.ConfigPath != fmt.Sprintf("cam%d.yml", id) {
+			t.Errorf("camera %d = %+v, want instance %q, cam%d.yml", id, *c, host, id)
+		}
+	}
+
+	devices := map[string]int{}
+	for _, c := range doc.Cameras {
+		driver, device := doc.CaptureDevice(c)
+		if other, ok := devices[driver+" "+device]; ok && c.CameraID >= 2 { // 0 and 1 are the fixture's, on two hosts
+			t.Errorf("cameras %d and %d both open %s %s", other, c.CameraID, driver, device)
+		}
+
+		devices[driver+" "+device] = c.CameraID
 	}
 }
 

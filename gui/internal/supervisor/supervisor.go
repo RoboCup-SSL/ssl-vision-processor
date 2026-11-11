@@ -76,8 +76,10 @@ type Options struct {
 	// vision_processor writes debug files, so that no two share one. Empty
 	// means the host's working directory, for every camera.
 	RunDir string
-	// ImgDir is linked as img in each working directory under RunDir: where
-	// vision_processor writes its snapshots, prefixed by camera_id.
+	// ImgDir holds a folder per camera, cam<id>, linked as img in its
+	// working directory under RunDir: where vision_processor writes its
+	// snapshots. A folder each, since not every debug file it writes there
+	// is prefixed by camera_id.
 	ImgDir string
 	// Debounce is how long startup-only settings must stay unchanged before
 	// a restart, so dragging a slider restarts once. Default 1s.
@@ -555,7 +557,7 @@ func (s *Supervisor) output(p *proc, level slog.Level, line string) {
 }
 
 // workDir makes camera id's working directory, RunDir/cam<id>, with img in it
-// linking to ImgDir. An img left there that isn't a link is refused rather
+// linking to ImgDir/cam<id>. An img left there that isn't a link is refused rather
 // than removed: it may hold someone's images.
 func (s *Supervisor) workDir(id int) (string, error) {
 	if s.opts.RunDir == "" {
@@ -571,6 +573,11 @@ func (s *Supervisor) workDir(id int) (string, error) {
 		return dir, nil
 	}
 
+	img := filepath.Join(s.opts.ImgDir, fmt.Sprintf("cam%d", id))
+	if err := os.MkdirAll(img, 0o755); err != nil {
+		return "", err
+	}
+
 	link := filepath.Join(dir, "img")
 
 	info, err := os.Lstat(link)
@@ -580,9 +587,9 @@ func (s *Supervisor) workDir(id int) (string, error) {
 	case err != nil:
 		return "", err
 	case info.Mode()&fs.ModeSymlink == 0:
-		return "", fmt.Errorf("%s should link to the image directory %s, but isn't a link; move it away", link, s.opts.ImgDir)
+		return "", fmt.Errorf("%s should link to the image directory %s, but isn't a link; move it away", link, img)
 	default:
-		if target, err := os.Readlink(link); err == nil && target == s.opts.ImgDir {
+		if target, err := os.Readlink(link); err == nil && target == img {
 			return dir, nil
 		}
 
@@ -591,7 +598,7 @@ func (s *Supervisor) workDir(id int) (string, error) {
 		}
 	}
 
-	return dir, os.Symlink(s.opts.ImgDir, link)
+	return dir, os.Symlink(img, link)
 }
 
 // deviceConflicts finds the cameras in doc that would open a device a camera

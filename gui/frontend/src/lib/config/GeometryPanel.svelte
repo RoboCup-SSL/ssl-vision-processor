@@ -3,22 +3,19 @@
   import { SELECT_INSTANCE } from "../text/common";
   import { geometry as text } from "../text/geometry";
   import { Heading, P } from "flowbite-svelte";
-  import type { ConfigCategory } from "../layout/configCategories";
   import type { VisionInstance } from "../layout/nav.svelte";
   import CornerPicker from "../CornerPicker.svelte";
   import CalibrationCard from "./CalibrationCard.svelte";
   import LineDetectionCard from "./LineDetectionCard.svelte";
-  import ConfigFieldList from "./ConfigFieldList.svelte";
 
   interface Props {
-    category: ConfigCategory;
     instance: VisionInstance | undefined;
   }
 
-  let { category, instance }: Props = $props();
+  let { instance }: Props = $props();
 </script>
 
-<section class="geometry">
+<section>
   <Heading tag="h2" class="mb-2 text-xl font-semibold">{text.heading}</Heading>
 
   {#if instance}
@@ -32,23 +29,19 @@
   {/if}
 
   {#if instance}
-    {#key instance.cameraId}
-      <CalibrationCard cameraId={instance.cameraId} />
-      <LineDetectionCard cameraId={instance.cameraId} />
-    {/key}
-  {/if}
-
-  <ConfigFieldList fields={category.fields} />
-
-  {#if instance}
-    {#key instance.cameraId}
-      <CornerPicker cameraId={instance.cameraId} />
-    {/key}
+    <!-- Calibration and line detection beside the picker, below it when narrow. -->
+    <div class="@container">
+      <div
+        class="grid items-start gap-x-4 @4xl:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)]"
+      >
+        {#key instance.cameraId}
+          <CornerPicker cameraId={instance.cameraId} />
+          <div class="flex flex-col">
+            <CalibrationCard cameraId={instance.cameraId} />
+            <LineDetectionCard cameraId={instance.cameraId} />
+          </div>
+        {/key}
+      </div>
+    </div>
   {/if}
 </section>
-
-<style>
-  .geometry {
-    max-width: 900px;
-  }
-</style>

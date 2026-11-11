@@ -197,6 +197,7 @@
 
   .meta {
     margin: 0.3rem 0 0;
+    font-variant-numeric: tabular-nums;
     color: var(--text-muted);
     font-size: 0.8rem;
   }

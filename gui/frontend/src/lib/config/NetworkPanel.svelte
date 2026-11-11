@@ -273,7 +273,7 @@
         </div>
       </FormRow>
 
-      <p class="status">
+      <p class="status tabular-nums">
         {#if g.status && g.status.address !== `${current[g.ipKey]}:${String(current[g.portKey])}`}
           {text.reopening(`${current[g.ipKey]}:${String(current[g.portKey])}`)}
         {:else}

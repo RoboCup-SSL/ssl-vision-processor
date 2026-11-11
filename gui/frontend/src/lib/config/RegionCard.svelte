@@ -54,7 +54,7 @@
     labelWidth="5rem"
     errors={slot.conflict ? [text.conflict] : []}
   >
-    <span class="text-sm">{liveLabel(slot.sources)}</span>
+    <span class="text-sm tabular-nums">{liveLabel(slot.sources)}</span>
   </FormRow>
 
   <FormRow

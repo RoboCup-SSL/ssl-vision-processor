@@ -57,6 +57,7 @@ function unsavedChanges(...paths: string[]): void {
       }),
     ),
     cameras: [],
+    localCameras: false,
   };
 }
 

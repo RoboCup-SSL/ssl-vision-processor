@@ -45,10 +45,9 @@ func VisionConsumer(absorb func(*vision.SSL_GeometryData, *net.UDPAddr), track f
 	}
 }
 
-// RefereeConsumer counts valid referee messages and hands each one's yellow
-// and blue team names to track. Hearing them is what shows the game
-// controller address is right.
-func RefereeConsumer(track func(yellow, blue string, from *net.UDPAddr)) Consumer {
+// RefereeConsumer counts valid referee messages and hands each one to track.
+// Hearing them is what shows the game controller address is right.
+func RefereeConsumer(track func(referee *gamecontroller.Referee, from *net.UDPAddr)) Consumer {
 	return func(data []byte, from *net.UDPAddr) bool {
 		var referee gamecontroller.Referee
 		if proto.Unmarshal(data, &referee) != nil {
@@ -56,7 +55,7 @@ func RefereeConsumer(track func(yellow, blue string, from *net.UDPAddr)) Consume
 		}
 
 		if track != nil {
-			track(referee.GetYellow().GetName(), referee.GetBlue().GetName(), from)
+			track(&referee, from)
 		}
 
 		return true

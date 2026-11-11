@@ -60,7 +60,8 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   },
 };
 
-// Which host alert codes put an automatic item in "attention".
+// Which host alert codes put an automatic item in "attention". Cautions
+// don't: they're often fine, so they leave the item done.
 const ALERT_CODES: Partial<Record<ItemId, string[]>> = {
   network: ["socket_problem", "loopback_multicast_off"],
   layout: ["camera_unplaced", "region_uncovered", "camera_id_conflict"],
@@ -240,7 +241,9 @@ export function setTicked(key: string, ticked: boolean): void {
 function alertOpen(id: ItemId): boolean {
   const codes = ALERT_CODES[id] ?? [];
 
-  return hostAlerts.list.some((a) => codes.includes(a.code));
+  return hostAlerts.list.some(
+    (a) => a.severity !== "caution" && codes.includes(a.code),
+  );
 }
 
 function cameraRows(

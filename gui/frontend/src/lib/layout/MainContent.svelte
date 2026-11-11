@@ -41,7 +41,7 @@
   {:else if nav.selectedCategoryId === "camera"}
     <CameraPanel {instance} />
   {:else if nav.selectedCategoryId === "geometry"}
-    <GeometryPanel {category} {instance} />
+    <GeometryPanel {instance} />
   {:else if nav.selectedCategoryId === "color"}
     <ColorPanel {instance} />
   {:else if nav.selectedCategoryId === "network"}

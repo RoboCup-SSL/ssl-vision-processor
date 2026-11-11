@@ -1,6 +1,7 @@
 // Package snapshot serves the debug images the C++ vision processor writes to
 // disk as <cam_id>.<view>.{jpg,png}, via tmp-then-rename so reads never see a
-// torn frame.
+// torn frame. They're in the image directory itself, or in its cam<id>
+// folder for a vision_processor the host runs (-runCameras).
 //
 // This assumes the Go host and the vision processor share a filesystem, which
 // only holds for a single-host setup; it does not work for a remote instance.
@@ -32,8 +33,12 @@ type Entry struct {
 	View     string `json:"view"`
 }
 
-// List is the debug images vision_processor has written to dir (-imgDir),
-// one entry per camera and view, sorted. A missing dir has none.
+// camFolder matches a camera's own folder in the image directory.
+var camFolder = regexp.MustCompile(`^cam\d+$`)
+
+// List is the debug images vision_processor has written to dir (-imgDir) and
+// its cam<id> folders, one entry per camera and view, sorted. A missing dir
+// has none.
 func List(dir string) ([]Entry, error) {
 	files, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
@@ -47,17 +52,20 @@ func List(dir string) ([]Entry, error) {
 	seen := make(map[Entry]struct{})
 
 	for _, f := range files {
-		m := filename.FindStringSubmatch(f.Name())
-		if m == nil {
+		if f.IsDir() && camFolder.MatchString(f.Name()) {
+			inner, err := os.ReadDir(filepath.Join(dir, f.Name()))
+			if err != nil {
+				return nil, err
+			}
+
+			for _, g := range inner {
+				addEntry(seen, g.Name())
+			}
+
 			continue
 		}
 
-		id, err := strconv.Atoi(m[1])
-		if err != nil {
-			continue // too many digits for an int
-		}
-
-		seen[Entry{CameraID: id, View: m[2]}] = struct{}{}
+		addEntry(seen, f.Name())
 	}
 
 	entries := make([]Entry, 0, len(seen))
@@ -77,6 +85,21 @@ func List(dir string) ([]Entry, error) {
 	})
 
 	return entries, nil
+}
+
+// addEntry adds the snapshot file name names, if it is one.
+func addEntry(seen map[Entry]struct{}, name string) {
+	m := filename.FindStringSubmatch(name)
+	if m == nil {
+		return
+	}
+
+	id, err := strconv.Atoi(m[1])
+	if err != nil {
+		return // too many digits for an int
+	}
+
+	seen[Entry{CameraID: id, View: m[2]}] = struct{}{}
 }
 
 // validSegment matches one path-value component of a snapshot request: digits
@@ -118,13 +141,22 @@ func HandleGet(dir string) http.HandlerFunc {
 	}
 }
 
-// latest returns the most recently modified file matching dir/camID.view.*, or
-// "" if none exists.
+// latest returns the most recently modified file matching camID.view.* in dir
+// or its cam<camID> folder, or "" if none exists.
 func latest(dir, camID, view string) (string, error) {
-	matches, err := filepath.Glob(filepath.Join(dir, camID+"."+view+".*"))
+	name := camID + "." + view + ".*"
+
+	matches, err := filepath.Glob(filepath.Join(dir, name))
 	if err != nil {
 		return "", err
 	}
+
+	own, err := filepath.Glob(filepath.Join(dir, "cam"+camID, name))
+	if err != nil {
+		return "", err
+	}
+
+	matches = append(matches, own...)
 
 	var (
 		newest     string
