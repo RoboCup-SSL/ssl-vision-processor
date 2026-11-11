@@ -62,7 +62,7 @@ if ldd "$binary" >/dev/null 2>&1; then
 fi
 
 got=$(run "$work/version" -version)
-[ "$got" = "rcssl-vision-processor-gui $version" ] || fail "-version printed: $got"
+[ "$got" = "ssl-vision-processor-gui $version" ] || fail "-version printed: $got"
 [ -z "$(ls -A "$work/version")" ] || fail "-version created files"
 
 (run "$work/readme" -readme) | grep -q '^# vision_processor GUI' || fail "-readme didn't print the user guide"

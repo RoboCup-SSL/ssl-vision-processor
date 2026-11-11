@@ -16,7 +16,7 @@ for all vision_processors, teams and the game controller.
 
 A Go host plus a browser UI, replacing `geom_publisher.py` for anyone running it:
 
-- `gui/` — Go host (`cmd/rcssl-vision-processor-gui`). Owns the field geometry, absorbs calibrations from vision processors over multicast, and serves the embedded frontend, JSON API, a WebSocket for live updates, and debug snapshot images all on one port. A single binary you can download and run: see [`gui/README.md`](gui/README.md). To work on it, run `cd gui && make run` and see [`gui/DEVELOPMENT.md`](gui/DEVELOPMENT.md); [`gui/ARCHITECTURE.md`](gui/ARCHITECTURE.md) covers its design.
+- `gui/` — Go host (`cmd/ssl-vision-processor-gui`). Owns the field geometry, absorbs calibrations from vision processors over multicast, and serves the embedded frontend, JSON API, a WebSocket for live updates, and debug snapshot images all on one port. A single binary you can download and run: see [`gui/README.md`](gui/README.md). To work on it, run `cd gui && make run` and see [`gui/DEVELOPMENT.md`](gui/DEVELOPMENT.md); [`gui/ARCHITECTURE.md`](gui/ARCHITECTURE.md) covers its design.
 - `gui/frontend/` — Svelte 5 + TypeScript + Vite, embedded into the Go binary. Run standalone with `cd gui && make proto && cd frontend && npm install && npm run dev` (proxies `/api` and `/ws` to the Go host), or serve it from the Go host directly with `make run`. `make proto` regenerates the protobuf bindings the frontend imports (not committed to git; needs `buf`, or use `nix develop`, see [`gui/CLAUDE.md`](gui/CLAUDE.md)) and only needs to be rerun after the `proto/` submodule changes. See [`gui/frontend/README.md`](gui/frontend/README.md).
 
 ## Dependency installation and compilation

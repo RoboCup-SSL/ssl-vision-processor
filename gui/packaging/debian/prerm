@@ -2,7 +2,7 @@
 set -e
 
 if [ "$1" = remove ] && [ -d /run/systemd/system ]; then
-	deb-systemd-invoke stop rcssl-vision-processor-gui.service >/dev/null || true
+	deb-systemd-invoke stop ssl-vision-processor-gui.service >/dev/null || true
 fi
 
 exit 0

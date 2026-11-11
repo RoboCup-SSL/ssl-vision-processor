@@ -24,7 +24,7 @@ const module = "github.com/RoboCup-SSL/ssl-vision-processor/gui"
 var dirs = []string{
 	"../alerts", "../config", "../detections", "../geometry", "../httpjson",
 	"../multicast", "../peers", "../referee", "../snapshot", "../supervisor", "../v4l",
-	"../../cmd/rcssl-vision-processor-gui",
+	"../../cmd/ssl-vision-processor-gui",
 }
 
 // mainPackage is the import path of the dir holding package main, which a

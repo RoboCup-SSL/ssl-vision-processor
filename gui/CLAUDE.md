@@ -47,7 +47,7 @@ cd frontend && npm run dev   # Vite HMR on :5173, proxies /api and /ws to :8085
 ## Repository layout
 
 ```
-cmd/rcssl-vision-processor-gui/   entry point: flags, paths, wiring, HTTP server
+cmd/ssl-vision-processor-gui/   entry point: flags, paths, wiring, HTTP server
 internal/
   config/      vision.yml store: working/disk copies, save/load, locked
                calibrations, disk watcher, generated config.yml files

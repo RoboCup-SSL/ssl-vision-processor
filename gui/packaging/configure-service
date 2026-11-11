@@ -1,6 +1,6 @@
 #!/bin/sh
 # Applies the package's two setup answers, on a new install and on
-# sudo dpkg-reconfigure rcssl-vision-processor-gui, which is how to change
+# sudo dpkg-reconfigure ssl-vision-processor-gui, which is how to change
 # them. (An upgrade doesn't run this; see postinst.)
 #
 #   configure-service none|boot|now local|network
@@ -9,12 +9,12 @@
 # restarting it if it's running; now enables it and (re)starts it.
 #
 # local listens on this machine only, network on every interface. Only the
-# ADDRESS line of /etc/default/rcssl-vision-processor-gui changes: everything
+# ADDRESS line of /etc/default/ssl-vision-processor-gui changes: everything
 # else in it, such as ARGS, is kept, as is a port changed by hand and, for
 # network, an address set by hand, such as one interface's.
 set -e
 
-package=rcssl-vision-processor-gui
+package=ssl-vision-processor-gui
 unit=$package.service
 defaults=/etc/default/$package
 
@@ -58,16 +58,16 @@ elif [ -f "$defaults" ]; then
 	echo "ADDRESS=$address" >>"$tmp"
 else
 	cat >"$tmp" <<DEFAULTS
-# The system service's settings. sudo dpkg-reconfigure rcssl-vision-processor-gui
+# The system service's settings. sudo dpkg-reconfigure ssl-vision-processor-gui
 # changes ADDRESS and keeps everything else. Restart the service after editing:
-# sudo systemctl restart rcssl-vision-processor-gui
+# sudo systemctl restart ssl-vision-processor-gui
 
 # Where the GUI listens. 127.0.0.1 allows this machine only; leave the host
 # out (:8085) for every interface. The GUI has no login.
 ADDRESS=$address
 
 # Extra options, as on the command line, e.g. ARGS="-logLevel Debug". See
-# rcssl-vision-processor-gui -h.
+# ssl-vision-processor-gui -h.
 ARGS=
 DEFAULTS
 fi

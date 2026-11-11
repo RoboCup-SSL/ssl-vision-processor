@@ -13,7 +13,7 @@ set -euo pipefail
 deb=$(realpath "$1")
 version="$2"
 
-package=rcssl-vision-processor-gui
+package=ssl-vision-processor-gui
 unit=$package.service
 defaults=/etc/default/$package
 state=/var/lib/rcssl/vision-processor-gui
@@ -57,7 +57,7 @@ wait_healthy() {
 # A non-interactive install takes the defaults: no service.
 apt-get install -y "$deb" >/dev/null
 
-[ "$(rcssl-vision-processor-gui -version)" = "rcssl-vision-processor-gui $version" ] || fail "wrong binary version"
+[ "$(ssl-vision-processor-gui -version)" = "ssl-vision-processor-gui $version" ] || fail "wrong binary version"
 id -nG rcssl-vp-gui | tr ' ' '\n' | grep -qx rcssl || fail "rcssl-vp-gui isn't in the rcssl group"
 grep -qx 'ADDRESS=127.0.0.1:8085' "$defaults" || fail "$defaults doesn't limit the GUI to this machine"
 grep -qx 'ARGS=' "$defaults" || fail "$defaults has no ARGS line for extra options"
@@ -117,7 +117,7 @@ fi
 # Removing keeps the settings; purging drops them but keeps the GUI's own
 # configuration, which holds locked calibrations.
 apt-get remove -y "$package" >/dev/null
-! command -v rcssl-vision-processor-gui >/dev/null || fail "remove left the binary"
+! command -v ssl-vision-processor-gui >/dev/null || fail "remove left the binary"
 [ -f "$defaults" ] || fail "remove deleted $defaults"
 
 apt-get purge -y "$package" >/dev/null

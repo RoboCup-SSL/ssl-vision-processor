@@ -22,7 +22,7 @@ graph LR
         FS[("shared filesystem\nimg/, config.yml")]
     end
 
-    GUI["gui host\nrcssl-vision-processor-gui"]
+    GUI["gui host\nssl-vision-processor-gui"]
     MC(("multicast\n224.5.23.2:10006"))
     Browser["Browser UI"]
 
@@ -45,8 +45,8 @@ HTTP and a WebSocket instead, covered under HTTP API and WebSocket protocol belo
 
 ## Process layout
 
-`rcssl-vision-processor-gui` is one process with seven concurrent responsibilities, wired together in
-`cmd/rcssl-vision-processor-gui/main.go`.
+`ssl-vision-processor-gui` is one process with seven concurrent responsibilities, wired together in
+`cmd/ssl-vision-processor-gui/main.go`.
 
 ```mermaid
 graph TD
@@ -83,27 +83,27 @@ before returning.
 
 ## Package responsibilities
 
-| Package                                      | Responsibility                                                                                                                          |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `cmd/rcssl-vision-processor-gui`               | Flags, wiring, HTTP handlers and routes.                                                                                                |
-| `internal/config`                            | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files.             |
-| `internal/defaults`                          | Files embedded in the binary so it needs nothing beside it: the rulebook fields and the robot height table.                             |
-| `internal/geometry`                          | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state.                                         |
+| Package                                      | Responsibility                                                                                                                                           |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cmd/ssl-vision-processor-gui`               | Flags, wiring, HTTP handlers and routes.                                                                                                                 |
+| `internal/config`                            | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files.                              |
+| `internal/defaults`                          | Files embedded in the binary so it needs nothing beside it: the rulebook fields and the robot height table.                                              |
+| `internal/geometry`                          | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state.                                                          |
 | `internal/multicast`                         | The vision, game controller, autoref tracker, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
-| `internal/api`                               | Typed route registration and the OpenAPI 3.1 spec reflected from the handlers' own types and doc comments.                              |
-| `internal/hub`                               | In-process topic pub/sub and the `/ws` WebSocket handler.                                                                               |
-| `internal/livefield`                         | The latest detection frame per camera and tracked frame per autoref, for the Live Field page.                                           |
-| `internal/detections`                        | Which camera_ids the vision socket hears, from which address, at what rate. Feeds the Camera Layout page.                               |
-| `internal/referee`                           | The current match's teams, from the game controller, and their robot heights from `bot_heights_file`.                                   |
-| `internal/snapshot`                          | Debug image listing and serving.                                                                                                        |
-| `internal/video`                             | Live video: each camera's H.264 RTP stream relayed to browsers as fragmented MP4.                                                       |
-| `internal/peers`                             | Names senders (IP, port, hostname) and logs and alerts when two of them claim one thing.                                                |
-| `internal/supervisor`                        | `-runCameras`: runs every camera's vision_processor and restarts it when a startup-only setting changes.                                |
-| `internal/v4l`                               | Lists this host's Video4Linux capture devices for the camera path picker.                                                               |
-| `internal/logging`                           | slog setup: a coloured console handler, a rotating file handler, and the last warnings and errors kept in memory for the system report. |
-| `internal/buildinfo`                         | What the binary was built from: the git state of this repository and the proto submodule, stamped by the Makefile.                      |
-| `internal/vision`, `internal/gamecontroller` | Generated protobuf bindings. Not committed, see Build-time codegen below.                                                               |
-| `frontend`                                   | Svelte 5 and TypeScript, embedded into the binary via `//go:embed`.                                                                     |
+| `internal/api`                               | Typed route registration and the OpenAPI 3.1 spec reflected from the handlers' own types and doc comments.                                               |
+| `internal/hub`                               | In-process topic pub/sub and the `/ws` WebSocket handler.                                                                                                |
+| `internal/livefield`                         | The latest detection frame per camera and tracked frame per autoref, for the Live Field page.                                                            |
+| `internal/detections`                        | Which camera_ids the vision socket hears, from which address, at what rate. Feeds the Camera Layout page.                                                |
+| `internal/referee`                           | The current match's teams, from the game controller, and their robot heights from `bot_heights_file`.                                                    |
+| `internal/snapshot`                          | Debug image listing and serving.                                                                                                                         |
+| `internal/video`                             | Live video: each camera's H.264 RTP stream relayed to browsers as fragmented MP4.                                                                        |
+| `internal/peers`                             | Names senders (IP, port, hostname) and logs and alerts when two of them claim one thing.                                                                 |
+| `internal/supervisor`                        | `-runCameras`: runs every camera's vision_processor and restarts it when a startup-only setting changes.                                                 |
+| `internal/v4l`                               | Lists this host's Video4Linux capture devices for the camera path picker.                                                                                |
+| `internal/logging`                           | slog setup: a coloured console handler, a rotating file handler, and the last warnings and errors kept in memory for the system report.                  |
+| `internal/buildinfo`                         | What the binary was built from: the git state of this repository and the proto submodule, stamped by the Makefile.                                       |
+| `internal/vision`, `internal/gamecontroller` | Generated protobuf bindings. Not committed, see Build-time codegen below.                                                                                |
+| `frontend`                                   | Svelte 5 and TypeScript, embedded into the binary via `//go:embed`.                                                                                      |
 
 ## Data flow: geometry state
 
@@ -287,7 +287,7 @@ JSON float and YAML decodes integers as ints, so without this every edit would s
 
 ## HTTP API
 
-Every route is registered in `cmd/rcssl-vision-processor-gui/routes.go` through `internal/api`, which builds an
+Every route is registered in `cmd/ssl-vision-processor-gui/routes.go` through `internal/api`, which builds an
 OpenAPI 3.1 spec from each handler's request and response types, and its summary, descriptions and field docs
 from their Go doc comments. The host serves the spec at `GET /api/openapi.json` and a reference for it at
 `GET /api/docs` (Redoc, embedded, so it works offline), linked from the GUI's settings menu.

@@ -76,7 +76,7 @@ func run() int {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("rcssl-vision-processor-gui", buildinfo.Version())
+		fmt.Println("ssl-vision-processor-gui", buildinfo.Version())
 
 		return 0
 	}
