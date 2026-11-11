@@ -37,6 +37,15 @@ else
                 echo -e "\e[92m »  NVIDIA graphics card selected\e[39m"
                 opencl_arch='opencl-nvidia nvidia-utils'
                 opencl_debian=nvidia-opencl-icd
+                # Ubuntu only provides nvidia-opencl-icd virtually via the driver versioned libnvidia-compute-XXX packages
+                if command -v apt-cache &>/dev/null && [[ -z $(apt-cache madison nvidia-opencl-icd 2>/dev/null) ]] && command -v nvidia-smi &>/dev/null; then
+                    driver_major=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1 | cut -d. -f1)
+                    if [[ -n $driver_major ]]; then
+                        # Prefer an already installed variant (e.g. -server) of the running driver version
+                        installed=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "libnvidia-compute-$driver_major*" 2>/dev/null | awk '$1 == "ii" { print $2; exit }')
+                        opencl_debian=${installed:-libnvidia-compute-$driver_major}
+                    fi
+                fi
             elif [[ $vendor == 0x1002 ]]; then
                 echo -e "\e[92m »  AMD graphics card selected\e[39m"
                 opencl_arch='rocm-opencl-runtime mesa'
