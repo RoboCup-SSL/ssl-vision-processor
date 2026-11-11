@@ -256,6 +256,18 @@ export function alerts(): Alert[] {
   return hostAlerts.list.map(present);
 }
 
+// The most severe open problem, for the header's alarm color on a competition
+// field: an error over a warning; null with none, or only cautions, which are
+// often fine.
+export function alarmLevel(): "error" | "warning" | null {
+  const severities = hostAlerts.list.map((a) => a.severity);
+
+  if (severities.includes("error")) return "error";
+  if (severities.includes("warning")) return "warning";
+
+  return null;
+}
+
 export function alertsOf(severity: Severity): Alert[] {
   return alerts().filter((a) => a.severity === severity);
 }

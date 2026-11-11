@@ -11,7 +11,8 @@
   import { checklist as checklistText } from "../text/checklist";
   import { app as text } from "../text/app";
   import { links } from "../text/links";
-  import { setCompetitionField } from "../teams.svelte";
+  import { competitionField, setCompetitionField } from "../teams.svelte";
+  import { alarmLevel } from "../alerts/alerts";
   import ConfigNav from "./ConfigNav.svelte";
   import MainContent from "./MainContent.svelte";
   import { untrack, type Snippet } from "svelte";
@@ -149,6 +150,28 @@
     if (unsaved === 0) void reloadFromDisk();
     else confirmingRevert = true;
   }
+
+  let confirmingLeaveCompetition = $state(false);
+
+  // On a competition field the header turns red for an error and orange for
+  // a warning, so a problem is obvious from across the room. Cautions don't
+  // count; off a competition field the header stays plain.
+  let alarm = $derived(competitionField() ? alarmLevel() : null);
+
+  // Turning competition mode on applies at once; turning it off asks first,
+  // since doing it by accident mid-match changes how heights are kept. Expert
+  // mode skips the question.
+  function toggleCompetition(input: HTMLInputElement): void {
+    if (input.checked || preferences.expertUser) {
+      setCompetitionField(input.checked);
+
+      return;
+    }
+
+    // Stays on until confirmed.
+    input.checked = true;
+    confirmingLeaveCompetition = true;
+  }
 </script>
 
 <ConfirmModal
@@ -158,6 +181,16 @@
   confirmLabel={text.discardConfirm}
   danger
   onconfirm={() => void reloadFromDisk()}
+/>
+
+<ConfirmModal
+  bind:open={confirmingLeaveCompetition}
+  title={text.competitionField.leaveTitle}
+  message={text.competitionField.leaveMessage}
+  confirmLabel={text.competitionField.leaveConfirm}
+  onconfirm={() => {
+    setCompetitionField(false);
+  }}
 />
 
 <ConfigDialogs />
@@ -175,7 +208,10 @@
   class:with-checklist={checklistOpen}
   style:--log-height={preferences.logPanel ? `${String(logHeight)}px` : null}
 >
-  <header>
+  <header
+    class:alarm-error={alarm === "error"}
+    class:alarm-warning={alarm === "warning"}
+  >
     <!-- Never wraps: a second row would push the page down and split the
          right-hand controls from each other. -->
     <Navbar
@@ -212,13 +248,11 @@
                "alternative" ones. -->
           <Toggle
             size="small"
-            class="h-8 shrink-0 cursor-pointer rounded-full border border-gray-200 px-3 text-gray-900 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+            class="h-8 shrink-0 cursor-pointer rounded-full border border-gray-200 bg-white px-3 text-gray-900 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
             checked={config.doc.competitionField === true}
             title={text.competitionField.title}
             onchange={(e: Event) => {
-              setCompetitionField(
-                (e.currentTarget as HTMLInputElement).checked,
-              );
+              toggleCompetition(e.currentTarget as HTMLInputElement);
             }}
             ><span class="text-xs font-medium whitespace-nowrap"
               >{text.competitionField.label}</span
@@ -423,6 +457,21 @@
   header {
     grid-column: 1 / -1;
     border-bottom: 1px solid var(--color-gray-200);
+  }
+
+  header.alarm-error {
+    background: var(--color-red-600);
+    border-bottom-color: var(--color-red-800);
+  }
+
+  header.alarm-warning {
+    background: var(--color-orange-500);
+    border-bottom-color: var(--color-orange-700);
+  }
+
+  header.alarm-error h1,
+  header.alarm-warning h1 {
+    color: white;
   }
 
   :global(.dark) header,
