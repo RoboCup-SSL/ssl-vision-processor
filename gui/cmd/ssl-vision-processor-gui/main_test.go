@@ -119,7 +119,7 @@ func TestUDPPortsFollowTheConfig(t *testing.T) {
 
 // The package's man page lists every option, so it can't fall behind the flags.
 func TestManPageListsEveryFlag(t *testing.T) {
-	page, err := os.ReadFile("../../packaging/rcssl-vision-processor-gui.1")
+	page, err := os.ReadFile("../../packaging/ssl-vision-processor-gui.1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestManPageListsEveryFlag(t *testing.T) {
 		}
 
 		if !regexp.MustCompile(`(?m)^\.BI? \\-` + regexp.QuoteMeta(f.Name) + `( |$)`).Match(page) {
-			t.Errorf("packaging/rcssl-vision-processor-gui.1 doesn't describe -%s under OPTIONS", f.Name)
+			t.Errorf("packaging/ssl-vision-processor-gui.1 doesn't describe -%s under OPTIONS", f.Name)
 		}
 	})
 }

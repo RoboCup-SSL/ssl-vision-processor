@@ -1,4 +1,4 @@
-BINARY = rcssl-vision-processor-gui
+BINARY = ssl-vision-processor-gui
 
 # ./... would also descend into frontend/node_modules, where npm packages ship
 # stray Go source (flatted/golang, for one). Enumerate our own trees instead.
@@ -96,7 +96,7 @@ deb: frontend ## Build the .deb packages, amd64 and arm64, in bin/deb
 	mkdir -p $(DEB_STAGE)
 	scripts/third-party-notices.sh > $(DEB_STAGE)/THIRD_PARTY_NOTICES.txt
 	$(DEB_FILL) packaging/changelog | gzip -9n > $(DEB_STAGE)/changelog.gz
-	gzip -9n < packaging/rcssl-vision-processor-gui.1 > $(DEB_STAGE)/rcssl-vision-processor-gui.1.gz
+	gzip -9n < packaging/ssl-vision-processor-gui.1 > $(DEB_STAGE)/ssl-vision-processor-gui.1.gz
 	set -e; for arch in $(DEB_ARCHES); do \
 		GOARCH=$$arch $(RELEASE_BUILD) -o $(DEB_STAGE)/$(BINARY) ./cmd/$(BINARY); \
 		$(DEB_FILL) -e "s|@ARCH@|$$arch|" packaging/nfpm.yaml > $(DEB_STAGE)/nfpm.yaml; \

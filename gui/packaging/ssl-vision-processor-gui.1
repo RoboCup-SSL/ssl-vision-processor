@@ -1,13 +1,13 @@
 .\" The package's man page. Every flag in main.go must be listed under OPTIONS:
 .\" TestManPageListsEveryFlag checks.
-.TH RCSSL-VISION-PROCESSOR-GUI 1 "" "rcssl-vision-processor-gui" "RoboCup SSL"
+.TH SSL-VISION-PROCESSOR-GUI 1 "" "ssl-vision-processor-gui" "RoboCup SSL"
 .SH NAME
-rcssl-vision-processor-gui \- browser interface for the RoboCup SSL vision_processor
+ssl-vision-processor-gui \- browser interface for the RoboCup SSL vision_processor
 .SH SYNOPSIS
-.B rcssl-vision-processor-gui
+.B ssl-vision-processor-gui
 .RI [ options ]
 .SH DESCRIPTION
-.B rcssl-vision-processor-gui
+.B ssl-vision-processor-gui
 sets up and runs vision_processor, the Small Size League's shared vision
 system. It holds the field geometry and camera settings, locks in camera
 calibrations, shows live video and the live field, and publishes the field
@@ -19,7 +19,7 @@ folders, creating a default configuration on the first run. A new
 configuration publishes nothing until it has been saved once.
 .PP
 The full guide, including network setup and troubleshooting, is in
-.I /usr/share/doc/rcssl-vision-processor-gui/README.md
+.I /usr/share/doc/ssl-vision-processor-gui/README.md
 and printed by
 .BR \-readme .
 .SH OPTIONS
@@ -98,7 +98,7 @@ Print the version and exit.
 Print the user guide and exit.
 .SH SYSTEM SERVICE
 The package can run the GUI as the system service
-.BR rcssl-vision-processor-gui.service ,
+.BR ssl-vision-processor-gui.service ,
 as the
 .B rcssl-vp-gui
 user in the
@@ -109,17 +109,17 @@ and its log in the journal. Whether it runs, and who can reach it, are the
 package's setup questions:
 .PP
 .RS
-.B sudo dpkg-reconfigure rcssl-vision-processor-gui
+.B sudo dpkg-reconfigure ssl-vision-processor-gui
 .RE
 .PP
 Without the system service, the same unit can run as a user service:
 .PP
 .RS
-.B systemctl \-\-user enable \-\-now rcssl-vision-processor-gui
+.B systemctl \-\-user enable \-\-now ssl-vision-processor-gui
 .RE
 .SH FILES
 .TP
-.I /etc/default/rcssl-vision-processor-gui
+.I /etc/default/ssl-vision-processor-gui
 The system service's
 .B ADDRESS
 and extra options,
@@ -129,7 +129,7 @@ Restart the service after editing.
 .I /var/lib/rcssl/vision-processor-gui
 The system service's config folder.
 .TP
-.I /usr/lib/systemd/system/rcssl-vision-processor-gui.service
+.I /usr/lib/systemd/system/ssl-vision-processor-gui.service
 The system service. Upgrades replace it; customize with
 .BR "systemctl edit" .
 .TP

@@ -28,7 +28,7 @@ section() {
 	fi
 }
 
-echo "Third-party software in rcssl-vision-processor-gui"
+echo "Third-party software in ssl-vision-processor-gui"
 
 # Not a Go module or npm package, so nothing below finds it: the binary and its
 # web page contain code generated from proto/.
@@ -38,7 +38,7 @@ echo "Compiled in as generated code. Used under the MIT License with the origina
 echo
 cat ../proto/LICENSE-MIT
 
-go list -deps -f '{{with .Module}}{{if not .Main}}{{.Path}} {{.Version}} {{.Dir}}{{end}}{{end}}' ./cmd/rcssl-vision-processor-gui |
+go list -deps -f '{{with .Module}}{{if not .Main}}{{.Path}} {{.Version}} {{.Dir}}{{end}}{{end}}' ./cmd/ssl-vision-processor-gui |
 	sort -u |
 	while read -r path version dir; do
 		section "$path $version" "$dir"

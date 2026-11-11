@@ -44,7 +44,7 @@ vision_processor
 blob_benchmark
 geometry_benchmark
 /gui/bin
-/gui/rcssl-vision-processor-gui
+/gui/ssl-vision-processor-gui
 
 # Makefile sentinels for the frontend build and protobuf codegen
 /gui/.frontend

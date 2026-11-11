@@ -1,4 +1,4 @@
 # Go, built with CGO_ENABLED=0 so the one binary runs on any Linux.
-rcssl-vision-processor-gui: statically-linked-binary [usr/bin/rcssl-vision-processor-gui]
+ssl-vision-processor-gui: statically-linked-binary [usr/bin/ssl-vision-processor-gui]
 # A string inside a bundled Go module, not ours.
-rcssl-vision-processor-gui: spelling-error-in-binary reencode re-encode [usr/bin/rcssl-vision-processor-gui]
+ssl-vision-processor-gui: spelling-error-in-binary reencode re-encode [usr/bin/ssl-vision-processor-gui]

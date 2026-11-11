@@ -19,14 +19,14 @@ These steps are for 64-bit Linux, tested on Ubuntu 24.04.
 
    ```sh
    sha256sum --check --ignore-missing SHA256SUMS
-   tar -xzf rcssl-vision-processor-gui-*-linux-amd64.tar.gz
-   cd rcssl-vision-processor-gui-*-linux-amd64
+   tar -xzf ssl-vision-processor-gui-*-linux-amd64.tar.gz
+   cd ssl-vision-processor-gui-*-linux-amd64
    ```
 
 2. Run it:
 
    ```sh
-   ./rcssl-vision-processor-gui
+   ./ssl-vision-processor-gui
    ```
 
    It prints where it keeps everything, then the address to open:
@@ -54,7 +54,7 @@ program, and can run it as a system service that starts at boot.
 
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
-sudo apt install ./rcssl-vision-processor-gui_*_amd64.deb
+sudo apt install ./ssl-vision-processor-gui_*_amd64.deb
 ```
 
 It asks two questions:
@@ -64,7 +64,7 @@ It asks two questions:
 2. **Who can open it?** This machine only, or any machine on the network. Asked only for a service. The GUI has no
    login; see [Security](#security).
 
-To change your answers: `sudo dpkg-reconfigure rcssl-vision-processor-gui`.
+To change your answers: `sudo dpkg-reconfigure ssl-vision-processor-gui`.
 
 The service runs as its own user, `rcssl-vp-gui`, in the `rcssl` group that every RoboCup SSL tool's package
 shares:
@@ -72,35 +72,35 @@ shares:
 | What                   | Where                                                                          |
 | ---------------------- | ------------------------------------------------------------------------------ |
 | Config folder          | `/var/lib/rcssl/vision-processor-gui/`. Members of `rcssl` can read it.        |
-| Log                    | `journalctl -u rcssl-vision-processor-gui`                                     |
-| Address, extra options | `/etc/default/rcssl-vision-processor-gui`. Restart the service after editing.  |
-| Start, stop, restart   | `sudo systemctl start rcssl-vision-processor-gui`, and so on                   |
+| Log                    | `journalctl -u ssl-vision-processor-gui`                                       |
+| Address, extra options | `/etc/default/ssl-vision-processor-gui`. Restart the service after editing.    |
+| Start, stop, restart   | `sudo systemctl start ssl-vision-processor-gui`, and so on                     |
 
 To read the config folder without `sudo`, join the group (`sudo usermod -aG rcssl $USER`), then log in again.
 
 ### Customizing the service
 
-Extra options go on the `ARGS` line of `/etc/default/rcssl-vision-processor-gui`, as you'd type them, for example
-`ARGS="-logLevel Debug -allowHost vision.local"`. Then `sudo systemctl restart rcssl-vision-processor-gui`.
+Extra options go on the `ARGS` line of `/etc/default/ssl-vision-processor-gui`, as you'd type them, for example
+`ARGS="-logLevel Debug -allowHost vision.local"`. Then `sudo systemctl restart ssl-vision-processor-gui`.
 Reconfiguring the package changes only `ADDRESS` and keeps everything else in that file.
 
-Don't edit the unit file itself, `/usr/lib/systemd/system/rcssl-vision-processor-gui.service`: upgrades replace it.
+Don't edit the unit file itself, `/usr/lib/systemd/system/ssl-vision-processor-gui.service`: upgrades replace it.
 For anything `ARGS` can't do, add a drop-in, which upgrades keep:
 
 ```sh
-sudo systemctl edit rcssl-vision-processor-gui     # writes /etc/systemd/system/rcssl-vision-processor-gui.service.d/override.conf
-systemctl cat rcssl-vision-processor-gui           # shows the unit with every drop-in
+sudo systemctl edit ssl-vision-processor-gui     # writes /etc/systemd/system/ssl-vision-processor-gui.service.d/override.conf
+systemctl cat ssl-vision-processor-gui           # shows the unit with every drop-in
 ```
 
 The service is sandboxed: it can write only to its config folder. To have it write anywhere else, for example
 `-imgDir` on another disk, add `ReadWritePaths=` with that folder in the drop-in. To replace the command entirely,
 clear it first with an empty `ExecStart=` line, then give the new one.
 
-Without the system service, run `rcssl-vision-processor-gui` as above, or as your own user service, which keeps the
+Without the system service, run `ssl-vision-processor-gui` as above, or as your own user service, which keeps the
 same files as running it by hand:
 
 ```sh
-systemctl --user enable --now rcssl-vision-processor-gui
+systemctl --user enable --now ssl-vision-processor-gui
 ```
 
 The package also raises the network receive buffer limit that [live video needs](#network-setup).
@@ -121,7 +121,7 @@ machine set up with packages, each vision_processor will run as its own service.
 | Robot height table     | `robot-heights.yml` in the config folder                                             | `vision.yml`   |
 | Log file               | `~/.local/state/rcssl/vision-processor-gui/logs/vision-processor-gui.log`, rotated   | `-logFile`     |
 | Debug snapshot images  | `~/.local/state/rcssl/vision-processor-gui/img/`                                     | `-imgDir`      |
-| Camera working folders | `~/.local/state/rcssl/vision-processor-gui/run/`, with `-runCameras` only           |                |
+| Camera working folders | `~/.local/state/rcssl/vision-processor-gui/run/`, with `-runCameras` only            |                |
 
 `XDG_CONFIG_HOME` and `XDG_STATE_HOME` replace `~/.config` and `~/.local/state` if you have them set.
 
@@ -130,7 +130,7 @@ machine set up with packages, each vision_processor will run as its own service.
 To keep a whole setup together, for example on a USB stick, point everything at one place:
 
 ```sh
-./rcssl-vision-processor-gui -configDir ./setup -logFile ./setup/logs/gui.log -imgDir ./setup/img
+./ssl-vision-processor-gui -configDir ./setup -logFile ./setup/logs/gui.log -imgDir ./setup/img
 ```
 
 To start over, stop the program and delete or rename `vision.yml`. The next run creates a new one and starts the
@@ -162,19 +162,19 @@ Every option is optional. `-h` lists them all.
 | `-allowOrigin` | none                 | Other web pages allowed to use the API on a competition field.                     |
 | `-allowHost`   | none                 | Extra names this machine is reached by, such as a DNS alias.                       |
 | `-version`     |                      | Print the version and exit.                                                        |
-| `-readme`      |                      | Print this guide and exit, e.g. `./rcssl-vision-processor-gui -readme \| less`.      |
+| `-readme`      |                      | Print this guide and exit, e.g. `./ssl-vision-processor-gui -readme \| less`.      |
 
 ## Network setup
 
 Multicast addresses are set on the GUI's Network page; these are the defaults.
 
-| Traffic                 | Address                                         | Direction  |
-| ----------------------- | ----------------------------------------------- | ---------- |
-| GUI in a browser        | TCP `8085`                                      | In         |
-| Vision (geometry, detections) | UDP `224.5.23.2:10006`                    | In and out |
-| Game controller         | UDP `224.5.23.1:10003`                          | In         |
-| Autoref tracker         | UDP `224.5.23.2:10010`                          | In         |
-| Live video, per camera  | UDP `224.5.23.100:10100` for camera 0, `.101` for camera 1, and so on | In |
+| Traffic                       | Address                                                               | Direction  |
+| ----------------------------- | --------------------------------------------------------------------- | ---------- |
+| GUI in a browser              | TCP `8085`                                                            | In         |
+| Vision (geometry, detections) | UDP `224.5.23.2:10006`                                                | In and out |
+| Game controller               | UDP `224.5.23.1:10003`                                                | In         |
+| Autoref tracker               | UDP `224.5.23.2:10010`                                                | In         |
+| Live video, per camera        | UDP `224.5.23.100:10100` for camera 0, `.101` for camera 1, and so on | In         |
 
 The GUI uses every network interface that is up, has a cable or link, supports multicast, and has an IPv4 address.
 It skips loopback, Docker and VM bridges, and VPNs. The Network page lets you exclude interfaces.
@@ -251,7 +251,7 @@ There are two ways to run the cameras:
 2. Start the GUI with `-runCameras`:
 
    ```sh
-   ./rcssl-vision-processor-gui -runCameras
+   ./ssl-vision-processor-gui -runCameras
    ```
 
    It prints which vision_processor it runs, and exits straight away if it can't find one. A new configuration's
@@ -272,16 +272,16 @@ files stay apart. Its snapshots go to its own folder in the image folder, `img/c
 
 Check the GUI's Alerts page first; most alerts have a how-to. The printed log file has the details.
 
-| Problem                                      | Likely cause and fix                                                                            |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `http server init failed` and it exits       | Something else is using the port, often another copy of the GUI. Stop it, or use another `-address`. |
-| `no default config folder, set -configDir`   | `HOME` isn't set, as in some service environments. Set `-configDir`, `-logFile`, and `-imgDir`. |
+| Problem                                      | Likely cause and fix                                                                                                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `http server init failed` and it exits       | Something else is using the port, often another copy of the GUI. Stop it, or use another `-address`.                                                                                |
+| `no default config folder, set -configDir`   | `HOME` isn't set, as in some service environments. Set `-configDir`, `-logFile`, and `-imgDir`.                                                                                     |
 | Page doesn't load from another machine       | It allows this machine only: check the address it printed, or the service's [setting](#installing-the-package). Then the firewall, if it's on; see [Network setup](#network-setup). |
-| "This host doesn't answer to..."             | You're using a name the GUI doesn't know. Add it with `-allowHost`.                             |
-| Nothing is published                         | First run: save once. Then check the Alerts page.                                               |
-| Your old settings seem to be gone            | The GUI no longer reads `vision.yml` from the current folder. Pass `-configDir .` from that folder. |
-| `config_path: ... want a file name`          | `vision.yml` names a full path. Move the file to the config folder and use only its name.       |
-| `-runCameras needs vision_processor on PATH` | Build vision_processor and add its folder to `PATH`; see [Cameras](#cameras).                   |
+| "This host doesn't answer to..."             | You're using a name the GUI doesn't know. Add it with `-allowHost`.                                                                                                                 |
+| Nothing is published                         | First run: save once. Then check the Alerts page.                                                                                                                                   |
+| Your old settings seem to be gone            | The GUI no longer reads `vision.yml` from the current folder. Pass `-configDir .` from that folder.                                                                                 |
+| `config_path: ... want a file name`          | `vision.yml` names a full path. Move the file to the config folder and use only its name.                                                                                           |
+| `-runCameras needs vision_processor on PATH` | Build vision_processor and add its folder to `PATH`; see [Cameras](#cameras).                                                                                                       |
 
 ## Upgrading
 
@@ -295,4 +295,4 @@ answers, the service's address, and whether it starts at boot are kept as they a
 
 Apache 2.0; see `LICENSE.md`. The release's `THIRD_PARTY_NOTICES.txt` lists the licenses of everything bundled,
 including the SSL protocol definitions. The package installs it and the license summary in
-`/usr/share/doc/rcssl-vision-processor-gui/`, and a man page: `man rcssl-vision-processor-gui`.
+`/usr/share/doc/ssl-vision-processor-gui/`, and a man page: `man ssl-vision-processor-gui`.

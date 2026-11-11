@@ -4,7 +4,7 @@
 # @STAGE@, where it puts the binary for each architecture in turn. Paths are
 # relative to this folder.
 
-name: rcssl-vision-processor-gui
+name: ssl-vision-processor-gui
 arch: "@ARCH@"
 platform: linux
 version: "@VERSION@"
@@ -31,30 +31,30 @@ depends:
   - debconf (>= 0.5) | debconf-2.0
 
 contents:
-  - src: "@STAGE@/rcssl-vision-processor-gui"
-    dst: /usr/bin/rcssl-vision-processor-gui
+  - src: "@STAGE@/ssl-vision-processor-gui"
+    dst: /usr/bin/ssl-vision-processor-gui
     file_info:
       mode: 0755
   # Debian requires a changelog in every package. It's one entry, for the
   # version built (packaging/changelog), pointing at the release notes.
   - src: "@STAGE@/changelog.gz"
-    dst: /usr/share/doc/rcssl-vision-processor-gui/changelog.gz
+    dst: /usr/share/doc/ssl-vision-processor-gui/changelog.gz
     file_info:
       mode: 0644
-  - src: "@STAGE@/rcssl-vision-processor-gui.1.gz"
-    dst: /usr/share/man/man1/rcssl-vision-processor-gui.1.gz
+  - src: "@STAGE@/ssl-vision-processor-gui.1.gz"
+    dst: /usr/share/man/man1/ssl-vision-processor-gui.1.gz
     file_info:
       mode: 0644
-  - src: rcssl-vision-processor-gui.service
-    dst: /usr/lib/systemd/system/rcssl-vision-processor-gui.service
+  - src: ssl-vision-processor-gui.service
+    dst: /usr/lib/systemd/system/ssl-vision-processor-gui.service
     file_info:
       mode: 0644
-  - src: rcssl-vision-processor-gui.user.service
-    dst: /usr/lib/systemd/user/rcssl-vision-processor-gui.service
+  - src: ssl-vision-processor-gui.user.service
+    dst: /usr/lib/systemd/user/ssl-vision-processor-gui.service
     file_info:
       mode: 0644
   - src: sysusers.conf
-    dst: /usr/lib/sysusers.d/rcssl-vision-processor-gui.conf
+    dst: /usr/lib/sysusers.d/ssl-vision-processor-gui.conf
     file_info:
       mode: 0644
   - src: sysctl.conf
@@ -62,23 +62,23 @@ contents:
     file_info:
       mode: 0644
   - src: configure-service
-    dst: /usr/lib/rcssl-vision-processor-gui/configure-service
+    dst: /usr/lib/ssl-vision-processor-gui/configure-service
     file_info:
       mode: 0755
   - src: ../README.md
-    dst: /usr/share/doc/rcssl-vision-processor-gui/README.md
+    dst: /usr/share/doc/ssl-vision-processor-gui/README.md
     file_info:
       mode: 0644
   - src: lintian-overrides
-    dst: /usr/share/lintian/overrides/rcssl-vision-processor-gui
+    dst: /usr/share/lintian/overrides/ssl-vision-processor-gui
     file_info:
       mode: 0644
   - src: copyright
-    dst: /usr/share/doc/rcssl-vision-processor-gui/copyright
+    dst: /usr/share/doc/ssl-vision-processor-gui/copyright
     file_info:
       mode: 0644
   - src: "@STAGE@/THIRD_PARTY_NOTICES.txt"
-    dst: /usr/share/doc/rcssl-vision-processor-gui/THIRD_PARTY_NOTICES.txt
+    dst: /usr/share/doc/ssl-vision-processor-gui/THIRD_PARTY_NOTICES.txt
     file_info:
       mode: 0644
 

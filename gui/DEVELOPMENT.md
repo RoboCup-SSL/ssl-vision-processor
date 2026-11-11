@@ -43,7 +43,7 @@ OpenAPI spec and the TypeScript types generated from it, and the frontend. None 
 | `make generate`      | Regenerate the one committed generated file, `frontend/src/lib/alerts/alert-codes.json`.        |
 | `make release`       | Build the static release binary, its tarball, and `SHA256SUMS` in `bin/release/`.               |
 | `make release-check` | Build the release, then run it as a new user would: no arguments, an empty home.                |
-| `make deb`           | Build the `.deb` packages, `amd64` and `arm64`, in `bin/deb/`. See [Packages](#packages).        |
+| `make deb`           | Build the `.deb` packages, `amd64` and `arm64`, in `bin/deb/`. See [Packages](#packages).       |
 | `make clean`         | Remove everything built, generated or fetched.                                                  |
 
 `make proto` needs no network beyond the checked out `proto/` submodule: both of `buf.gen.yaml`'s plugins are
@@ -105,7 +105,7 @@ network interfaces the host uses, automatically or by unticking the ones to skip
 ## Repository layout
 
 ```
-cmd/rcssl-vision-processor-gui/   entry point: flags, paths, wiring, HTTP server
+cmd/ssl-vision-processor-gui/   entry point: flags, paths, wiring, HTTP server
 internal/
   config/      vision.yml: working document, save and load, locked calibrations, disk watcher,
                generated config.yml files
@@ -177,21 +177,21 @@ What the package installs, all under `packaging/`:
 
 | File                                     | Installed as                                                                   |
 | ---------------------------------------- | ------------------------------------------------------------------------------ |
-| `rcssl-vision-processor-gui.service`     | The system service, as `rcssl-vp-gui` in group `rcssl`, hardened                |
-| `rcssl-vision-processor-gui.user.service`| The same as a user service, with the usual file locations                      |
-| `sysusers.conf`                          | The `rcssl` group and the `rcssl-vp-gui` user, via `systemd-sysusers`           |
-| `sysctl.conf`                            | `/usr/lib/sysctl.d/60-rcssl-multicast.conf`: `net.core.rmem_max` for video      |
+| `ssl-vision-processor-gui.service`       | The system service, as `rcssl-vp-gui` in group `rcssl`, hardened               |
+| `ssl-vision-processor-gui.user.service`  | The same as a user service, with the usual file locations                      |
+| `sysusers.conf`                          | The `rcssl` group and the `rcssl-vp-gui` user, via `systemd-sysusers`          |
+| `sysctl.conf`                            | `/usr/lib/sysctl.d/60-rcssl-multicast.conf`: `net.core.rmem_max` for video     |
 | `configure-service`                      | Applies the setup answers: enables or starts the service, sets `ADDRESS`       |
 | `debian/templates`, `debian/config`      | The two debconf questions: service, and who can reach it                       |
 | `debian/postinst`, `prerm`, `postrm`     | Users, sysctl, then the answers or an upgrade; stop on remove; purge           |
-| `rcssl-vision-processor-gui.1`             | The man page. `TestManPageListsEveryFlag` fails if an option is missing        |
+| `ssl-vision-processor-gui.1`             | The man page. `TestManPageListsEveryFlag` fails if an option is missing        |
 | `changelog`                              | The Debian changelog: one entry for the version built, pointing at releases    |
 | `copyright`                              | Licenses: Apache-2.0, the MIT protocol definitions, and the bundled notices    |
 | `lintian-overrides`                      | The findings that are intended, each with its reason                           |
 
 `configure-service` holds the logic and debconf only asks, so more tools' packages can follow the same shape. A new
 install and `dpkg-reconfigure` run it to apply the answers. It changes only the `ADDRESS` line of
-`/etc/default/rcssl-vision-processor-gui`, so `ARGS` and anything else added there by hand survive. An upgrade
+`/etc/default/ssl-vision-processor-gui`, so `ARGS` and anything else added there by hand survive. An upgrade
 doesn't run it: the postinst leaves the service enabled or not, and the address, as the admin last had them, and
 restarts the service only if it's running. Purge keeps `/var/lib/rcssl/vision-processor-gui`, which holds locked
 calibrations.
@@ -213,5 +213,5 @@ runs systemd.
 
 If the GUI's service runs on your development machine, `make run` can't take port 8085 (`http server init failed`).
 On another port, both publish geometry on the same multicast group, and the Network page shows a sender conflict.
-Stop the service while developing: `sudo systemctl stop rcssl-vision-processor-gui`. The same will go for
+Stop the service while developing: `sudo systemctl stop ssl-vision-processor-gui`. The same will go for
 vision_processor's services once they're packaged.

@@ -1,15 +1,15 @@
 #!/bin/sh
 # Asks the package's setup questions. Like any debconf question, each is asked
-# once; sudo dpkg-reconfigure rcssl-vision-processor-gui asks again.
+# once; sudo dpkg-reconfigure ssl-vision-processor-gui asks again.
 set -e
 
 . /usr/share/debconf/confmodule
 
-db_input high rcssl-vision-processor-gui/service || true
+db_input high ssl-vision-processor-gui/service || true
 db_go || true
 
-db_get rcssl-vision-processor-gui/service
+db_get ssl-vision-processor-gui/service
 if [ "$RET" != none ]; then
-	db_input high rcssl-vision-processor-gui/listen || true
+	db_input high ssl-vision-processor-gui/listen || true
 	db_go || true
 fi

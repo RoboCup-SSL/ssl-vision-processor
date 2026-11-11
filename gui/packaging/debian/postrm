@@ -4,7 +4,7 @@
 # kept even on purge: it holds locked calibrations.
 set -e
 
-package=rcssl-vision-processor-gui
+package=ssl-vision-processor-gui
 
 if [ -d /run/systemd/system ]; then
 	systemctl --system daemon-reload >/dev/null || true
