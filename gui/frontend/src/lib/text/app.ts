@@ -7,6 +7,10 @@ export const app = {
     label: "Competition Field",
     title:
       "A match setup with a game controller. Heights are kept per team so they follow color switches, and missing setup shows as errors. Off: lab use, heights per color.",
+    leaveTitle: "Leave competition mode?",
+    leaveMessage:
+      "Robot heights go back to being chosen per color, so they no longer follow teams when they switch colors, and missing match setup stops showing as errors. Leave it on during a match.",
+    leaveConfirm: "Leave competition mode",
   },
   // Headers over the tab bar's two groups, and their short forms, inline
   // before the tabs, for when the headers don't fit (layout/TabBar.svelte).

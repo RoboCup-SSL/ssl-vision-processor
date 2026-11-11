@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 // Every code the host can raise, written by gui/internal/alerts' tests
 // (go test ./internal/alerts -run Codes -update).
 import codes from "./alert-codes.json";
-import { alerts } from "./alerts";
-import { hostAlerts } from "./hostAlerts.svelte";
+import { alarmLevel, alerts } from "./alerts";
+import { hostAlerts, type HostAlert } from "./hostAlerts.svelte";
 
 // Params for any code: present() reads only the ones its code names.
 const PARAMS = {
@@ -57,5 +57,24 @@ describe("alerts", () => {
     ];
 
     expect(alerts()[0]?.detail).toBe("Something new happened.");
+  });
+});
+
+describe("alarmLevel", () => {
+  const alert = (severity: HostAlert["severity"]): HostAlert =>
+    ({ id: severity, code: severity, severity }) as HostAlert;
+
+  it("is the most severe of errors and warnings, ignoring cautions", () => {
+    hostAlerts.list = [];
+    expect(alarmLevel()).toBeNull();
+
+    hostAlerts.list = [alert("caution")];
+    expect(alarmLevel()).toBeNull();
+
+    hostAlerts.list = [alert("caution"), alert("warning")];
+    expect(alarmLevel()).toBe("warning");
+
+    hostAlerts.list = [alert("warning"), alert("error"), alert("caution")];
+    expect(alarmLevel()).toBe("error");
   });
 });
