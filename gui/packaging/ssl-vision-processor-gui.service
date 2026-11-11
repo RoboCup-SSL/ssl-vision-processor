@@ -1,0 +1,57 @@
+# The vision_processor GUI as a system service. Whether it's enabled, and the
+# address in /etc/default/ssl-vision-processor-gui, are the package's setup
+# questions: sudo dpkg-reconfigure ssl-vision-processor-gui. Extra options go
+# in that file's ARGS.
+#
+# This file is replaced on upgrade. To change anything else, use a drop-in that
+# upgrades keep: sudo systemctl edit ssl-vision-processor-gui
+#
+# Never -runCameras: on a machine set up with packages, each vision_processor
+# runs as its own service.
+
+[Unit]
+Description=vision_processor GUI (RoboCup SSL)
+Documentation=file:///usr/share/doc/ssl-vision-processor-gui/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=exec
+User=rcssl-vp-gui
+Group=rcssl
+# This machine only unless the setup question says otherwise: the GUI has no
+# login.
+Environment=ADDRESS=127.0.0.1:8085 ARGS=
+EnvironmentFile=-/etc/default/ssl-vision-processor-gui
+# No HOME, so every location is given. Logs go to the journal (an empty
+# -logFile). $ARGS, unlike ${ADDRESS}, splits into one argument per word.
+ExecStart=/usr/bin/ssl-vision-processor-gui -address ${ADDRESS} \
+	-configDir /var/lib/rcssl/vision-processor-gui \
+	-imgDir /var/lib/rcssl/vision-processor-gui/img \
+	-logFile= $ARGS
+StateDirectory=rcssl/vision-processor-gui
+StateDirectoryMode=0750
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

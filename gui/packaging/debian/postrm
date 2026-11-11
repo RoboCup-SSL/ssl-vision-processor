@@ -1,0 +1,29 @@
+#!/bin/sh
+# As debhelper's dh_installsystemd writes it, plus the files configure-service
+# and debconf own. The configuration in /var/lib/rcssl/vision-processor-gui is
+# kept even on purge: it holds locked calibrations.
+set -e
+
+package=ssl-vision-processor-gui
+
+if [ -d /run/systemd/system ]; then
+	systemctl --system daemon-reload >/dev/null || true
+fi
+
+case "$1" in
+remove)
+	deb-systemd-helper mask $package.service >/dev/null || true
+	;;
+purge)
+	deb-systemd-helper purge $package.service >/dev/null || true
+	deb-systemd-helper unmask $package.service >/dev/null || true
+	rm -f /etc/default/$package
+
+	if [ -e /usr/share/debconf/confmodule ]; then
+		. /usr/share/debconf/confmodule
+		db_purge
+	fi
+	;;
+esac
+
+exit 0

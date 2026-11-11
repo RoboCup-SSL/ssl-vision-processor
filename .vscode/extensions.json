@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "golang.go",
+    "svelte.svelte-vscode",
+    "esbenp.prettier-vscode",
+    "ms-vscode.cpptools",
+    "ms-vscode.cmake-tools",
+    "ms-python.python",
+    "charliermarsh.ruff",
+    "jnoortheen.nix-ide",
+    "bufbuild.vscode-buf"
+  ]
+}

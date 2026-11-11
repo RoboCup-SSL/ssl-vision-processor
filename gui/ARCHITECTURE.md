@@ -1,0 +1,429 @@
+# gui Architecture
+
+This document describes the design of `gui`, the Go host and browser UI for vision_processor. It covers the
+subsystem in this directory only. The C++ vision_processor and the Python scripts in `python/` are described in
+the root README and are not modified by this subsystem.
+
+`gui` replaces `python/geom_publisher.py` for anyone running it. It is a single Go binary with an embedded
+Svelte frontend. It owns the shared field geometry, absorbs camera calibrations from vision_processor instances
+over multicast, and serves the frontend, a JSON API, and a WebSocket for live updates, all on one port.
+
+## System overview
+
+A venue runs one or more vision_processor instances, one per camera. Each instance shares a filesystem with the
+gui host (debug images in `img/`, the instance's generated `config.yml`) and exchanges SSL vision protocol messages
+with it over the same multicast group the rest of the league uses.
+
+```mermaid
+graph LR
+    subgraph Venue Host
+        VP0["vision_processor cam 0"]
+        VP1["vision_processor cam 1"]
+        FS[("shared filesystem\nimg/, config.yml")]
+    end
+
+    GUI["gui host\nssl-vision-processor-gui"]
+    MC(("multicast\n224.5.23.2:10006"))
+    Browser["Browser UI"]
+
+    VP0 -->|"detections"| MC
+    VP1 -->|"detections"| MC
+    MC -->|"calibration"| GUI
+    GUI -->|"field template,\nmerged wrapper packet"| MC
+    MC -->|"field template"| VP0
+    MC -->|"field template"| VP1
+    VP0 -.-> FS
+    GUI -.-> FS
+    Browser --> GUI
+    GUI --> Browser
+```
+
+The gui host does not talk to a vision_processor instance directly. Both sides only ever speak to the multicast
+group, the same way any other league consumer would. This keeps the host interchangeable with the legacy
+`geom_publisher.py` service from the vision_processor's point of view. The browser talks to the gui host over
+HTTP and a WebSocket instead, covered under HTTP API and WebSocket protocol below.
+
+## Process layout
+
+`ssl-vision-processor-gui` is one process with seven concurrent responsibilities, wired together in
+`cmd/ssl-vision-processor-gui/main.go`.
+
+```mermaid
+graph TD
+    main["main() / run()"]
+    http["HTTP server\ngoroutine"]
+    vision["vision multicast\ngoroutine"]
+    gc["game controller multicast\ngoroutine"]
+    tracker["autoref tracker multicast\ngoroutine"]
+    publish["geometry publish loop\ngoroutine, 1Hz"]
+    watch["vision.yml watcher\ngoroutine, 1Hz"]
+    live["live field publish loop\ngoroutine, 60Hz while watched"]
+
+    main --> http
+    main --> vision
+    main --> gc
+    main --> tracker
+    main --> publish
+    main --> watch
+    main --> live
+    vision -- "Absorb(calib)" --> Geometry
+    publish -- "Encoded()" --> Geometry
+    http -- "reads/writes" --> Store
+    watch -- "checkDisk()" --> Store
+    Store -- "ApplyConfig / SetLocked" --> Geometry
+    Store -- "SetAddress" --> vision
+    Store -- "SetAddress" --> gc
+    Store -- "SetAddress" --> tracker
+```
+
+The goroutines share one `*config.Store` and one `*geometry.Geometry`, each guarded by its own mutex. The store
+pushes into the geometry, never the other way around. Shutdown is graceful: an `os.Interrupt`/`SIGTERM` cancels a
+shared context, the HTTP server drains in-flight requests, and `main` waits for the other goroutines to exit
+before returning.
+
+## Package responsibilities
+
+| Package                                      | Responsibility                                                                                                                                           |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cmd/ssl-vision-processor-gui`               | Flags, wiring, HTTP handlers and routes.                                                                                                                 |
+| `internal/config`                            | `vision.yml`: the working document, save and load, locked calibrations, the disk watcher, and generated `config.yml` files.                              |
+| `internal/defaults`                          | Files embedded in the binary so it needs nothing beside it: the rulebook fields and the robot height table.                                              |
+| `internal/geometry`                          | The live field template, published calibrations, and the 1Hz publish loop. Holds no file state.                                                          |
+| `internal/multicast`                         | The vision, game controller, autoref tracker, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
+| `internal/api`                               | Typed route registration and the OpenAPI 3.1 spec reflected from the handlers' own types and doc comments.                                               |
+| `internal/hub`                               | In-process topic pub/sub and the `/ws` WebSocket handler.                                                                                                |
+| `internal/livefield`                         | The latest detection frame per camera and tracked frame per autoref, for the Live Field page.                                                            |
+| `internal/detections`                        | Which camera_ids the vision socket hears, from which address, at what rate. Feeds the Camera Layout page.                                                |
+| `internal/referee`                           | The current match's teams, from the game controller, and their robot heights from `bot_heights_file`.                                                    |
+| `internal/snapshot`                          | Debug image listing and serving.                                                                                                                         |
+| `internal/video`                             | Live video: each camera's H.264 RTP stream relayed to browsers as fragmented MP4.                                                                        |
+| `internal/peers`                             | Names senders (IP, port, hostname) and logs and alerts when two of them claim one thing.                                                                 |
+| `internal/supervisor`                        | `-runCameras`: runs every camera's vision_processor and restarts it when a startup-only setting changes.                                                 |
+| `internal/v4l`                               | Lists this host's Video4Linux capture devices for the camera path picker.                                                                                |
+| `internal/logging`                           | slog setup: a coloured console handler, a rotating file handler, and the last warnings and errors kept in memory for the system report.                  |
+| `internal/buildinfo`                         | What the binary was built from: the git state of this repository and the proto submodule, stamped by the Makefile.                                       |
+| `internal/vision`, `internal/gamecontroller` | Generated protobuf bindings. Not committed, see Build-time codegen below.                                                                                |
+| `frontend`                                   | Svelte 5 and TypeScript, embedded into the binary via `//go:embed`.                                                                                      |
+
+## Data flow: geometry state
+
+`Geometry` holds one `SSL_WrapperPacket`: the field template plus one calibration per camera. A camera's published
+calibration is its locked one if set, otherwise the latest one absorbed from the network. It keeps a cached
+protobuf encoding alongside the live message, since `proto.Marshal` writes to the message's own size cache and is
+not safe to call from multiple goroutines without a lock.
+
+```mermaid
+graph LR
+    Absorb["Absorb(calib)\nfrom multicast"] -->|"validated"| State[("Geometry\n(wrapper + encoded)")]
+    Store["config.Store\n(working document)"] -->|"ApplyConfig, SetLocked, Unlock"| State
+    State -->|"Encoded()"| Multicast["vision multicast"]
+    State -->|"Snapshot() -> protojson"| API["GET /api/geometry"]
+```
+
+A calibration missing a required proto2 field is rejected with `proto.CheckInitialized` before it can touch
+`State`, so a malformed message from one instance never desyncs the held message from its cached encoding.
+
+A received calibration is also rejected, and logged with its sender, unless it could be a real camera's
+(`geometry.CheckCalibration`): every number finite, a positive focal length, a unit rotation quaternion, a non-empty
+image, and the camera above the field. The host republishes what it absorbs every second, and a vision_processor
+that receives a calibration for its camera skips calibrating and uses it, so one bad packet (a NaN, a test fixture,
+another host's mistake) would otherwise stop that camera until someone unlocked it by hand.
+
+## Senders and conflicts
+
+The host drops its own looped-back packets by sender address: every send socket records its local address
+(`multicast.IsOwn`), which is exactly what its echoes arrive from. Everything else is compared by IP and port,
+so two programs on one machine are told apart. `internal/peers` watches who sends each camera's calibration,
+detections and video, the game controller's referee messages, and field geometry, which only this host should
+publish once a second. A second sender is logged once when it appears (`several senders claim the same thing`,
+with each sender's IP, port, hostname from reverse DNS, and whether it's this machine) and again when it's gone,
+and served as a `sender_conflict` alert on `network.state`/`GET /api/network`: an error for calibration and
+field geometry, a warning for the game controller and video, and an error for every kind on a competition field. Two vision_processors on one
+machine both send from the vision port, so they share an address and can't be told apart this way.
+
+## Configuration: vision.yml
+
+`vision.yml` is the one file the host owns. It holds the field template, shared `defaults` in vision_processor's
+own `config.yml` layout, and a `cameras` list keyed by `camera_id`. Each camera carries its own overrides, its
+corner picker `seed` (corners plus the image resolution and slot they were picked at), optionally a locked
+`calibration`, and a GUI-only video `display` orientation. `layout.camera_count` (1, 2 or 4) splits the field into
+regions. `layout.half_field` marks a physical half field, entered as the full field it's half of with its cameras
+covering half the regions (one camera is region 0 of 2); only the GUI reads it, to show the field and the camera
+count as the user set them up. A camera's `camera_id` picks its region, as in `camera_ids.png`. Any mix of hosts and cameras is valid;
+one host may run several cameras.
+
+`config.Store` keeps two copies of the document: the working copy and the copy last loaded from or saved to disk.
+Edits from the browser replace the working copy and apply live straight away. Save writes the working copy to
+disk. The difference between the two is what the browser shows as unsaved changes.
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Store as config.Store
+    participant Geometry
+    participant Disk as vision.yml
+    participant VP as vision_processor
+
+    Browser->>Store: PUT /api/config (working document)
+    Store->>Geometry: ApplyConfig, SetLocked
+    Store->>VP: regenerate config.yml (local cameras)
+    Geometry-->>VP: SSL_WrapperPacket (multicast)
+    Browser->>Store: POST /api/config/save
+    Store->>Disk: atomic write
+    Note over Store,Disk: the watcher polls once a second and records<br/>any change it did not write itself
+    Store-->>Browser: config.state (WebSocket)
+```
+
+A vision_processor skips calibrating at startup only if the geometry packet it receives already holds a
+calibration for its camera. Publishing locked calibrations is what keeps a restart of either side from triggering
+a recalibration. Unlocking stops publishing that camera's calibration. A running vision_processor keeps the model
+it already has, since the protocol has no way to ask for a live recalibration, so it recalibrates on its next
+restart.
+
+Until vision_processor accepts configuration over the network, a camera with a `config_path` gets its
+`config.yml` regenerated from `vision.yml` on every change, written only when the content differs. The file
+starts with a header saying it is generated. `reloadConfigIfChanged()` in `src/Resources.cpp` hot reloads
+`thresholds`, `tracking`, `color`, and `debug` every half second, but never `geometry`, `camera`, `network`, or
+`stream`. Changes to those take effect when the instance restarts.
+
+With `-runCameras`, the host also runs those instances itself (`internal/supervisor`), one per `config_path`,
+using the `vision_processor` it finds on `PATH` at startup; it exits if there is none. A host runs every camera or
+none, so in this mode every camera gets a `config_path`: `Document.AssignConfigPaths` names it `cam<id>.yml` (or
+`cam<id>-2.yml` and so on if taken) whenever a document is loaded or edited without one. One assigned on load shows
+as an unsaved change. Two cameras can't share a `config_path`. Each process runs in its own directory,
+`run/cam<id>` in the state folder, with `img` there linking to `cam<id>` in `-imgDir`, so the debug files
+vision_processor writes relative to its working directory never collide or land in the config folder. Its own image
+folder matters because not every file it writes to `img/` is prefixed by camera_id; the snapshot routes read both
+`-imgDir` and its `cam<id>` folders. It gets its config file's full path,
+and the rendered file names `bot_heights_file` by its full path too.
+
+Before starting anything, the supervisor compares the cameras' capture devices, with vision_processor's fallbacks
+filled in (`Document.CaptureDevice`: OPENCV opens `/dev/video<id>` when no device is named, other drivers their
+`id`-th camera) and device paths resolved through symlinks. A camera whose device a lower camera_id already uses is
+held, not started: state `conflict`, a `device_conflict` alert, and a 409 from its restart route. It starts on its own
+once its device changes. `Document.Validate` already rejects two cameras on one device on the same `instance`; this
+also catches cameras on different instances, and two names for one device node. A daemon holding a camera is out of
+scope: the process's own output says the device is busy.
+
+It watches the store like any other subscriber: on each change it renders every camera's
+config and compares it with what each process was started with. A difference in a setting the schema marks `live`
+or `host` needs nothing more, since the file is already rewritten; any other difference (startup-only, derived,
+or unknown) restarts the process once edits have been quiet for a second, so a slider drag restarts it once.
+Stopping is SIGTERM, then SIGKILL after 3 s, since vision_processor only checks for SIGTERM between frames. A
+process that exits on its own is started again: after 1 s for a clean exit, doubling per crash in a row up to
+30 s. A change to the field or its optional lines restarts every supervised camera to recalibrate: between
+stopping the process and starting it again, the host unlocks the camera's calibration and drops the one it last
+received, since vision_processor skips calibrating when the geometry packet already holds one for its camera.
+`processes.state` and `GET /api/processes` carry each one's state, pending restart keys, last exit, and last
+lines of output; `POST /api/processes/{id}/restart` restarts one at once.
+
+### Files on disk
+
+`-configDir` is one flat folder holding every config file. The API has no authentication and can reach the disk, so
+everything it names is checked by `config.ValidName`: one path component, not hidden, ending in `.yml` or `.yaml`.
+`Store.Load` and `Store.SaveAs` take a name rather than a path, and refuse symlinks, since `Load` switches the file
+a later save writes to. `Document.Validate` applies the same check to `config_path` and `bot_heights_file`, on every
+parse and edit, because rendering writes a file wherever `config_path` says. A config also can't render over itself
+or Save As over a file it uses. Flags can name anything, since whoever starts the process already has that access.
+
+A host with no config creates one from `internal/defaults`, which embeds the rulebook fields and robot height table
+so the binary needs nothing beside it. The Makefile copies those in, since `go:embed` can't reach outside the
+module, and a test checks the copies match their sources.
+
+The new config has `first_run: true`. While it's set, the host sends no geometry on the vision group, so running the
+binary to try it can't tell a real network about a field nobody has confirmed. Everything else works, and the
+browser still gets live updates. The first successful Save or Save As removes the key. The host owns it: edits can't
+change it, so it never appears in the change list, and a save that fails to reach the disk leaves it set. Clearing
+it bumps no revision, so the GUI reads it from `config.state`. Its wizard opens on a first run and ends in the save
+dialog, which allows saving with no changes so the defaults can be accepted.
+
+The host's own sockets use the shared `defaults.network` block (`vision_ip`, `vision_port`, `gc_ip`, `gc_port`),
+with vision_processor's defaults for missing keys. Each is a `multicast.Endpoint`. When an edit changes an
+address, the endpoint closes its sockets and opens new ones on the new address straight away. A multicast
+address joins the group. Any other IPv4 address, normally a broadcast address for switches whose IGMP snooping
+drops multicast, listens on the port instead; vision_processor handles broadcast too, since its socket sets
+`SO_BROADCAST`. The Network page offers the standard, backup (port + 10), legacy (10005), and broadcast choices,
+warns about addresses that aren't multicast or broadcast, and notes non-standard and privileged (below
+`ip_unprivileged_port_start`) choices when extra tooltips are on. vision_processor reads the same block, but only
+at startup.
+
+The autoref tracker socket uses the top-level `tracker` block (`ip`, `port`, default 224.5.23.2:10010) instead,
+since no vision_processor listens for tracker output. It is never rendered into a camera's `config.yml`. It may
+share the vision group's IP, which is the standard setup, but not its address and port. A silent tracker socket
+raises no alert, since running without an autoref is normal; one that can't open does.
+
+Which interfaces the host's own sockets use is `host.interfaces`, a section no vision_processor reads, since
+interface names only mean something on one machine. `auto` (the default) uses interfaces that are up, have
+carrier, support multicast, and have an IPv4 address, and skips loopback and virtual ones (Docker and VM bridges,
+VPN tunnels); it is re-evaluated every second. Otherwise `skip` is a blacklist. At startup the host warns if the
+loopback interface has multicast off, as Ubuntu ships it, and suggests the command that enables it.
+
+Every endpoint receives on one plain socket that hears only the group it joined (Linux `IP_MULTICAST_ALL` off; Go
+binds a multicast address as `0.0.0.0`, so binding the group alone doesn't do it), joined on all used interfaces at
+once, and sends from each used interface. Endpoints heal themselves: if a socket can't be
+fully set up (no usable interface, a failed join, a send socket lost when an interface went away), the endpoint
+reports the problem in its status, shown on the Network page and the badges, and retries every 5 s, logging only
+when the problem changes. The host also notices a suspend: each second it compares `CLOCK_BOOTTIME`, which keeps
+counting while suspended, with `CLOCK_MONOTONIC`, which doesn't. Neither jumps for NTP or clock changes, so a gap
+means the machine slept, and every socket is reopened.
+
+The Camera Settings tab edits each camera's `camera:` block, shown with vision_processor's own fallbacks applied
+(`src/driver/cameradriver.cpp`; an unset driver means SPINNAKER). Controls follow the driver: an index for
+SPINNAKER, MVIMPACT and DC1394, plus a serial number for SPINNAKER, a path for OPENCV, gamma hidden for
+MVIMPACT, and the OUTDOOR and INDOOR auto white balance profiles only for SPINNAKER. The serial and the path are
+both `device`, written in place of its former name `path`, which still reads. vision_processor reads `camera:`
+only at startup. Validation rejects what it
+would misread instead of refusing: an unknown driver (fatal at startup) and any white balance string other than
+OUTDOOR or INDOOR (it treats every other string as INDOOR).
+
+`camera.exposure` is µs in `vision.yml` for every driver. The host converts it when it writes `config.yml`
+(`internal/config/exposure.go`): SPINNAKER and MVIMPACT read milliseconds, and OPENCV
+sends the value × 1000 to V4L2's `exposure_time_absolute`, which counts 100 µs. Format version 1 stored the file's
+unit; a version 1 document is migrated on load and saved as version 2.
+
+Every number in the free form blocks is normalized to an int or a float64. The browser sends every number as a
+JSON float and YAML decodes integers as ints, so without this every edit would show spurious changes such as
+`1920 -> 1920`.
+
+## HTTP API
+
+Every route is registered in `cmd/ssl-vision-processor-gui/routes.go` through `internal/api`, which builds an
+OpenAPI 3.1 spec from each handler's request and response types, and its summary, descriptions and field docs
+from their Go doc comments. The host serves the spec at `GET /api/openapi.json` and a reference for it at
+`GET /api/docs` (Redoc, embedded, so it works offline), linked from the GUI's settings menu.
+
+None of the spec's inputs or outputs are committed; `make` builds them. `internal/api/comments_gen.go` holds the
+Go doc comments (`go generate`, from the source), `gui/openapi.json` comes from the host itself (`-openapi <path>`,
+which writes the spec and exits), the frontend's API types (`frontend/src/lib/generated/api.ts`) from that by
+openapi-typescript, and the viewer (`internal/api/viewer/`) is Redoc's bundle fetched at a pinned version and checked
+against its SHA-256. The frontend imports its API types from `frontend/src/lib/apiTypes.ts`, never a hand copy.
+
+A handler takes one input struct and returns one output. Input fields tagged `path:`, `query:` or `header:` are
+parameters, and a field tagged `body:"<content types>"` is the body; an input with only JSON fields is itself the
+body. Output fields tagged `header:` are response headers. Each route lists the error codes it can return, which
+the spec shows per status; the `cmd` tests fail if any route answers a code it doesn't list. Routes whose
+responses aren't one JSON value (the snapshot image, the two WebSocket upgrades) use `api.Raw` and are
+documented the same way.
+
+An unrouted `/api/*` path returns 404 rather than falling through to the frontend, so a typo'd endpoint fails
+with a clear status instead of returning HTML to a caller expecting JSON. Every other path serves the embedded
+frontend, with a fallback to `index.html` for client side routes.
+
+Every error is JSON, `{"error": code, "message": text, "issues": [...]}` (`internal/httpjson`). Clients branch
+on `error`: `bad_request`, `invalid` (with one `issues` entry per problem), `not_found`, `stale`,
+`disk_changed`, `no_live_calibration`, `precondition`, `unsupported_media`, `cross_origin`, `internal`.
+Request bodies must be `Content-Type: application/json` (PATCH also takes `application/merge-patch+json`), and
+unknown keys are rejected, so a misspelled key fails instead of silently resetting the value it named.
+
+`GET /api/config` returns the revision as its `ETag`, and every config write (PUT, PATCH, save, save-as, load,
+reload, lock, unlock) answers `{"revision": n}` with the new revision as its `ETag`. PATCH follows RFC 7396: objects
+merge, `null` removes a key, and arrays (`cameras`) are replaced whole. PATCH is the safer write for a client that
+doesn't model the whole document: PUT replaces it, so a key the client dropped is removed.
+
+Some document keys only matter to this GUI and no vision_processor reads them: a camera's `display` (video
+orientation) and `seed.goalSideMarker` (which corner marker was picked). Other clients should leave them as they
+are. `teams` and `competitionField` are read by the host's alerts, and `tracker` by its tracker socket. Each `Change` in `config.state` has both `path`
+(vision.yml's spelling, `field.field_width`) and `jsonPath` (the JSON document's, `field.fieldWidth`); in both,
+`cameras[N]` is the camera with camera_id N, not a list index. `section` is the GUI page the change belongs to. Protobuf messages appear in two spellings: `/api/geometry` and
+`wrapper_packet.out` use canonical protojson (`pixelImageWidth`), while the document's `models` and
+`calibration.camera` keep proto field names (`pixel_image_width`), matching how they're stored in vision.yml.
+
+"Host-local" endpoints describe the machine running the host, and only describe a camera when its
+vision_processor runs on the same machine: device paths and debug images aren't available for remote instances.
+
+Browser pages from other origins are handled by `internal/origins`. The host's own pages are always allowed. In a
+lab, so is any page served from this network: `localhost`, a loopback, private or link-local IP, a `.local` name, or
+a single-label name such as `laptop`. No public website can have such an origin, because the browser sets `Origin`
+from the page's real address. On a competition field (`competitionField`, switched live) only the host's own pages
+and the `-allowOrigin http://host:port,...` list are allowed; `*` allows any. A page that isn't allowed can't change
+state (the `http.CrossOriginProtection` test: `Sec-Fetch-Site`, else `Origin` against `Host`) or open `/ws` and
+`/ws/video`. An allowed page from another origin gets CORS headers (preflights answered, `ETag` exposed). Clients
+outside a browser send no `Origin` and are unaffected.
+
+Every request must also name the host by something it is: any IP literal, `localhost`, a `.local` or single-label
+name, its hostname, the names its addresses reverse-resolve to, or a `-allowHost` alias (`*` turns the check off).
+Anything else gets 421 `unknown_host`. This stops DNS rebinding, where an attacker points their own domain at this
+host so the browser treats their page as same-origin.
+
+There is no authentication: anyone who can reach the port, including another team on a venue network using this
+UI, can administer the host.
+
+## WebSocket protocol
+
+`/ws` is a single connection carrying a topic based publish/subscribe protocol, implemented in `internal/hub`.
+
+```json
+// client -> server
+{ "action": "subscribe",   "topic": "wrapper_packet.out" }
+{ "action": "unsubscribe", "topic": "wrapper_packet.out" }
+// server -> client
+{ "topic": "wrapper_packet.out", "data": { /* protojson */ } }
+{ "error": "unknown_topic", "message": "...", "topic": "wrapper_pakcet.out" }
+```
+
+`GET /api/topics` lists the topics. A new subscriber gets the topic's latest value at once, then every later one.
+A message the server can't act on is answered with an error (`bad_request`, `unknown_topic`, `unknown_action`)
+and the connection stays open.
+
+`wrapper_packet.out` carries the current `SSL_WrapperPacket` as canonical protojson, published once per second.
+`config.state` carries `config.Store`'s state: the revision, unsaved changes, any change made to the file on disk,
+and per camera calibration status. It is published on every change and once per second, since live calibration
+status comes from the network rather than the store.
+`network.state` carries each multicast socket's address and what it has heard there: vision detection packets
+(the host's own looped back geometry doesn't count), game controller referee messages, and autoref tracker packets. It is published once per
+second and on every config change.
+`processes.state` carries the vision_processors the host runs (`-runCameras`), on every state change and once per
+second; an empty list without `-runCameras`.
+`live_field.frames` carries the latest detection frame from each camera (by camera_id and sender) and the latest
+tracked frame from each autoref (by the uuid it sends), as canonical protojson inside a small envelope with each
+source's rate and receive time and the host's clock (`at`), so a client can tell a source's age without trusting the
+senders' clocks. Detections are in mm, tracked frames in m. A source silent for a second is listed without a frame,
+and dropped after 30 s. It is published at up to 60 Hz, only while someone subscribes and something new arrived (and
+once a second otherwise); `GET /api/live_field` returns the same snapshot.
+`alerts.state` carries every problem the host can see (`internal/alerts`), on the same schedule: a stable `id`,
+a `code`, a `severity` (`error`, `warning`, `caution`), an optional `cameraId`, the facts behind it as `params`,
+and a plain English `message`. The host decides which alerts exist and how serious they are; a client words and
+links them by `code`, falling back to `message` for codes it doesn't know.
+
+Every channel in this path, from a topic's own subscriber channel to a connection's shared outbound channel, is
+size limited and drops the oldest queued value in favor of the newest one. A slow client sees only the latest
+value once it catches up, never a growing backlog of stale ones.
+
+## Live video
+
+Each vision_processor multicasts H.264 over RTP (`src/rtpstreamer.cpp`) to `ip_base_prefix + (ip_base_end +
+cam_id):port` from its `stream` settings, 224.5.23.100+id:10100 by default. `internal/video` relays it without
+re-encoding. A camera's socket opens on its first viewer and closes 5 s after its last. Like every endpoint it
+hears only its own group, so cameras sharing port 10100 don't mix, with a 4 MB receive buffer for a keyframe's
+burst of packets.
+
+Packets are reassembled into frames (RFC 6184 single units, STAP-A, FU-A; there is no SDP, so payload type and
+packetization mode 1 are assumed). After a lost packet, frames are dropped until the next keyframe, since the ones
+in between can't decode. A new SSRC means the encoder restarted, which it does whenever the streamed view changes
+size; the parameter sets that come with the next keyframe start a new init segment. Frames are muxed as fragmented
+MP4, one per segment, timed by arrival rather than the encoder's nominal 30 fps.
+
+`/ws/video/{id}` sends JSON `status` (once a second) and `format` (codec string and size) messages, and binary
+segments. `full` is every frame; `keyframes` is about one a second, for grids. A new viewer gets the frames since
+the last keyframe, so the picture appears at once. A viewer whose queue fills skips to the next keyframe. The
+browser appends in sequence mode, jumps forward when it falls behind, and disconnects while its tab is hidden.
+The host's cost is about 1% of a core per watched stream; the browser's H.264 decode is the real cost.
+
+## Build-time codegen
+
+`internal/vision`, `internal/gamecontroller`, and `frontend/src/proto` are `buf generate` output and are not
+committed. `buf.gen.yaml` uses local plugins (`go tool protoc-gen-go`, `protoc-gen-es` from the frontend's own
+`node_modules`), so generation needs no network beyond the already checked out `proto/` submodule. `gui/Makefile`
+regenerates them as an ordinary build prerequisite. See `gui/DEVELOPMENT.md` for the exact commands.
+
+## Not yet built
+
+- **Discovery.** Parsing `SSL_VPConfig` announces off multicast into an instance table. The C++ side does not
+  emit these yet.
+- **Host owned config push.** Diffing an instance's announced config against a desired one and pushing the
+  difference, rather than regenerating a local `config.yml` as the host does today. This also needs a way to ask
+  a running instance to recalibrate.
+- **Remote snapshots.** `internal/snapshot` assumes the gui host and the vision_processor instance share a
+  filesystem. Live video (above) works remotely, but the full-resolution snapshots the corner picker needs do not.
+- **Translation (i18n), planned for v2.1.** User-facing text moving into one catalog per language, looked up by
+  key. Until then the text stays English and in the source.

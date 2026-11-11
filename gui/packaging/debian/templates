@@ -1,0 +1,25 @@
+Template: ssl-vision-processor-gui/service
+Type: select
+Choices-C: none, boot, now
+Choices: Don't run it as a service, Start it at boot, Start it at boot and now
+Default: none
+Description: Run the vision_processor GUI as a system service?
+ As a service, the GUI runs in the background as the rcssl-vp-gui user and
+ keeps its configuration in /var/lib/rcssl/vision-processor-gui.
+ .
+ Otherwise, run ssl-vision-processor-gui yourself, or as your own user
+ service: systemctl --user enable --now ssl-vision-processor-gui
+ .
+ To change this later: sudo dpkg-reconfigure ssl-vision-processor-gui
+
+Template: ssl-vision-processor-gui/listen
+Type: select
+Choices-C: local, network
+Choices: This machine only, Any machine on the network
+Default: local
+Description: Who can open the GUI?
+ The GUI has no login. Anyone who can reach it can change the running
+ configuration and overwrite its files, including locked calibrations.
+ .
+ Choose the network only on a network you trust. The port is 8085, or the one
+ in /etc/default/ssl-vision-processor-gui if you've changed it there.

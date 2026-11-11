@@ -1,0 +1,166 @@
+.\" The package's man page. Every flag in main.go must be listed under OPTIONS:
+.\" TestManPageListsEveryFlag checks.
+.TH SSL-VISION-PROCESSOR-GUI 1 "" "ssl-vision-processor-gui" "RoboCup SSL"
+.SH NAME
+ssl-vision-processor-gui \- browser interface for the RoboCup SSL vision_processor
+.SH SYNOPSIS
+.B ssl-vision-processor-gui
+.RI [ options ]
+.SH DESCRIPTION
+.B ssl-vision-processor-gui
+sets up and runs vision_processor, the Small Size League's shared vision
+system. It holds the field geometry and camera settings, locks in camera
+calibrations, shows live video and the live field, and publishes the field
+geometry on the vision multicast group. Open the address it prints in a
+browser.
+.PP
+With no options it keeps everything in the current user's config and state
+folders, creating a default configuration on the first run. A new
+configuration publishes nothing until it has been saved once.
+.PP
+The full guide, including network setup and troubleshooting, is in
+.I /usr/share/doc/ssl-vision-processor-gui/README.md
+and printed by
+.BR \-readme .
+.SH OPTIONS
+.TP
+.BI \-address " host:port"
+Address and port for the GUI and its API. Default
+.BR :8085 ,
+every interface;
+.B 127.0.0.1:8085
+allows this machine only.
+.TP
+.BI \-configDir " dir"
+The config folder, holding every config file, created if missing. Default
+.IR $XDG_CONFIG_HOME/rcssl/vision-processor-gui ,
+or
+.I ~/.config/rcssl/vision-processor-gui
+without it.
+.TP
+.BI \-configFile " name"
+The configuration to use, a file name in the config folder, created if
+missing. Default
+.BR vision.yml .
+.TP
+.BI \-logFile " path"
+Rotating log file, written alongside stderr. An empty value turns it off.
+Default
+.IR $XDG_STATE_HOME/rcssl/vision-processor-gui/logs/vision-processor-gui.log ,
+or under
+.I ~/.local/state
+without it.
+.TP
+.BI \-imgDir " dir"
+Where vision_processor's debug snapshot images are. Default
+.I img
+in the same state folder.
+.TP
+.B \-runCameras
+Run every camera's vision_processor on this machine, using the
+.B vision_processor
+on
+.BR PATH ,
+and restart it when a setting it reads only at startup changes. Each camera
+gets a config file,
+.IR cam<id>.yml ,
+if it has none. Without it, vision_processors run separately.
+.TP
+.BI \-logLevel " level"
+.BR Debug ,
+.BR Info ,
+.BR Warn ,
+or
+.BR Error .
+Default
+.BR Info .
+.TP
+.BI \-allowOrigin " origins"
+Comma-separated origins (scheme://host:port) whose web pages may use the API
+on a competition field, besides the GUI's own;
+.B *
+for any.
+.TP
+.BI \-allowHost " names"
+Comma-separated extra names this machine is reached by, such as a DNS alias;
+.B *
+turns the check off.
+.TP
+.BI \-openapi " path"
+Write the API's OpenAPI spec to
+.I path
+and exit.
+.TP
+.B \-version
+Print the version and exit.
+.TP
+.B \-readme
+Print the user guide and exit.
+.SH SYSTEM SERVICE
+The package can run the GUI as the system service
+.BR ssl-vision-processor-gui.service ,
+as the
+.B rcssl-vp-gui
+user in the
+.B rcssl
+group, with its config folder in
+.I /var/lib/rcssl/vision-processor-gui
+and its log in the journal. Whether it runs, and who can reach it, are the
+package's setup questions:
+.PP
+.RS
+.B sudo dpkg-reconfigure ssl-vision-processor-gui
+.RE
+.PP
+Without the system service, the same unit can run as a user service:
+.PP
+.RS
+.B systemctl \-\-user enable \-\-now ssl-vision-processor-gui
+.RE
+.SH FILES
+.TP
+.I /etc/default/ssl-vision-processor-gui
+The system service's
+.B ADDRESS
+and extra options,
+.BR ARGS .
+Restart the service after editing.
+.TP
+.I /var/lib/rcssl/vision-processor-gui
+The system service's config folder.
+.TP
+.I /usr/lib/systemd/system/ssl-vision-processor-gui.service
+The system service. Upgrades replace it; customize with
+.BR "systemctl edit" .
+.TP
+.I /usr/lib/sysctl.d/60-rcssl-multicast.conf
+Raises
+.B net.core.rmem_max
+for live video.
+.SH ENVIRONMENT
+.TP
+.B XDG_CONFIG_HOME
+.TQ
+.B XDG_STATE_HOME
+Replace
+.I ~/.config
+and
+.I ~/.local/state
+in the default locations.
+.TP
+.B PATH
+Where
+.B \-runCameras
+finds vision_processor.
+.SH SECURITY
+The GUI has no login. Anyone who can reach its port can change the running
+configuration and overwrite files in the config folder, including locked
+calibrations. Run it only on a network you trust, or allow this machine only
+with
+.BR "\-address 127.0.0.1:8085" .
+.SH SEE ALSO
+.BR systemctl (1),
+.BR systemd.unit (5),
+.BR dpkg-reconfigure (8)
+.PP
+https://github.com/RoboCup-SSL/ssl-vision-processor

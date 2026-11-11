@@ -1,0 +1,33 @@
+# Minimal vision_processor configuration
+
+# Vision camera ID handled by this vision_processor instance.
+# On multi camera fields the IDs have to be ordered according to camera_ids.png.
+cam_id: 0
+
+camera:
+  # Uncomment if you have a Teledyne FLIR (Spinnaker) camera. Set the Spinnaker camera id of this instance.
+  #id: 0
+  # Uncomment if you have a Bluefox3 (mvIMPACT) camera. Set the mvIMPACT camera id of this instance.
+  #driver: MVIMPACT
+  #id: 0
+  # Uncomment if you have a video4linux2 (OPENCV) camera. Set the camera (or video) file path.
+  #driver: OPENCV
+  #device: /dev/video0
+
+  # Uncomment if your carpet isn't green and you use a Spinnaker camera.
+  #white_balance: INDOOR
+
+geometry:
+  # Total camera amount over the field.
+  camera_amount: 1
+  # Camera height above the field in mm.
+  # If your camera doesn't look perpendicular to the field you can let it at 0.0 for automatic camera height calibration.
+  camera_height: 0.0
+
+  # Field line crossings at the edges of the camera extent in pixels from the top left image corner.
+  # The first coordinate must be the edge with the smallest x and y field coordinate.
+  line_corners:
+  #- [0 , 1000]
+  #- [0 , 0]
+  #- [1000, 0]
+  #- [1000, 1000]
