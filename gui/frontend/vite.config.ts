@@ -49,6 +49,18 @@ export default defineConfig({
     environment: "jsdom",
     include: ["src/**/*.test.ts", "scripts/**/*.test.mjs"],
     setupFiles: ["src/test-setup.ts"],
+    // npm run test:coverage: a report, not a gate.
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,svelte}"],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/proto/**",
+        "src/lib/generated/**",
+        "src/test-setup.ts",
+      ],
+      reporter: ["text-summary", "text", "html"],
+    },
   },
   build: {
     // One bundle on purpose: the host serves it over the local network, so

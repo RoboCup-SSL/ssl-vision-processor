@@ -30,3 +30,6 @@ dist-ssr
 # Playwright (make e2e)
 test-results/
 playwright-report/
+
+# Vitest coverage (npm run test:coverage)
+coverage/
