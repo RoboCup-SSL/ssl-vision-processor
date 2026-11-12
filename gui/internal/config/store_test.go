@@ -503,8 +503,7 @@ func TestAnEditCantChangeFirstRun(t *testing.T) {
 	doc, rev := s.Working()
 	doc.FirstRun = false
 
-	rev, err := s.Update(rev, doc)
-	if err != nil {
+	if _, err := s.Update(rev, doc); err != nil {
 		t.Fatal(err)
 	}
 
