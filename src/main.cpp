@@ -268,6 +268,7 @@ int main(int argc, char* argv[]) {
 	while(noSigterm) {
 		frameId++;
 		r.reloadConfigIfChanged();
+		apply_received_config(r);
 		std::shared_ptr<RawImage> img = camera->readImage();
 		if(img == nullptr)
 			break;

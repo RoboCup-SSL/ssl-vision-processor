@@ -21,6 +21,7 @@
 
 #include <cmath>
 #include "log.h"
+#include "proto/vision/ssl_vp_config.pb.h"
 #include <cstring>
 #include <google/protobuf/util/message_differencer.h>
 #include <mutex>
@@ -142,6 +143,14 @@ std::vector<float> VisionSocket::getReceivedOffsets() {
 	std::vector<float> copy = receivedOffsets;
 	offsetMutex.unlock();
 	return copy;
+}
+
+SSL_VPConfig VisionSocket::getReceivedConfig() {
+	SSL_VPConfig result;
+	configMutex.lock();
+	result.CopyFrom(receivedConfig);
+	configMutex.unlock();
+	return result;
 }
 
 

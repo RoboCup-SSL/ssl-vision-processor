@@ -75,6 +75,8 @@ public:
 	int getGeometryVersion() const { return geometryVersion; }
 	SSL_GeometryData& getGeometry() { return geometry; }
 
+	SSL_VPConfig getReceivedConfig();
+
 	std::map<unsigned int, std::vector<TrackingState>> getTrackedObjects();
 
 	/** Update the clock time offset. */

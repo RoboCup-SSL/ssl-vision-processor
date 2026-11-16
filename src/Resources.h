@@ -19,7 +19,6 @@
 #include <string>
 #include <memory>
 #include <yaml-cpp/node/node.h>
-#include "driver/cameradriver.h"
 #include "rtpstreamer.h"
 #include "snapshotwriter.h"
 #include "udpsocket.h"

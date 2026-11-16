@@ -1,4 +1,5 @@
 #include "config.h"
+#include "driver/cameradriver.h"
 #include <yaml-cpp/yaml.h>
 
 
@@ -89,4 +90,10 @@ void init_config(const std::string& configPath) {
     config.mutable_stream()->set_active(getOptional(yaml["stream"])["active"].as<bool>(true));
     config.mutable_stream()->set_stream_ip(getOptional(yaml["stream"])["ip_base_prefix"].as<std::string>("224.5.23.") + std::to_string(getOptional(yaml["stream"])["ip_base_end"].as<int>(100) + config.camera_id()));
     config.mutable_stream()->set_stream_port(getOptional(yaml["stream"])["port"].as<int>(10100));
+}
+
+void apply_received_config(Resources& r) {
+    SSL_VPConfig received = r.socket->getReceivedConfig();
+
+    update_camera_config(&received.camera());
 }
