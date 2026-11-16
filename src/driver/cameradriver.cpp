@@ -14,8 +14,11 @@
      limitations under the License.
  */
 #include "cameradriver.h"
+#include "config.h"
 
+#include "driver/dummydriver.h"
 #include "driver/opencvdriver.h"
+#include <memory>
 #ifdef SPINNAKER_AVAILABLE
 #include "driver/spinnakerdriver.h"
 #endif
@@ -26,9 +29,9 @@
 #include "driver/dc1394driver.h"
 #endif
 
-#include <yaml-cpp/yaml.h>
 
 double realTimeOffset = 0.0;
+
 double getRealTime() {
 	return (double)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count() / 1e6 + realTimeOffset;
 }
@@ -37,66 +40,78 @@ double CameraDriver::getTime() {
 	return getRealTime();
 }
 
+std::unique_ptr<CameraDriver> camera;
 
-CameraConfig::CameraConfig(const YAML::Node &cam) {
-	driverType = cam["driver"].as<std::string>("SPINNAKER");
-
-	hardwareId = cam["id"].as<int>(0);
-	// "path" is the former name of "device"
-	device = cam["device"].as<std::string>(cam["path"].as<std::string>(driverType == "OPENCV" ? "/dev/video" + std::to_string(this->hardwareId) : ""));
-
-	width = cam["width"].as<int>(0);
-	height = cam["height"].as<int>(0);
-	exposure = cam["exposure"].as<double>(0.0);
-	gain = cam["gain"].as<double>(0.0);
-	gamma = cam["gamma"].as<double>(1.0);
-
-	const YAML::Node wb = cam["white_balance"].IsDefined() ? cam["white_balance"] : YAML::Node();
-	if(wb.IsMap()) {
-		whiteBalanceBlue = wb["blue"].as<double>(1.0);
-		whiteBalanceRed = wb["red"].as<double>(1.0);
-	} else {
-		whiteBalanceType = (wb.as<std::string>("OUTDOOR") == "OUTDOOR")
-				? WhiteBalanceType_AutoOutdoor
-				: WhiteBalanceType_AutoIndoor;
-	}
+void init_camera() {
+	camera = std::make_unique<DummyDriver>();
 }
 
-bool CameraConfig::autoResolution() const {
-	return width == 0 || height == 0;
-}
+void update_camera_config(const SSL_VPConfigCamera* camera_config) {
+	bool newInstance = false;
 
-bool CameraConfig::autoExposure() const {
-	return exposure == 0.0;
-}
+	SSL_VPConfigCameraDriver driver = (camera_config->has_driver() ? *camera_config : config.camera()).driver();
+	uint32_t id = (camera_config->has_id() ? *camera_config : config.camera()).id();
+	std::string device = (camera_config->has_path() ? *camera_config : config.camera()).path();
+	if(driver != config.camera().driver() || id != config.camera().id() || device != config.camera().path()) {
+		newInstance = true;
 
-bool CameraConfig::autoGain() const {
-	return gain == 0.0;
-}
+		switch(camera_config->driver()) {
+            case DUMMY:
+				camera = std::make_unique<DummyDriver>();
+				break;
+            case OPENCV:
+				if(device.empty())
+					device = "/dev/video" + std::to_string(id);
 
-bool CameraConfig::autoGamma() const {
-	return gamma == 1.0;
-}
-
-
-std::unique_ptr<CameraDriver> openCamera(const CameraConfig& config) {
+				camera = std::make_unique<OpenCVDriver>(device);
+				break;
 #ifdef SPINNAKER_AVAILABLE
-	if(config.driverType == "SPINNAKER")
-		return std::make_unique<SpinnakerDriver>(config);
+            case SPINNAKER:
+				camera = std::make_unique<SpinnakerDriver>(device, id);
+				break;
 #endif
-
 #ifdef MVIMPACT_AVAILABLE
-	if(config.driverType == "MVIMPACT")
-		return std::make_unique<MVImpactDriver>(config);
+            case MVIMPACT:
+				camera = std::make_unique<MVImpactDriver>(id);
+				break;
 #endif
-
 #ifdef DC1394_AVAILABLE
-	if(config.driverType == "DC1394")
-		return std::make_unique<DC1394Driver>(config);
+            case DC1394:
+				camera = std::make_unique<DC1394Driver>(id);
+                break;
 #endif
+			default:
+				WARN("Attempted to configure invalid/unavailable camera driver: " << camera_config->driver());
+        }
+    }
 
-	if(config.driverType == "OPENCV")
-		return std::make_unique<OpenCVDriver>(config);
+	uint32_t width = (camera_config->has_width() ? *camera_config : config.camera()).width();
+	uint32_t height = (camera_config->has_height() ? *camera_config : config.camera()).height();
+	if(newInstance || width != config.camera().width() || height != config.camera().height()) {
+		camera->setResolution(width, height);
+	}
 
-	FATAL("Unknown camera/image driver defined: " << config.driverType);
+	float exposure = (camera_config->has_exposure() ? *camera_config : config.camera()).exposure();
+	if(newInstance || exposure != config.camera().exposure()) {
+		camera->setExposure(exposure);
+	}
+
+	float gain = (camera_config->has_gain() ? *camera_config : config.camera()).gain();
+	if(newInstance || gain != config.camera().gain()) {
+		camera->setGain(gain);
+	}
+
+	float gamma = (camera_config->has_gamma() ? *camera_config : config.camera()).gamma();
+	if(newInstance || gamma != config.camera().gamma()) {
+		camera->setGamma(gamma);
+	}
+
+	SSL_VPConfigCameraWBType wbType = (camera_config->has_wb_type() ? *camera_config : config.camera()).wb_type();
+	float wbRed = (camera_config->has_wb_red() ? *camera_config : config.camera()).wb_red();
+	float wbBlue = (camera_config->has_wb_blue() ? *camera_config : config.camera()).wb_blue();
+	if(newInstance || wbType != config.camera().wb_type() || wbRed != config.camera().wb_red() || wbBlue != config.camera().wb_blue()) {
+		camera->setWhiteBalance(wbType, wbBlue, wbRed);
+	}
+
+	config.mutable_camera()->CopyFrom(*camera_config);
 }

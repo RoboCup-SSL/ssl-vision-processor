@@ -42,8 +42,6 @@ public:
 
 	void reloadConfigIfChanged();
 
-	std::unique_ptr<CameraDriver> camera = nullptr;
-
 	int camId;
 
 	double minTrackingRadius;

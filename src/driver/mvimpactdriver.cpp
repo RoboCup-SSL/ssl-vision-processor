@@ -47,7 +47,7 @@ static mvIMPACT::acquire::Device* getDevice(int hardwareId) {
 	return device;
 }
 
-MVImpactDriver::MVImpactDriver(const CameraConfig& config): device(getDevice(config.hardwareId)), settings(device) {
+MVImpactDriver::MVImpactDriver(uint32_t hardwareId): device(getDevice(hardwareId)), settings(device) {
 	settings.cameraSetting.restoreDefault();
 	settings.imageProcessing.restoreDefault();
 	settings.imageDestination.restoreDefault();
@@ -143,11 +143,11 @@ void MVImpactDriver::setGamma(float gamma) {
 	// Unsupported? TODO
 }
 
-WhiteBalanceType MVImpactDriver::getWhiteBalanceType() {
+SSL_VPConfigCameraWBType MVImpactDriver::getWhiteBalanceType() {
 	if(settings.imageProcessing.whiteBalanceCalibration.read() != TWhiteBalanceCalibrationMode::wbcmOff) {
-		return WhiteBalanceType::WhiteBalanceType_AutoOutdoor;
+		return OUTDOOR;
 	} else {
-    	return WhiteBalanceType::WhiteBalanceType_Manual;
+    	return MANUAL;
 	}
 }
 
@@ -159,8 +159,8 @@ float MVImpactDriver::getWhiteBalanceRed() {
     return settings.imageProcessing.getWBUserSetting(0).redGain.read();
 }
 
-void MVImpactDriver::setWhiteBalance(WhiteBalanceType type, float blue, float red) {
-	if(type != WhiteBalanceType_Manual) {
+void MVImpactDriver::setWhiteBalance(SSL_VPConfigCameraWBType type, float blue, float red) {
+	if(type != MANUAL) {
 		settings.imageProcessing.whiteBalanceCalibration.write(TWhiteBalanceCalibrationMode::wbcmContinuous);
 	} else {
 		settings.imageProcessing.whiteBalanceCalibration.write(TWhiteBalanceCalibrationMode::wbcmOff);

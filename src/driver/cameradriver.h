@@ -16,19 +16,11 @@
 #pragma once
 
 #include <memory>
-#include <yaml-cpp/node/node.h>
 #include "opencl.h"
+#include "vision/ssl_vp_config.pb.h"
 
 extern double realTimeOffset;
 double getRealTime();
-
-
-enum WhiteBalanceType {
-	WhiteBalanceType_Manual,
-	// Separate outdoor and indoor auto profiles for cameras with different auto algorithms (e.g. Spinnaker)
-	WhiteBalanceType_AutoOutdoor,
-	WhiteBalanceType_AutoIndoor
-};
 
 
 /** Abstract camera interface for the implementation of arbitrary camera interfaces. */
@@ -58,39 +50,14 @@ public:
 	virtual float getGamma() = 0;
 	virtual void setGamma(float gamma) = 0;
 
-	virtual WhiteBalanceType getWhiteBalanceType() = 0;
+	virtual SSL_VPConfigCameraWBType getWhiteBalanceType() = 0;
 	virtual float getWhiteBalanceBlue() = 0;
 	virtual float getWhiteBalanceRed() = 0;
-	virtual void setWhiteBalance(WhiteBalanceType type, float blue, float red) = 0;
+	virtual void setWhiteBalance(SSL_VPConfigCameraWBType type, float blue, float red) = 0;
 };
 
 
-/** Wrapper for camera options contained in the cam section of config.yml. */
-class CameraConfig {
-public:
-	CameraConfig(const YAML::Node& cam);
+extern std::unique_ptr<CameraDriver> camera;
 
-	bool autoResolution() const;
-	bool autoExposure() const;
-	bool autoGain() const;
-	bool autoGamma() const;
-
-	std::string driverType;
-
-	int hardwareId;
-	std::string device; // Takes precedence over hardwareId. OpenCV: device or file path, with fallback to /dev/video{hardwareId}. Spinnaker: serial number
-
-	int width;
-	int height;
-	double exposure;
-	double gain;
-	double gamma;
-
-	WhiteBalanceType whiteBalanceType = WhiteBalanceType_Manual;
-	double whiteBalanceBlue;
-	double whiteBalanceRed;
-	double whiteBalance[2];
-};
-
-
-std::unique_ptr<CameraDriver> openCamera(const CameraConfig& config);
+void init_camera();
+void update_camera_config(const SSL_VPConfigCamera* camera_config);

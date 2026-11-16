@@ -17,6 +17,7 @@
 #include "proto/vision/ssl_vision_wrapper.pb.h"
 #include "proto/gamecontroller/ssl_gc_referee_message.pb.h"
 #include "driver/cameradriver.h"
+#include "config.h"
 
 #include <cmath>
 #include "log.h"
@@ -159,6 +160,12 @@ void VisionSocket::parse(char *data, int length) {
 			receivedGeometry.CopyFrom(wrapper.geometry());
 			geometryMutex.unlock();
 		}
+	}
+
+	if(wrapper.has_config() && config.instance() == wrapper.config().instance()) {
+		configMutex.lock();
+		receivedConfig.CopyFrom(wrapper.config());
+		configMutex.unlock();
 	}
 }
 

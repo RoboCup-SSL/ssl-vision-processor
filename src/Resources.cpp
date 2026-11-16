@@ -75,14 +75,6 @@ Resources::Resources(const std::string& configPath) : fieldReference(), configPa
 
 	openCl = std::make_shared<OpenCL>();
 
-	CameraConfig camConfig(getOptional(config["camera"]));
-	camera = openCamera(camConfig);
-	camera->setResolution(camConfig.width, camConfig.height);
-	camera->setExposure(camConfig.exposure);
-	camera->setGain(camConfig.gain);
-	camera->setGamma(camConfig.gamma);
-	camera->setWhiteBalance(camConfig.whiteBalanceType, camConfig.whiteBalanceBlue, camConfig.whiteBalanceRed);
-
 	camId = config["cam_id"].as<int>(0);
 	if (camId < 0 || camId > 7) {
 		FATAL("Invalid camera ID, must be >= 0 and <= 7: " << camId);
