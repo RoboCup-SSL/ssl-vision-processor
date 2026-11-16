@@ -16,6 +16,7 @@
 #include <yaml-cpp/node/parse.h>
 #include <opencv2/imgproc.hpp>
 #include "Resources.h"
+#include "driver/cameradriver.h"
 #include "GroundTruth.h"
 #include "proto/vision/ssl_vision_wrapper.pb.h"
 #include "calib/LineDetection.h"

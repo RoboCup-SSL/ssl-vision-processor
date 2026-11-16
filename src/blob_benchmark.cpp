@@ -16,6 +16,7 @@
 #include <yaml-cpp/node/parse.h>
 #include <yaml-cpp/yaml.h>
 #include "Resources.h"
+#include "driver/cameradriver.h"
 #include "GroundTruth.h"
 #include "pattern.h"
 #include "cl_kernels.h"
