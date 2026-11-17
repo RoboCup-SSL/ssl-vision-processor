@@ -19,7 +19,6 @@
 #include <string>
 #include <memory>
 #include <yaml-cpp/node/node.h>
-#include "driver/cameradriver.h"
 #include "rtpstreamer.h"
 #include "snapshotwriter.h"
 #include "udpsocket.h"
@@ -41,8 +40,6 @@ public:
 	explicit Resources(const std::string& configPath);
 
 	void reloadConfigIfChanged();
-
-	std::unique_ptr<CameraDriver> camera = nullptr;
 
 	int camId;
 

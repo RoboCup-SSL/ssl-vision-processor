@@ -14,6 +14,7 @@
      limitations under the License.
  */
 #include <csignal>
+#include "driver/cameradriver.h"
 #include "log.h"
 #include <opencv2/bgsegm.hpp>
 #include <yaml-cpp/yaml.h>
@@ -252,6 +253,8 @@ void sig_stop(int sig_num) {
 int main(int argc, char* argv[]) {
 	init_config(argc > 1 ? argv[1] : "config.yml");
 	Resources r(argc > 1 ? argv[1] : "config.yml");
+	init_camera();
+	update_camera_config(&config.camera());
 	cl::Kernel blobList = r.openCl->compile(kernel_blobList_cl);
 
 	uint32_t frameId = 0;
@@ -265,11 +268,12 @@ int main(int argc, char* argv[]) {
 	while(noSigterm) {
 		frameId++;
 		r.reloadConfigIfChanged();
-		std::shared_ptr<RawImage> img = r.camera->readImage();
+		apply_received_config(r);
+		std::shared_ptr<RawImage> img = camera->readImage();
 		if(img == nullptr)
 			break;
 
-		double startTime = r.camera->getTime();
+		double startTime = camera->getTime();
 		double realStartTime = getRealTime(); // Just for realtime performance measurements
 
 		r.socket->geometryCheck();
@@ -368,13 +372,13 @@ int main(int argc, char* argv[]) {
 			VP_LOG("time " << processingTime * 1000.0 << " ms " << matches.size() << " blobs " << detection->balls().size() << " balls " << (detection->robots_yellow_size() + detection->robots_blue_size()) << " bots");
 			r.openCl->printRuntimes();
 #else
-			detection->set_t_sent(r.camera->getTime());
+			detection->set_t_sent(camera->getTime());
 #endif
 			r.socket->send(wrapper);
 			r.socket->updateTime();
 			r.openCl->clearEvents();
 
-			if(processingTime > r.camera->expectedFrametime())
+			if(processingTime > camera->expectedFrametime())
 				VP_LOG("frame time overrun: " << processingTime * 1000.0 << " ms " << matches.size() << " blobs " << detection->balls().size() << " balls " << (detection->robots_yellow_size() + detection->robots_blue_size()) << " bots");
 
 			if(r.rawFeed) {

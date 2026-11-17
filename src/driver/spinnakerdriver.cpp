@@ -106,13 +106,13 @@ private:
 };
 
 // Function try block: unexpected camera errors during setup exit with a clear message
-SpinnakerDriver::SpinnakerDriver(const CameraConfig& config) try {
+SpinnakerDriver::SpinnakerDriver(const std::string& device, uint32_t hardwareId) try {
 	pSystem = Spinnaker::System::GetInstance();
 
-	const std::string camera = config.device.empty() ? "id " + std::to_string(config.hardwareId) : "with serial " + config.device;
+	const std::string camera = device.empty() ? "id " + std::to_string(hardwareId) : "with serial " + device;
 	while(true) {
 		Spinnaker::CameraList camList = pSystem->GetCameras();
-		pCam = config.device.empty() ? getBySerialOrder(camList, config.hardwareId) : camList.GetBySerial(config.device);
+		pCam = device.empty() ? getBySerialOrder(camList, hardwareId) : camList.GetBySerial(device);
 		if (!pCam.IsValid()) {
 			WARN("Waiting for camera " << camera << ", found " << camList.GetSize() << " camera(s)");
 		} else {
@@ -436,15 +436,15 @@ void SpinnakerDriver::setGamma(float gamma) {
 	}
 }
 
-WhiteBalanceType SpinnakerDriver::getWhiteBalanceType() {
+SSL_VPConfigCameraWBType SpinnakerDriver::getWhiteBalanceType() {
 	if(pCam->BalanceWhiteAuto.GetValue() == Spinnaker::BalanceWhiteAuto_Off) {
-		return WhiteBalanceType::WhiteBalanceType_Manual;
+		return MANUAL;
 	} else if(!IsReadable(pCam->BalanceWhiteAutoProfile)) {
 		return whiteBalanceType; // First generation cameras have a single auto profile
 	} else {
 		return (pCam->BalanceWhiteAutoProfile.GetValue() == Spinnaker::BalanceWhiteAutoProfile_Outdoor)
-			? WhiteBalanceType::WhiteBalanceType_AutoOutdoor
-			: WhiteBalanceType::WhiteBalanceType_AutoIndoor;
+			? OUTDOOR
+			: INDOOR;
 	}
 }
 
@@ -458,12 +458,12 @@ float SpinnakerDriver::getWhiteBalanceRed() {
 	return pCam->BalanceRatio.GetValue();
 }
 
-void SpinnakerDriver::setWhiteBalance(WhiteBalanceType type, float blue, float red) {
-	if(type != WhiteBalanceType_Manual) {
+void SpinnakerDriver::setWhiteBalance(SSL_VPConfigCameraWBType type, float blue, float red) {
+	if(type != MANUAL) {
 		whiteBalanceType = type;
 		CATCH_SPINNAKER(pCam->BalanceWhiteAuto.SetValue(Spinnaker::BalanceWhiteAuto_Continuous));
 		setOptional(pCam->BalanceWhiteAutoProfile,
-				type == WhiteBalanceType_AutoOutdoor
+				type == OUTDOOR
 				? Spinnaker::BalanceWhiteAutoProfile_Outdoor
 				: Spinnaker::BalanceWhiteAutoProfile_Indoor,
 				"auto white balance profile");

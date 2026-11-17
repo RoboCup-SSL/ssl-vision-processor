@@ -23,7 +23,7 @@
 
 class MVImpactDriver : public CameraDriver {
 public:
-	explicit MVImpactDriver(const CameraConfig& config);
+	explicit MVImpactDriver(uint32_t hardwareId);
 	~MVImpactDriver() override;
 
 	std::shared_ptr<RawImage> readImage() override;
@@ -45,10 +45,10 @@ public:
 	float getGamma() override;
 	void setGamma(float gamma) override;
 
-	WhiteBalanceType getWhiteBalanceType() override;
+	SSL_VPConfigCameraWBType getWhiteBalanceType() override;
 	float getWhiteBalanceBlue() override;
 	float getWhiteBalanceRed() override;
-	void setWhiteBalance(WhiteBalanceType type, float blue, float red) override;
+	void setWhiteBalance(SSL_VPConfigCameraWBType type, float blue, float red) override;
 
 private:
 	mvIMPACT::acquire::Device* device;

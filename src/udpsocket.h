@@ -21,6 +21,7 @@
 #include <google/protobuf/message.h>
 #include "proto/vision/ssl_vision_geometry.pb.h"
 #include "proto/vision/ssl_vision_detection.pb.h"
+#include "vision/ssl_vp_config.pb.h"
 
 #ifdef _WIN32
 #include <Winsock2.h> // before Windows.h, else Winsock 1 conflict
@@ -74,6 +75,8 @@ public:
 	int getGeometryVersion() const { return geometryVersion; }
 	SSL_GeometryData& getGeometry() { return geometry; }
 
+	SSL_VPConfig getReceivedConfig();
+
 	std::map<unsigned int, std::vector<TrackingState>> getTrackedObjects();
 
 	/** Update the clock time offset. */
@@ -101,6 +104,9 @@ private:
 	/** Last received geometry, should only be accessed when having geometryMutex locked. */
 	SSL_GeometryData receivedGeometry;
 	std::mutex geometryMutex;
+	/** Last received config, only to be accessed with configMutex lock. */
+	SSL_VPConfig receivedConfig;
+	std::mutex configMutex;
 
 	/** Currently tracked objects. Should only be accessed when having trackedMutex locked. */
 	std::map<unsigned int, std::vector<TrackingState>> trackedObjects;

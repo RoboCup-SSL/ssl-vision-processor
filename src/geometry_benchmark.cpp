@@ -16,6 +16,7 @@
 #include <yaml-cpp/node/parse.h>
 #include <opencv2/imgproc.hpp>
 #include "Resources.h"
+#include "driver/cameradriver.h"
 #include "GroundTruth.h"
 #include "proto/vision/ssl_vision_wrapper.pb.h"
 #include "calib/LineDetection.h"
@@ -54,7 +55,7 @@ static void geometryBenchmark(Resources& r, const uint32_t frameId) {
 int main(int argc, char* argv[]) {
 	Resources r(argc > 1 ? argv[1] : "config.yml");
 
-	std::shared_ptr<RawImage> img = r.camera->readImage();
+	std::shared_ptr<RawImage> img = camera->readImage();
 	r.perspective->geometryCheck(img->width, img->height, r.gcSocket->maxBotHeight, r.resamplingFactor);
 	std::shared_ptr<CLImage> channels[4];
 	r.raw2quad(*img, channels);

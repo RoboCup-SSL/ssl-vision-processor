@@ -23,12 +23,12 @@
 static constexpr double OPENCV_AUTO_EXPOSURE_ON = 0.75;
 static constexpr double OPENCV_AUTO_EXPOSURE_OFF = 0.25;
 
-OpenCVDriver::OpenCVDriver(const CameraConfig& config): capture(config.device, cv::CAP_ANY, {cv::CAP_PROP_HW_ACCELERATION, cv::VIDEO_ACCELERATION_ANY}), name(config.device) {
+OpenCVDriver::OpenCVDriver(std::string path): capture(path, cv::CAP_ANY, {cv::CAP_PROP_HW_ACCELERATION, cv::VIDEO_ACCELERATION_ANY}), name(path) {
 	std::replace(name.begin(), name.end(), '/', '_');
 
 	// Usually a wrong path or a camera busy in another program; later calls would throw.
 	if(!capture.isOpened())
-		FATAL("Could not open camera " << config.device << ": no OpenCV backend can open it. Check the path, and whether another program is using the camera (fuser -v " << config.device << ").");
+		FATAL("Could not open camera " << path << ": no OpenCV backend can open it. Check the path, and whether another program is using the camera (fuser -v " << path << ").");
 
 	// Use compressed data stream to unlock the highest resolution - framerate combination on USB2 cameras
 	capture.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
@@ -143,11 +143,11 @@ void OpenCVDriver::setGamma(float gamma) {
 	capture.set(cv::CAP_PROP_GAMMA, gamma);
 }
 
-WhiteBalanceType OpenCVDriver::getWhiteBalanceType() {
+SSL_VPConfigCameraWBType OpenCVDriver::getWhiteBalanceType() {
 	if(capture.get(cv::CAP_PROP_AUTO_WB) == 1.0) {
-		return WhiteBalanceType::WhiteBalanceType_AutoOutdoor;
+		return OUTDOOR;
 	} else {
-    	return WhiteBalanceType::WhiteBalanceType_Manual;
+    	return MANUAL;
 	}
 }
 
@@ -159,8 +159,8 @@ float OpenCVDriver::getWhiteBalanceRed() {
     return (float)capture.get(cv::CAP_PROP_WHITE_BALANCE_RED_V);
 }
 
-void OpenCVDriver::setWhiteBalance(WhiteBalanceType type, float blue, float red) {
-	if(type != WhiteBalanceType::WhiteBalanceType_Manual) {
+void OpenCVDriver::setWhiteBalance(SSL_VPConfigCameraWBType type, float blue, float red) {
+	if(type != MANUAL) {
 		capture.set(cv::CAP_PROP_AUTO_WB, 1.0);
 	} else {
 		capture.set(cv::CAP_PROP_AUTO_WB, 0.0);

@@ -1,4 +1,5 @@
 #include "config.h"
+#include "driver/cameradriver.h"
 #include <yaml-cpp/yaml.h>
 
 
@@ -41,7 +42,7 @@ void init_config(const std::string& configPath) {
         config.mutable_camera()->set_driver(DUMMY);
     }
     config.mutable_camera()->set_id(getOptional(yaml["camera"])["id"].as<int>(0));
-    config.mutable_camera()->set_path(getOptional(yaml["camera"])["path"].as<std::string>("/dev/video" + std::to_string(config.camera().id())));
+    config.mutable_camera()->set_path(getOptional(yaml["camera"])["device"].as<std::string>("/dev/video" + std::to_string(config.camera().id())));
     config.mutable_camera()->set_width(getOptional(yaml["camera"])["width"].as<int>(0));
     config.mutable_camera()->set_height(getOptional(yaml["camera"])["height"].as<int>(0));
     config.mutable_camera()->set_exposure(getOptional(yaml["camera"])["exposure"].as<double>(0.0));
@@ -89,4 +90,10 @@ void init_config(const std::string& configPath) {
     config.mutable_stream()->set_active(getOptional(yaml["stream"])["active"].as<bool>(true));
     config.mutable_stream()->set_stream_ip(getOptional(yaml["stream"])["ip_base_prefix"].as<std::string>("224.5.23.") + std::to_string(getOptional(yaml["stream"])["ip_base_end"].as<int>(100) + config.camera_id()));
     config.mutable_stream()->set_stream_port(getOptional(yaml["stream"])["port"].as<int>(10100));
+}
+
+void apply_received_config(Resources& r) {
+    SSL_VPConfig received = r.socket->getReceivedConfig();
+
+    update_camera_config(&received.camera());
 }

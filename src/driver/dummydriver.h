@@ -3,7 +3,7 @@
 
 class DummyDriver : public CameraDriver {
 public:
-	explicit DummyDriver(const CameraConfig& config);
+	explicit DummyDriver();
 	~DummyDriver() override = default;
 
 	std::shared_ptr<RawImage> readImage() override;
@@ -25,10 +25,10 @@ public:
 	float getGamma() override;
 	void setGamma(float gamma) override;
 
-	WhiteBalanceType getWhiteBalanceType() override;
+	SSL_VPConfigCameraWBType getWhiteBalanceType() override;
 	float getWhiteBalanceBlue() override;
 	float getWhiteBalanceRed() override;
-	void setWhiteBalance(WhiteBalanceType type, float blue, float red) override;
+	void setWhiteBalance(SSL_VPConfigCameraWBType type, float blue, float red) override;
 
 private:
 	std::shared_ptr<RawImage> image;

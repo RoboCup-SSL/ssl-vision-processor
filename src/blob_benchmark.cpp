@@ -16,6 +16,7 @@
 #include <yaml-cpp/node/parse.h>
 #include <yaml-cpp/yaml.h>
 #include "Resources.h"
+#include "driver/cameradriver.h"
 #include "GroundTruth.h"
 #include "pattern.h"
 #include "cl_kernels.h"
@@ -134,7 +135,7 @@ int main(int argc, char* argv[]) {
 
 	while(true) {
 		double startTime = getRealTime();
-		std::shared_ptr<RawImage> img = r.camera->readImage();
+		std::shared_ptr<RawImage> img = camera->readImage();
 		if(img == nullptr)
 			break;
 
