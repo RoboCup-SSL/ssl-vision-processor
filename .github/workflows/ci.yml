@@ -55,8 +55,89 @@ jobs:
           cmake -B build .
           make -C build -j"$(nproc)" vision_processor geometry_benchmark blob_benchmark
 
-  python:
-    name: Python (wrapper_backend)
+  gui-go:
+    name: Go (gui)
+    runs-on: ubuntu-latest
+    steps:
+      # gui/internal/{vision,gamecontroller} are generated, not committed (see
+      # gui/buf.gen.yaml) -- the proto/ submodule and a `buf generate` (via
+      # `make .proto`, local plugins, no network needed) are needed before
+      # anything here builds.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      # The socket tests send real multicast over loopback, which Ubuntu
+      # ships with multicast off. They fail rather than skip under CI, so a
+      # missing step here can't hide as a skip.
+      - name: Enable loopback multicast
+        run: sudo scripts/lo-multicast.sh on
+
+      - name: Format, vet, build, test
+        run: |
+          nix develop --command bash -c '
+            cd gui
+            make fmt-check
+            make vet
+            make build
+            make go-test
+            make generate-check
+          '
+
+  gui-apt:
+    name: Go and frontend (gui, Ubuntu 24.04, no nix)
+    # The non-nix counterpart of gui-go and frontend: the same make targets,
+    # with every tool from its own pin instead of the flake. Formatting and
+    # generated-file checks stay in the nix jobs; this job only shows the GUI
+    # builds and passes its tests with these tool versions.
+    runs-on: ubuntu-24.04
+    env:
+      # As in the flake: a go.mod newer than the installed Go fails here
+      # instead of quietly downloading a toolchain.
+      GOTOOLCHAIN: local
+    steps:
+      # The package version counts commits, which needs the history.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: gui/go.mod
+          cache-dependency-path: gui/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: gui/frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: gui/frontend/package-lock.json
+
+      # Ubuntu doesn't package buf. Keep the version in step with the flake's
+      # (nix develop -c buf --version) and gui/DEVELOPMENT.md.
+      - name: Install buf
+        run: go install github.com/bufbuild/buf/cmd/buf@v1.72.0
+
+      - name: Enable loopback multicast
+        run: sudo scripts/lo-multicast.sh on
+
+      - name: Build and test
+        working-directory: gui
+        run: |
+          make build
+          make go-test
+          make frontend-test
+
+      # nfpm is a Go tool, so the packages build the same way without nix.
+      - name: Packages
+        working-directory: gui
+        run: make deb
+
+  gui-release:
+    name: Release build (gui)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,40 +147,84 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      # Importing wrapper_backend runs protoc against the submodule and
-      # generates wrapper_backend/proto/, which mypy needs on its path even
-      # though it excludes the generated files themselves.
-      - name: Lint and type check
+      # A first run publishes nothing, so this can't disturb anything.
+      - name: Build it and run it as a new user would
+        run: nix develop --command bash -c 'cd gui && make release-check'
+
+  gui-deb:
+    name: Debian packages (gui)
+    # The runner is a real Ubuntu 24.04 machine with systemd, so this installs
+    # the package and checks the service itself, not just the files.
+    runs-on: ubuntu-24.04
+    steps:
+      # The package version counts commits, which needs the history.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Build
+        run: nix develop --command bash -c 'cd gui && make deb'
+
+      - name: Lintian
         run: |
-          nix develop --command bash -c '
-            uv sync --locked
-            uv run python -c "import wrapper_backend"
-            uv run ruff check wrapper_backend/
-            uv run ruff format --check wrapper_backend/
-            uv run mypy
-          '
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lintian
+          lintian --fail-on error,warning gui/bin/deb/*.deb
+
+      - name: Install and check the service
+        run: sudo gui/scripts/deb-check.sh gui/bin/deb/*_amd64.deb "$(git -C gui describe --tags --always --dirty)"
 
   frontend:
-    name: Frontend (wrapper-frontend)
+    name: Frontend (gui/frontend)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: wrapper-frontend
     steps:
+      # frontend/src/proto is generated, not committed (see gui/buf.gen.yaml)
+      # -- this job now needs the proto/ submodule and buf/go (hence nix,
+      # same as gui-go) to produce it before npm can build against it.
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: wrapper-frontend/package-lock.json
+          submodules: recursive
 
-      - run: npm ci
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - run: npm run lint
+      - name: Lint, check, build
+        run: |
+          nix develop --command bash -c '
+            cd gui
+            make frontend-test
+            make frontend
+          '
 
-      - run: npm run format:check
+  gui-e2e:
+    name: End-to-end (gui)
+    runs-on: ubuntu-latest
+    steps:
+      # Same prerequisites as gui-go: generated protobuf and the frontend
+      # build, both via nix. The browser is the runner's own Google Chrome
+      # (Playwright's "chrome" channel), so nothing is downloaded for it.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - run: npm run check
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - run: npm run build
+      - name: Smoke tests
+        run: |
+          nix develop --command bash -c '
+            cd gui
+            make e2e
+          '
+
+      - name: Upload traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: gui/frontend/test-results/
+          retention-days: 7

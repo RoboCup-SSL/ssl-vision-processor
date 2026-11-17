@@ -1,0 +1,19 @@
+# The vision_processor GUI as your own user service, with the same file
+# locations as running it by hand:
+#
+#   systemctl --user enable --now ssl-vision-processor-gui
+#
+# It stops when you log out unless lingering is on: loginctl enable-linger.
+
+[Unit]
+Description=vision_processor GUI (RoboCup SSL)
+Documentation=file:///usr/share/doc/ssl-vision-processor-gui/README.md
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/ssl-vision-processor-gui
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

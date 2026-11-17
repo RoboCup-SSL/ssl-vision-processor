@@ -1,0 +1,81 @@
+// Global, client-only UI preferences -- these control how this browser's UI
+// behaves, not anything vision_processor or config.yml cares about, so they
+// live in localStorage rather than going through any /api/config endpoint.
+// Same module-level $state pattern as color.svelte.ts's colorConfig; any
+// component can import `preferences` and both read it and bind: to it
+// directly.
+import type { LogLevel } from "./apiTypes";
+
+const STORAGE_KEY = "vision-processor-gui:preferences";
+
+interface Preferences {
+  // Shows supplementary explanations for surprising/non-obvious behavior
+  // (e.g. YuvPositionPane's "only X% of colors are reachable here" callout)
+  // -- a returning user likely doesn't need these repeated forever.
+  tooltipsEnabled: boolean;
+  // Skips confirmation ceremonies around settings that are safe for an
+  // experienced operator to change freely -- e.g. the minimum-reference-weight
+  // floor (WeightTriangle.svelte) starts unlocked instead of behind its
+  // warning popup.
+  expertUser: boolean;
+  // The setup checklist's pill in the top bar (checklist/). Off once a setup
+  // is done and it's only in the way; the settings menu still opens it.
+  showChecklist: boolean;
+  // The host log panel docked at the bottom (logs/LogPanel.svelte): shown at
+  // all, expanded or folded to its title bar, and the lowest level it shows.
+  // Its own level, whatever the host's console logs at. logHeight is its
+  // records' height in pixels, as last dragged.
+  logPanel: boolean;
+  logExpanded: boolean;
+  logLevel: LogLevel;
+  logHeight: number;
+}
+
+function loadPreferences(): Preferences {
+  const defaults: Preferences = {
+    tooltipsEnabled: true,
+    expertUser: false,
+    showChecklist: true,
+    logPanel: false,
+    logExpanded: true,
+    logLevel: "info",
+    logHeight: 256,
+  };
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaults;
+
+    const parsed = JSON.parse(raw) as Partial<Preferences>;
+    return {
+      tooltipsEnabled: parsed.tooltipsEnabled ?? defaults.tooltipsEnabled,
+      expertUser: parsed.expertUser ?? defaults.expertUser,
+      showChecklist: parsed.showChecklist ?? defaults.showChecklist,
+      logPanel: parsed.logPanel ?? defaults.logPanel,
+      logExpanded: parsed.logExpanded ?? defaults.logExpanded,
+      logLevel: parsed.logLevel ?? defaults.logLevel,
+      logHeight: parsed.logHeight ?? defaults.logHeight,
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+export const preferences = $state<Preferences>(loadPreferences());
+
+// Persists on every change. $effect.root is what makes this legal at module
+// scope: a plain $effect() here would throw (effects normally need an
+// enclosing component to own their lifecycle), but a root effect runs
+// immediately and stays alive for the life of the page -- exactly right for
+// a global preference every component just binds to directly, with no
+// dedicated setter functions to remember to call.
+$effect.root(() => {
+  $effect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+    } catch {
+      // Private browsing / storage disabled -- preference just won't persist
+      // across reloads, not worth surfacing as an error.
+    }
+  });
+});

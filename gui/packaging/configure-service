@@ -1,0 +1,106 @@
+#!/bin/sh
+# Applies the package's two setup answers, on a new install and on
+# sudo dpkg-reconfigure ssl-vision-processor-gui, which is how to change
+# them. (An upgrade doesn't run this; see postinst.)
+#
+#   configure-service none|boot|now local|network
+#
+# none disables and stops the system service; boot enables it at boot,
+# restarting it if it's running; now enables it and (re)starts it.
+#
+# local listens on this machine only, network on every interface. Only the
+# ADDRESS line of /etc/default/ssl-vision-processor-gui changes: everything
+# else in it, such as ARGS, is kept, as is a port changed by hand and, for
+# network, an address set by hand, such as one interface's.
+set -e
+
+package=ssl-vision-processor-gui
+unit=$package.service
+defaults=/etc/default/$package
+
+usage() {
+	echo "usage: $0 none|boot|now local|network" >&2
+	exit 2
+}
+
+[ $# -eq 2 ] || usage
+service="$1"
+listen="$2"
+
+case "$service" in
+none | boot | now) ;;
+*) usage ;;
+esac
+
+old=""
+port=8085
+if [ -f "$defaults" ]; then
+	old=$(sed -n 's/^ADDRESS=//p' "$defaults" | tail -n 1)
+	[ -z "$old" ] || port="${old##*:}"
+fi
+
+case "$listen" in
+local) address="127.0.0.1:$port" ;;
+network)
+	case "$old" in
+	"" | :* | 127.* | localhost:* | "[::1]":*) address=":$port" ;;
+	*) address="$old" ;;
+	esac
+	;;
+*) usage ;;
+esac
+
+tmp=$(mktemp "$defaults.XXXXXX")
+if [ -f "$defaults" ] && grep -q '^ADDRESS=' "$defaults"; then
+	sed "s|^ADDRESS=.*|ADDRESS=$address|" "$defaults" >"$tmp"
+elif [ -f "$defaults" ]; then
+	cat "$defaults" >"$tmp"
+	echo "ADDRESS=$address" >>"$tmp"
+else
+	cat >"$tmp" <<DEFAULTS
+# The system service's settings. sudo dpkg-reconfigure ssl-vision-processor-gui
+# changes ADDRESS and keeps everything else. Restart the service after editing:
+# sudo systemctl restart ssl-vision-processor-gui
+
+# Where the GUI listens. 127.0.0.1 allows this machine only; leave the host
+# out (:8085) for every interface. The GUI has no login.
+ADDRESS=$address
+
+# Extra options, as on the command line, e.g. ARGS="-logLevel Debug". See
+# ssl-vision-processor-gui -h.
+ARGS=
+DEFAULTS
+fi
+chmod 644 "$tmp"
+mv "$tmp" "$defaults"
+
+running=false
+if [ -d /run/systemd/system ] && systemctl --quiet is-active "$unit"; then
+	running=true
+fi
+
+# Removing the package masks the unit, so every answer unmasks it: the service
+# can then still be enabled by hand.
+deb-systemd-helper unmask "$unit" >/dev/null || true
+
+case "$service" in
+none)
+	deb-systemd-helper disable "$unit" >/dev/null || true
+	if $running; then
+		deb-systemd-invoke stop "$unit" >/dev/null || true
+	fi
+	;;
+boot)
+	deb-systemd-helper enable "$unit" >/dev/null
+	# Picks up the new address.
+	if $running; then
+		deb-systemd-invoke restart "$unit" >/dev/null || true
+	fi
+	;;
+now)
+	deb-systemd-helper enable "$unit" >/dev/null
+	if [ -d /run/systemd/system ]; then
+		deb-systemd-invoke restart "$unit" >/dev/null
+	fi
+	;;
+esac

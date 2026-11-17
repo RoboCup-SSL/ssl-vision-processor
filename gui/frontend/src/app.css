@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+/*
+Required for flowbite-svelte, confirmed against the library's own app.css
+(github.com/themesberg/flowbite-svelte/blob/main/src/app.css):
+
+- @plugin/@custom-variant register the plugin and dark-mode variant its
+  components' classes assume.
+- @source is the one that actually mattered for the reported symptoms
+  (unrounded corners, unpadded buttons, a Stepper that never visibly
+  updated): Tailwind v4 only scans this project's own source by default, not
+  node_modules, so classes referenced only inside flowbite-svelte's compiled
+  .svelte templates (rounded-lg, px-5 py-2.5, the Stepper's active/complete
+  styling, ...) never had CSS generated for them at all.
+*/
+@plugin "flowbite/plugin";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* The page itself, light and dark. color-scheme makes native controls
+   (scrollbars, date pickers) follow. */
+@layer base {
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+  }
+
+  /* Inline code in prose, e.g. RichText's `backticks`. */
+  :not(pre) > code {
+    background: var(--surface-muted);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+  }
+}
+
+/* Neutral colors for components' own <style> blocks, which can't use dark:
+   utilities. Each flips in dark mode. */
+:root {
+  --surface-muted: var(--color-gray-100);
+  --text-muted: var(--color-gray-500);
+  --text-subtle: var(--color-gray-700);
+  --line: var(--color-gray-300);
+  --line-strong: var(--color-gray-400);
+}
+
+:root.dark {
+  --surface-muted: var(--color-gray-800);
+  --text-muted: var(--color-gray-400);
+  --text-subtle: var(--color-gray-300);
+  --line: var(--color-gray-600);
+  --line-strong: var(--color-gray-500);
+}
+
+/*
+Also required, confirmed against flowbite-svelte's own "Colors" doc page
+(flowbite-svelte.com/docs/pages/colors): a default-colored Button (no `color`
+prop) renders `bg-primary-700` etc. with no fallback, so an undefined
+`--color-primary-*` makes it fully transparent.
+
+The palette matches the SSL Game Controller's (ssl-game-controller,
+frontend/src/assets/main.scss), so the league's tools look like one family:
+primary #0794B9 and its light-mode secondary #545454. Quasar uses single
+colors where Flowbite wants 50-950 scales, so each scale is generated in
+OKLCH around its anchor (same hue, lightness stepping evenly to near-white and
+near-black), with the anchor at 700: the shade Flowbite's default Button
+uses, so buttons are exactly the game controller's color. White on #0794B9 is
+3.5:1, as in the game controller: fine behind button-sized text, not behind
+small body text.
+
+The game controller's positive/negative/warning (#21BA45 / #C10015 /
+#F2C037) are close to Tailwind's stock green/red/yellow, which Flowbite's
+Alert, Badge, and Helper use, so those palettes are left as they are; info
+uses primary. The team colors are its .bg-team-* backgrounds.
+*/
+@theme {
+  --color-primary-50: #d8f1fb;
+  --color-primary-100: #c2e6f4;
+  --color-primary-200: #abd9eb;
+  --color-primary-300: #93cce2;
+  --color-primary-400: #7abfd9;
+  --color-primary-500: #5fb1cf;
+  --color-primary-600: #3fa3c4;
+  --color-primary-700: #0794b9;
+  --color-primary-800: #016d89;
+  --color-primary-900: #02485b;
+  --color-primary-950: #002632;
+  --color-secondary-50: #e7e7e7;
+  --color-secondary-100: #d3d3d3;
+  --color-secondary-200: #bfbfbf;
+  --color-secondary-300: #aaaaaa;
+  --color-secondary-400: #949494;
+  --color-secondary-500: #7f7f7f;
+  --color-secondary-600: #696969;
+  --color-secondary-700: #545454;
+  --color-secondary-800: #424242;
+  --color-secondary-900: #323232;
+  --color-secondary-950: #222222;
+  --color-team-yellow: #ced509;
+  --color-team-blue: #134cc4;
+
+  /*
+  The flowbite plugin's own form styling (range slider thumbs, among others)
+  uses flowbite v4's semantic tokens, which normally come from
+  flowbite/src/themes/default.css. That file also swaps the font to Inter and
+  rescales Tailwind's border radii, rounding every component differently, so
+  only the color tokens the plugin reads are defined here, from its light
+  theme, with brand mapped to our primary. Without them the slider thumb's
+  background is undefined, so it renders invisible.
+  */
+  --color-brand: var(--color-primary-700);
+  --color-fg-brand: var(--color-primary-700);
+  --color-body: var(--color-gray-600);
+  --color-heading: var(--color-gray-900);
+  --color-default: var(--color-gray-200);
+  --color-light: var(--color-gray-100);
+  --color-dark: var(--color-gray-800);
+  --color-neutral-primary: var(--color-white);
+  --color-neutral-primary-medium: var(--color-white);
+  --color-neutral-secondary: var(--color-gray-50);
+  --color-neutral-secondary-soft: var(--color-gray-50);
+  --color-neutral-secondary-medium: var(--color-gray-50);
+  --color-neutral-tertiary: var(--color-gray-100);
+  --color-neutral-tertiary-medium: var(--color-gray-100);
+  --color-neutral-quaternary: var(--color-gray-200);
+}
+
+@source "../node_modules/flowbite-svelte/dist";
