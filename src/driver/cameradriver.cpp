@@ -113,5 +113,5 @@ void update_camera_config(const SSL_VPConfigCamera* camera_config) {
 		camera->setWhiteBalance(wbType, wbBlue, wbRed);
 	}
 
-	config.mutable_camera()->CopyFrom(*camera_config);
+	config.mutable_camera()->MergeFrom(*camera_config);
 }
