@@ -27,12 +27,12 @@ Owner per finding: **Will** (Go/Svelte) or **Claude** (build/CI/packaging/docs i
 
 ## Status
 
-Updated 2026-11-18. **Open** 62 · **Partial** 3 · **Done** 3 · **Dropped/merged** 2. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, dropped, merged.
+Updated 2026-11-18. **Open** 60 · **Partial** 4 · **Done** 4 · **Dropped/merged** 2. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, dropped, merged.
 
 **Next up** (MVP gate order; see the end of this file):
-1. T4-1: "Temporary debug utilities" under every page (last blocker).
-2. T2-1 with L-1: bind before starting anything; pick the default port.
-3. T5-3, T5-2, T5-4: lab path.
+All blockers are fixed (T4-1 is awaiting commit).
+1. T2-1 with L-1: bind before starting anything; pick the default port.
+2. T5-3, T5-2, T5-4: lab path.
 
 | ID | Sev | Owner | Item | Status |
 |---|---|---|---|---|
@@ -59,13 +59,13 @@ Updated 2026-11-18. **Open** 62 · **Partial** 3 · **Done** 3 · **Dropped/merg
 | T3-3 | major | Will | naming pass before freezing API 1.0 | open |
 | T3-4 | minor | Will | response-spec test coverage | partial |
 | T3-5 | nit | Will | OpenAPI tag descriptions | open |
-| T4-1 | blocker | Will | "Temporary debug utilities" on every page | open |
+| T4-1 | blocker | Will | "Temporary debug utilities" on every page | done |
 | T4-2 | major | Will | edits lost while host unreachable | open |
 | T4-3 | minor | Will | rejected value stays in the form | open |
 | T4-4 | minor | Will | no stale-frontend detection | open |
 | T4-5 | minor | Will | large components | open |
 | T4-6 | minor | Will | bus still on `svelte/store` | open |
-| T4-7 | nit | Will | hex colours | open |
+| T4-7 | nit | Will | hex colours | partial |
 | T4-8 | nit | Claude | Flowbite `@source` CSS bloat | open |
 | T5-1 | blocker | Will | placeholder Debug page | done |
 | T5-2 | major | Will | crash-looping VP raises no alert | open |
@@ -284,6 +284,11 @@ Every page renders a "Temporary debug utilities -- see the note in this file's s
 
 The source comment calls it a stand-in "predating the two-column shell". It tells a new user the product isn't finished, and the image reloads cost bandwidth on the venue network for every open browser.
 Fix: remove it for the MVP. If the snapshot grid or the raw packet is still useful, move it behind expert mode into the log/debug panel, with refresh on demand rather than 1 Hz.
+*Dependency 2026-11-18 (Claude):* this grid is the only place the GUI shows `raw`/`flat`/`gradient`/`blob` (the corner picker shows only `geomcalib_input`). After T5-1, Advanced's "Snapshot refresh" note says the Geometry page shows these, which is true only because of this grid. `smoke.spec.ts` "debug snapshots reach the page" also asserts its `cam 0 / raw` caption. Options: (A) delete everything; reword or remove Snapshot refresh; drop the caption assert. (B, recommended) move the grid into a "Camera views" card on the Geometry page with on-demand refresh, Flowbite and tokens; drop the wrapper-packet dump (Live Field covers it); the banner and its hex CSS go too (T4-7). Awaiting Will's choice.
+*Done 2026-11-18 (Claude, at Will's request; uncommitted):* Will chose a variant of B. The banner, the wrapper-packet button and the 1 Hz grid are gone from `App.svelte`, and so is Shell's `below` slot. A new `SnapshotViews.svelte` (Flowbite Card, Button and A; text in `text/snapshots.ts`) lists one camera's images when the page shows and on Refresh. There is no polling. Each image links to its full-size file. Placement:
+- **Geometry:** "Calibration views" with `pixels`, `lines`, `pixels.corner` and `pixels.refined`.
+- **Color:** "Detection views" with `flat` and `blob`.
+`raw` and `gradient` aren't shown. The e2e fixture now writes `pixels` and `flat`, and the snapshot test checks each card on its page. `make check` passes. Checked by screenshot, light and dark; axe found nothing new.
 
 **T4-2 | major | Will | `frontend/src/lib/config.svelte.ts:126-171`**
 An edit made while the host is unreachable is silently lost. `sendPending` sets `lastSynced = json` *before* `putDoc`. If `fetch` rejects (host restarting, wifi drop), the error escapes as an unhandled rejection from `void sendPending()`, `config.error` is never set, and the edit is never retried. When the WS reconnects, the new `config.state.revision` triggers `loadConfig()`, which replaces the local document with the host's. The user typed a value, saw it in the field, and it's gone with no message.
@@ -309,6 +314,7 @@ Fix: a runes-native `topicState(name)` built on `createSubscriber` (svelte/react
 **T4-7 | nit | Will | hex colours**
 `App.svelte:151-165` hand-styles a warning box in hex, against the token rule (it goes away with T4-1). In canvas/SVG drawing, where hex is allowed, the field green `#0a5c2e` is repeated in three files (`FieldSketch`, `WizardFieldPreview`, `WizardDimensionsPreview`) and the danger stroke `#b00020` in `WeightTriangle`.
 Fix: one CSS custom property each in `app.css`.
+*Progress 2026-11-18 (Claude):* the `App.svelte` hex box went with T4-1. The canvas hex colours remain.
 
 **T4-8 | nit | Claude | `frontend/src/app.css:129`**
 `@source "../node_modules/flowbite-svelte/dist"` generates CSS for every class any Flowbite component uses: 294 kB raw, 40 kB gzipped. Fine on a LAN; noted only so it isn't mistaken for a leak.
@@ -325,11 +331,11 @@ Fix: hide the Debug page for the MVP (or show it only in expert mode, with user-
 *Decision 2026-11-18 (Will):* drop the Debug page; move its settings into Advanced as shared `defaults.debug` (all cameras). `wait_for_geometry` and `debug_images` become toggles, `debug_stream_interval_ms` a number. `ground_truth` stays a hand-edited key: it's a file name that `ValidName` doesn't check, and only the benchmarks use it. Also: add `debug` to `advancedOverrides`. (An earlier note here warned about disk use from `debug_images`. That was wrong: it saves three PNGs once per start, not per frame. See the 2026-11-18 follow-up.) Delete `ConfigCategoryPlaceholder.svelte`, the `MainContent` fallback, `ConfigFieldList.svelte`, `placeholder.placeholder` and `CONFIG_FIELDS.debug`. Then `CONFIG_FIELDS`, `fields` and `yamlKey` look unused (optional tidy-up).
 *Follow-up 2026-11-18 (Claude, from reading `src/`):* what each key does, for choosing which to expose.
 - `debug_stream_interval_ms`: rewrites `img/<cam>.raw.jpg` every N ms, plus `flat`, `gradient` and `blob` JPEGs once calibrated. The files are overwritten, so they don't pile up. These are what the snapshot views show; with 0, an uncalibrated camera only saves a single `raw.jpg` at frame 100. This is the useful one.
-- `debug_images`: saves `.flat.1.png`, `.gradDot.1.png` and `.blob.1.png` once, on the first detection frame. They go to the working directory, not `img/`, so the GUI never shows them.
+- `debug_images`: saves `.flat.1.png`, `.gradDot.1.png` and `.blob.1.png` once, on the first detection frame. `CLImage::save` adds `img/`, so they do land in `img/`, but without the `<camera>.` prefix, so the snapshot listing skips them.
 - `wait_for_geometry`: blocks startup until any geometry packet arrives. On a first run the host publishes nothing until the first save, so vision_processor hangs before its frame loop and never announces. Unsafe as a GUI toggle without a warning.
 - `ground_truth`: benchmark binaries only.
 The `configFields.ts` comments are wrong for two of them (`debug_images` "in img/"; `debug_stream_interval_ms` "img/.sample.<camId>.png while uncalibrated"). Moot once `CONFIG_FIELDS.debug` is deleted.
-*Done 2026-11-18 (Claude, at Will's request; uncommitted):* the Debug page is gone. Advanced has a new "Diagnostics" card with one setting, "Snapshot refresh" (`defaults.debug.debug_stream_interval_ms`). The schema gives it a 0–5000 ms range in steps of 100 (`schema.go`). `setAdvanced` now rounds any `integer` setting, not just `blobs`. `advancedOverrides` now includes `debug`. Deleted: the `debug` category, `ConfigCategoryPlaceholder.svelte`, `ConfigFieldList.svelte`, `placeholder.placeholder`, `CONFIG_FIELDS.debug`, the MainContent fallback, and `0/debug` from the e2e page list. An old `#0/debug` link falls back to the default page. New `advanced.test.ts` (8 tests). `make check` passes. The other three keys are listed under Future features.
+*Done 2026-11-18 (Claude, at Will's request; committed `64af243`):* the Debug page is gone. Advanced has a new "Diagnostics" card with one setting, "Snapshot refresh" (`defaults.debug.debug_stream_interval_ms`). The schema gives it a 0–5000 ms range in steps of 100 (`schema.go`). `setAdvanced` now rounds any `integer` setting, not just `blobs`. `advancedOverrides` now includes `debug`. Deleted: the `debug` category, `ConfigCategoryPlaceholder.svelte`, `ConfigFieldList.svelte`, `placeholder.placeholder`, `CONFIG_FIELDS.debug`, the MainContent fallback, and `0/debug` from the e2e page list. An old `#0/debug` link falls back to the default page. New `advanced.test.ts` (8 tests). `make check` passes. The other three keys are listed under Future features.
 
 **T5-2 | major | Will | `internal/alerts/alerts.go:127-137`, `frontend/src/lib/config/CameraPanel.svelte:560-605`**
 A crash-looping supervised vision_processor raises **no alert**. Only `StateConflict` becomes one. With the stand-in failing every start, `/api/alerts` still lists only `socket_silent`, two `team_default_height` and `loopback_multicast_off`. The sidebar shows `cam 0` with no status. The Camera and Stream pages show "Waiting for video on 224.5.23.100:10100. Is the vision_processor running?" even though the host knows it isn't, and why. The crash count and the captured stderr are only in a card at the bottom of the Camera page. This is the most likely failure in the lab setup `-runCameras` exists for (wrong driver, busy or missing `/dev/video0`).
@@ -586,8 +592,9 @@ These came up during the review. They're out of scope for the MVP and not findin
 
 - **The rest of `debug:` in the GUI** (from T5-1). Each one is left out for a reason:
   - `wait_for_geometry` hangs vision_processor on a first run, because nothing is published before the first save. Before exposing it, either the host publishes field-only geometry during the first run, or the toggle carries a first-run warning.
-  - `debug_images` writes `.flat.1.png`, `.gradDot.1.png` and `.blob.1.png` to the working directory, once per start, so the snapshot grid can't show them. Worth exposing once vision_processor writes them to `img/<cam>.…` (a C++ change).
+  - `debug_images` writes `img/.flat.1.png`, `.gradDot.1.png` and `.blob.1.png` once per start. The names have no camera prefix, so the snapshot listing skips them. Worth exposing once vision_processor names them `img/<cam>.…` (a C++ change).
   - `ground_truth` is for the benchmarks only. If it's ever exposed, it's a file name and must go through `config.ValidName`.
+- **Debug images over the network** (from T4-1, Will: needed long term). The Color views (`flat`, `blob`) and Geometry views (`pixels`, `lines`, `pixels.corner`, `pixels.refined`) are read from the host's own `img/`, so they only work for cameras on the same machine (gui/CLAUDE.md "Snapshots for remote instances"). Getting them from a vision_processor on another machine is a protocol change. `SnapshotViews.svelte` only needs a new source once that exists.
 - **Per-camera overrides on the Advanced page.** Today the page only names the cameras that override a shared value. It could show and reset each override.
 - **Tidy-up after T5-1:** `CONFIG_FIELDS`, `ConfigCategory.fields` and `yamlKey` have nothing left that reads them.
 

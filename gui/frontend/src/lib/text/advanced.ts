@@ -81,8 +81,8 @@ export const advanced = {
     debug_stream_interval_ms: {
       label: "Snapshot refresh",
       notes: [
-        "How often each camera rewrites the snapshots the Geometry page shows: the raw image, plus the flat, gradient and blob views once calibrated.",
-        "0 saves one raw image shortly after start and never refreshes it. Each refresh costs a JPEG encode per view.",
+        "How often each calibrated camera rewrites its detection views (flat and blobs, on the Color page).",
+        "0 never writes them. Each refresh costs a JPEG encode per view.",
       ],
     },
   },

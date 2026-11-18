@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SnapshotViews from "../SnapshotViews.svelte";
+  import { snapshots } from "../text/snapshots";
   import RichText from "../RichText.svelte";
   import { SELECT_INSTANCE } from "../text/common";
   import { color as text } from "../text/color";
@@ -250,6 +252,16 @@
       </TableBodyRow>
     </TableBody>
   </Table>
+
+  {#if instance}
+    <SnapshotViews
+      cameraId={instance.cameraId}
+      title={snapshots.color.title}
+      intro={snapshots.color.intro}
+      empty={snapshots.color.empty(instance.cameraId)}
+      views={snapshots.color.views}
+    />
+  {/if}
 </section>
 
 <style>

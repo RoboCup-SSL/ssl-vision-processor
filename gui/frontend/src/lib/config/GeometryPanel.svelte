@@ -7,6 +7,8 @@
   import CornerPicker from "../CornerPicker.svelte";
   import CalibrationCard from "./CalibrationCard.svelte";
   import LineDetectionCard from "./LineDetectionCard.svelte";
+  import SnapshotViews from "../SnapshotViews.svelte";
+  import { snapshots } from "../text/snapshots";
 
   interface Props {
     instance: VisionInstance | undefined;
@@ -43,5 +45,12 @@
         {/key}
       </div>
     </div>
+    <SnapshotViews
+      cameraId={instance.cameraId}
+      title={snapshots.geometry.title}
+      intro={snapshots.geometry.intro}
+      empty={snapshots.geometry.empty(instance.cameraId)}
+      views={snapshots.geometry.views}
+    />
   {/if}
 </section>

@@ -40,7 +40,7 @@ export const ADVANCED: Record<
     { block: "tracking", key: "max_bot_acceleration" },
   ],
   // debug:'s other keys stay hand-edited in vision.yml: ground_truth is for
-  // the benchmarks, debug_images writes outside img/, and wait_for_geometry
+  // the benchmarks, debug_images' files lack a camera prefix, and wait_for_geometry
   // hangs a first run (nothing is published before the first save).
   diagnostics: [{ block: "debug", key: "debug_stream_interval_ms" }],
 };

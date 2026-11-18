@@ -272,7 +272,7 @@ test("a file changed on disk can be loaded", async ({ page, request }) => {
 test("debug snapshots reach the page", async ({ page }) => {
   await page.goto("/#0/geometry");
 
-  // The corner picker's calibration input, and the snapshot grid.
+  // The corner picker's calibration input.
   const picker = page
     .locator('img[src*="/api/snapshot/0/geomcalib_input"]')
     .first();
@@ -283,7 +283,12 @@ test("debug snapshots reach the page", async ({ page }) => {
     ),
   ).toBeGreaterThan(0);
 
-  await expect(page.getByText("cam 0 / raw")).toBeVisible();
+  // The calibration and detection views, each on its own page.
+  await expect(page.getByAltText("cam 0 Line pixels")).toBeVisible();
+  await expect(page.getByAltText("cam 0 Line segments")).toHaveCount(0);
+
+  await page.goto("/#0/color");
+  await expect(page.getByAltText("cam 0 Flat")).toBeVisible();
 });
 
 // A half field with one camera: the wizard stores it as 2 regions of the full

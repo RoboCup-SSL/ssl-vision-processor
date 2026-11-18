@@ -57,10 +57,10 @@ console.error(
 );
 
 // Debug snapshots for camera 0, as vision_processor writes them: the corner
-// picker's calibration input and a raw frame.
+// picker's calibration input, a calibration view and a detection view.
 const img = join(dir, "img");
 mkdirSync(img);
-for (const view of ["geomcalib_input", "raw"]) {
+for (const view of ["geomcalib_input", "pixels", "flat"]) {
   copyFileSync(join(repo, "line_corners.png"), join(img, `0.${view}.png`));
 }
 

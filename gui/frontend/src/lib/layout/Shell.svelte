@@ -15,7 +15,7 @@
   import { alarmLevel } from "../alerts/alerts";
   import ConfigNav from "./ConfigNav.svelte";
   import MainContent from "./MainContent.svelte";
-  import { untrack, type Snippet } from "svelte";
+  import { untrack } from "svelte";
   import { CogOutline } from "flowbite-svelte-icons";
   import {
     Dropdown,
@@ -43,17 +43,6 @@
   import { headerSockets } from "../network.svelte";
   import LogPanel from "../logs/LogPanel.svelte";
   import { logs as logsText } from "../text/logs";
-
-  // `below` is where App.svelte puts the existing snapshot grid / WS dev
-  // panel for now, until they become the mockup's real Video panel (issue
-  // #18) -- see the note there. The Debug Console is the log panel below. Keeping it a slot rather than baking
-  // it into this component so Shell stays just the layout, not a dumping
-  // ground for whatever hasn't found a permanent home yet.
-  interface Props {
-    below?: Snippet;
-  }
-
-  let { below }: Props = $props();
 
   // Global settings menu (gear, top-right): the vision.yml file actions, then
   // preferences (../preferences.svelte) -- both app-wide, not scoped to any
@@ -422,11 +411,6 @@
 
   <main>
     <MainContent />
-    {#if below}
-      <div class="below">
-        {@render below()}
-      </div>
-    {/if}
   </main>
 
   {#if checklistOpen}
@@ -475,8 +459,7 @@
   }
 
   :global(.dark) header,
-  :global(.dark .sidebar),
-  :global(.dark) .below {
+  :global(.dark .sidebar) {
     border-color: var(--color-gray-700);
   }
 
@@ -500,11 +483,5 @@
 
   main {
     overflow-y: auto;
-  }
-
-  .below {
-    margin-top: 2rem;
-    padding: 1rem 1.5rem;
-    border-top: 1px solid var(--color-gray-200);
   }
 </style>
