@@ -1,12 +1,12 @@
 // Advanced page (config/AdvancedPanel.svelte): vision_processor's
-// thresholds: and tracking: settings, shared by every camera. Notes are
+// thresholds:, tracking: and debug: settings, shared by every camera. Notes are
 // from config.yml's comments and src/Resources.cpp. `backticks` show as code.
 
 import { plural } from "./common";
 export const advanced = {
   heading: "Advanced",
   intro:
-    "Detection thresholds and tracking limits, shared by every camera (vision.yml's `defaults.thresholds` and `defaults.tracking`). The defaults suit most fields; change these only to fix a specific detection problem. Most apply live; the ones marked restart need a vision_processor restart.",
+    "Detection thresholds, tracking limits and diagnostics, shared by every camera (vision.yml's `defaults.thresholds`, `defaults.tracking` and `defaults.debug`). The defaults suit most fields; change these only to fix a specific detection problem. Most apply live; the ones marked restart need a vision_processor restart.",
   overriding: (cameras: number[]): string =>
     `${plural(cameras.length, "Camera")} ${cameras.join(", ")} override${cameras.length === 1 ? "s" : ""} some of these in their own config, so they don't follow this page for those values.`,
   restart: "Applies when vision_processor restarts.",
@@ -17,6 +17,7 @@ export const advanced = {
     blobs: "Blob detection",
     tolerances: "Geometry tolerances",
     tracking: "Tracking",
+    diagnostics: "Diagnostics",
   },
 
   fields: {
@@ -75,6 +76,13 @@ export const advanced = {
       label: "Max robot acceleration",
       notes: [
         "Fastest a robot is expected to accelerate. Sets how far the search for its blobs grows between frames.",
+      ],
+    },
+    debug_stream_interval_ms: {
+      label: "Snapshot refresh",
+      notes: [
+        "How often each camera rewrites the snapshots the Geometry page shows: the raw image, plus the flat, gradient and blob views once calibrated.",
+        "0 saves one raw image shortly after start and never refreshes it. Each refresh costs a JPEG encode per view.",
       ],
     },
   },

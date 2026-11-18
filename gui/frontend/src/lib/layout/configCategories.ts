@@ -5,9 +5,7 @@
 //
 // scope: "shared" categories are one thing for the whole deployment
 // (vision.yml's field, and its defaults.network addresses). "per-instance" categories
-// are a single vision processor's own config.yml, which this host does not
-// yet read, write, or push to any instance -- see gui/CLAUDE.md's "Not yet
-// built". Their panels are placeholders until that exists.
+// are one camera's own settings, edited in vision.yml's cameras[].config.
 import { CONFIG_FIELDS } from "../text/configFields";
 
 export type ConfigScope = "shared" | "per-instance";
@@ -112,16 +110,6 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
     scope: "per-instance",
     yamlKey: "stream",
     fields: CONFIG_FIELDS.stream,
-  },
-  {
-    id: "debug",
-    label: "Debug",
-    scope: "per-instance",
-    yamlKey: "debug",
-    // Not to be confused with the mockup's future "Debug Console" (a live log
-    // viewer over internal/hub) -- this is config.yml's debug: block, which
-    // controls the vision processor's own diagnostic image output.
-    fields: CONFIG_FIELDS.debug,
   },
 ];
 

@@ -145,7 +145,7 @@ var settings = map[string]Setting{
 	"debug.ground_truth":             {Type: TypeString, Default: "gt.yml", Apply: ApplyRestart},
 	"debug.wait_for_geometry":        {Type: TypeBoolean, Default: false, Apply: ApplyRestart},
 	"debug.debug_images":             {Type: TypeBoolean, Default: false, Apply: ApplyLive},
-	"debug.debug_stream_interval_ms": {Type: TypeInteger, Default: 0, Apply: ApplyLive, Unit: "ms", Minimum: bound(0)},
+	"debug.debug_stream_interval_ms": {Type: TypeInteger, Default: 0, Apply: ApplyLive, Unit: "ms", Minimum: bound(0), Range: rangeOf(0, 5000, 100)},
 }
 
 var drivers = []Driver{

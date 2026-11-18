@@ -18,6 +18,7 @@
     { id: "blobs", title: text.cards.blobs },
     { id: "tolerances", title: text.cards.tolerances },
     { id: "tracking", title: text.cards.tracking },
+    { id: "diagnostics", title: text.cards.diagnostics },
   ] as const;
 
   let overriding = $derived(advancedOverrides());

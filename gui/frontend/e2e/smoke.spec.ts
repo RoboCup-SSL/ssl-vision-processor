@@ -23,7 +23,6 @@ const PAGES = [
   "0/geometry",
   "0/color",
   "0/stream",
-  "0/debug",
   "1/camera",
   "1/geometry",
   "1/color",

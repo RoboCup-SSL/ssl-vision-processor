@@ -1,5 +1,5 @@
-// The config.yml settings each placeholder page lists
-// (config/ConfigFieldList.svelte), with the comment config.yml gives each.
+// Each category's config.yml settings, with the comment config.yml gives
+// each. No page shows them since the last placeholder page went.
 // Copied from config.yml; keep them in step with it.
 import type { ConfigField } from "../layout/configCategories";
 
@@ -29,14 +29,5 @@ export const CONFIG_FIELDS = {
     { name: "raw_feed", comment: "raw camera footage only" },
     { name: "ip_base_prefix / ip_base_end", comment: "stream destination" },
     { name: "port", comment: "stream port" },
-  ],
-  debug: [
-    { name: "ground_truth", comment: "used by blob/geometry benchmarks" },
-    { name: "wait_for_geometry", comment: "hold frames until calibrated" },
-    { name: "debug_images", comment: "save additional debug images in img/" },
-    {
-      name: "debug_stream_interval_ms",
-      comment: "periodic img/.sample.<camId>.png while uncalibrated",
-    },
   ],
 } satisfies Record<string, ConfigField[]>;

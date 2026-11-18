@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { nav, selectedInstance, selectedCategory } from "./nav.svelte";
+  import { nav, selectedInstance } from "./nav.svelte";
   import TabBar from "./TabBar.svelte";
   import FieldDimensionsEditor from "../FieldDimensionsEditor.svelte";
   import GeometryPanel from "../config/GeometryPanel.svelte";
@@ -12,10 +12,8 @@
   import TeamAssignmentPanel from "../config/TeamAssignmentPanel.svelte";
   import LiveFieldPanel from "../live/LiveFieldPanel.svelte";
   import AlertsPanel from "../alerts/AlertsPanel.svelte";
-  import ConfigCategoryPlaceholder from "../config/ConfigCategoryPlaceholder.svelte";
   import { schema } from "../schema.svelte";
 
-  let category = $derived(selectedCategory());
   let instance = $derived(selectedInstance());
 </script>
 
@@ -48,8 +46,6 @@
     <NetworkPanel />
   {:else if nav.selectedCategoryId === "stream"}
     <StreamPanel {instance} />
-  {:else}
-    <ConfigCategoryPlaceholder {category} {instance} />
   {/if}
 </div>
 

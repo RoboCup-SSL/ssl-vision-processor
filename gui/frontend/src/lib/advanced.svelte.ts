@@ -1,5 +1,5 @@
-// vision_processor's thresholds: and tracking: settings, edited in vision.yml's
-// defaults so every camera shares them. Fallbacks, ranges, and which keys need
+// vision_processor's thresholds:, tracking: and debug: settings, edited in
+// vision.yml's defaults so every camera shares them. Fallbacks, ranges, and which keys need
 // a restart come from the host's schema.
 import { without } from "./util";
 import { config } from "./config.svelte";
@@ -9,7 +9,9 @@ import type { advanced } from "./text/advanced";
 // Every setting has a label and notes in text/advanced.ts.
 export type AdvancedKey = keyof typeof advanced.fields;
 
-export type Block = "thresholds" | "tracking";
+export type Block = "thresholds" | "tracking" | "debug";
+
+const BLOCKS: Block[] = ["thresholds", "tracking", "debug"];
 
 export interface AdvancedSetting {
   block: Block;
@@ -18,7 +20,7 @@ export interface AdvancedSetting {
 
 // How each card groups the settings.
 export const ADVANCED: Record<
-  "blobs" | "tolerances" | "tracking",
+  "blobs" | "tolerances" | "tracking" | "diagnostics",
   AdvancedSetting[]
 > = {
   blobs: [
@@ -37,6 +39,10 @@ export const ADVANCED: Record<
     { block: "tracking", key: "min_tracking_radius" },
     { block: "tracking", key: "max_bot_acceleration" },
   ],
+  // debug:'s other keys stay hand-edited in vision.yml: ground_truth is for
+  // the benchmarks, debug_images writes outside img/, and wait_for_geometry
+  // hangs a first run (nothing is published before the first save).
+  diagnostics: [{ block: "debug", key: "debug_stream_interval_ms" }],
 };
 
 export interface AdvancedSpec {
@@ -88,14 +94,12 @@ export function setAdvanced(
   const doc = config.doc;
   if (!doc) return;
 
+  const integer = setting(`${s.block}.${s.key}`).type === "integer";
   const current = block(s.block) ?? {};
   const next =
     value === undefined
       ? without(current, s.key)
-      : {
-          ...current,
-          [s.key]: s.key === "blobs" ? Math.round(value) : value,
-        };
+      : { ...current, [s.key]: integer ? Math.round(value) : value };
 
   const defaults = doc.defaults ?? {};
   doc.defaults =
@@ -107,10 +111,6 @@ export function setAdvanced(
 // Cameras whose own config sets any of these, so they ignore the shared value.
 export function advancedOverrides(): number[] {
   return (config.doc?.cameras ?? [])
-    .filter(
-      (c) =>
-        c.config?.["thresholds"] !== undefined ||
-        c.config?.["tracking"] !== undefined,
-    )
+    .filter((c) => BLOCKS.some((b) => c.config?.[b] !== undefined))
     .map((c) => c.cameraId);
 }

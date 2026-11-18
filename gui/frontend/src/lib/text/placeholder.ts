@@ -1,12 +1,4 @@
-// Pages not built yet (config/ConfigCategoryPlaceholder.svelte), and the
-// Stream page (config/StreamPanel.svelte). `backticks` show as code.
-
-export const placeholder = {
-  editing: (host: string, camera: number, key: string): string =>
-    `Editing ${host} / cam ${String(camera)}'s \`${key}:\` block. Not wired to a backend yet -- there is nowhere to read or write a specific instance's config.yml over the network. See \`internal/config\` in gui/CLAUDE.md's "Not yet built".`,
-  contributing:
-    "Contributing this panel? Replace this file with a real form for the fields below (see config.yml at the repo root for exact defaults/ranges).",
-};
+// The Stream page (config/StreamPanel.svelte). `backticks` show as code.
 
 export const stream = {
   heading: "Live video",
