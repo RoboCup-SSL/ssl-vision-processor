@@ -27,12 +27,11 @@ Owner per finding: **Will** (Go/Svelte) or **Claude** (build/CI/packaging/docs i
 
 ## Status
 
-Updated 2026-11-18. **Open** 60 · **Partial** 4 · **Done** 4 · **Dropped/merged** 2. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, dropped, merged.
+Updated 2026-11-18. **Open** 58 · **Partial** 4 · **Done** 6 · **Dropped/merged** 2. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, dropped, merged.
 
 **Next up** (MVP gate order; see the end of this file):
-All blockers are fixed (T4-1 is awaiting commit).
-1. T2-1 with L-1: bind before starting anything; pick the default port.
-2. T5-3, T5-2, T5-4: lab path.
+All blockers are fixed. T4-1, T2-1 and L-1 are awaiting commit.
+1. T5-3, T5-2, T5-4: lab path.
 
 | ID | Sev | Owner | Item | Status |
 |---|---|---|---|---|
@@ -47,7 +46,7 @@ All blockers are fixed (T4-1 is awaiting commit).
 | T1-9 | nit | Claude | legacy `.gitlab-ci.yml` | open |
 | T1-10 | nit | Claude | unpinned nix actions | open |
 | T1-11 | nit | Will | `DEB_MAINTAINER` personal address | open |
-| T2-1 | major | Will | HTTP bind happens last; "UI is available" logged early | open |
+| T2-1 | major | Will | HTTP bind happens last; "UI is available" logged early | done |
 | T2-2 | minor | Will | publish tick is the host's only clock | open |
 | T2-3 | minor | Will | `Store.apply` not atomic | open |
 | T2-4 | minor | Will | `main.go` too big | open |
@@ -98,7 +97,7 @@ All blockers are fixed (T4-1 is awaiting commit).
 | T8-3 | minor | Will | identifier naming across layers | open |
 | T8-4 | minor | Will | text centralization | open |
 | T8-5 | nit | Will | `--` as em dash | open |
-| L-1 | major | Will | port 8085 collides with remote-control | open |
+| L-1 | major | Will | port 8085 collides with remote-control | done |
 | L-2 | minor | Will | league-style address flags | open |
 | L-3 | — | — | arm64 assets | merged (T1-4) |
 | L-4 | minor | Claude | no dependency bot | open |
@@ -218,6 +217,8 @@ INF multicast/endpoint.go:291 socket open endpoint=vision ...   (opened during s
 ```
 A new user sees a URL that doesn't work. Under the system service (`Restart=on-failure`, 5 s) the host also starts and kills every supervised vision_processor in a loop. Given L-1 (port collision with remote-control), this is a likely first-day failure.
 Fix: `net.Listen` synchronously right after `newHost` and before any `runBackground`, then `srv.Serve(ln)`. On `EADDRINUSE`, log a plain-language error naming the port and `-address` (and `/etc/default/ssl-vision-processor-gui` for the service), then exit 1 without starting anything.
+
+*Done 2026-11-18 (Claude, at Will's request):* `listenUI` binds the port right after `newHost`, before any background task, and `srv.Serve(ln)` serves it. A taken port logs "can't open the GUI on <addr>: another program is using that port, … choose another port with -address (for the system service: ADDRESS in /etc/default/ssl-vision-processor-gui)" and exits 1 with no socket opened or vision_processor started. Reproduced against a taken port. New tests: `TestListenUIExplainsATakenPort`, `TestListenUIBindsAFreePort`.
 
 **T2-2 | minor | Will | `main.go:187-207`**
 The geometry publish tick is the host's only clock. Every second it also checks for suspend, re-lists interfaces and reapplies the sockets, refreshes the heights file, and publishes config state, status, alerts and processes. That ties unrelated work to `Geometry.Run`'s lifetime and makes a slow step (interface listing, heights-file stat) delay geometry publishing.
@@ -559,6 +560,8 @@ Read-only fresh clones, 2026-11-11: ssl-go-tools master `ce5fa35` (latest tag v1
 **L-1 | major (sticky default; decide before release) | Will | `cmd/ssl-vision-processor-gui/main.go:42`, README, man page, debconf, ufw text**
 Our default port `:8085` collides with the league's reference stack. GC's `docker-compose.yaml:67-74` runs the second ssl-remote-control on `:8085` (8081-8084 are GC, vision-client, status-board and remote-control). On a PC that also runs the league stack, our system service fails to bind at boot. Unverified: how often the vision PC and the GC PC are the same machine at events.
 Fix: pick a port outside 8081-8085, and change every mention in one pass.
+
+*Done 2026-11-18 (Will chose 8080; nothing in the league uses it):* the default is now `:8080` in the flag, `warnFirewall`, README, DEVELOPMENT.md, CLAUDE.md, the man page, debconf template, `configure-service`, the systemd unit, `deb-check.sh`, the Vite proxy and the tests. Older mentions of 8085 in this file are left as written. An installed service keeps whatever ADDRESS its `/etc/default` file already has.
 
 **L-2 | minor | Will | `main.go:44-46`, README**
 Every sibling tool takes `-visionAddress`, `-trackerAddress`, `-refereeAddress`/`-publishAddress` and `-skipInterfaces` (GC `main.go:21-25`, status-board, vision-client, remote-control). Ours has none by design (host-owned config). Users moving between league tools, or scripting a sim setup with moved groups, find no equivalent.

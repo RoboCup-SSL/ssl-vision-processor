@@ -39,7 +39,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-var address = flag.String("address", ":8085", "The address on which the vision processor GUI and API are served, default: :8085")
+var address = flag.String("address", ":8080", "The address on which the vision processor GUI and API are served, default: :8080")
 
 // The vision and game controller addresses (vision.yml's defaults.network)
 // and the interfaces the host uses (host.interfaces) can change at runtime, so
@@ -164,6 +164,16 @@ func run() int {
 
 	slog.Info("loaded config", "path", p.config())
 
+	// Bound before anything starts, so a taken port stops the host before it
+	// opens sockets or starts (and, restarted by systemd, keeps killing) the
+	// supervised vision_processors.
+	ln, err := listenUI(*address)
+	if err != nil {
+		slog.Error(err.Error())
+
+		return 1
+	}
+
 	// register Ctrl+C handler
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
@@ -219,7 +229,6 @@ func run() int {
 	defer cancelRequests()
 
 	srv := &http.Server{
-		Addr:              *address,
 		Handler:           h.handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return requests },
@@ -229,12 +238,11 @@ func run() int {
 	serveFailed := make(chan struct{})
 
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("http server init failed", "err", err)
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("http server stopped", "err", err)
 
-			// ListenAndServer always returns, but ErrServerClosed is the graceful shutdown condition
-			// if we got anything else, the system didn't start and the process should die
-			// call stopSignals() now to cancel the context otherwise we continue to block on Ctrl+C
+			// Serve always returns; anything but ErrServerClosed (a graceful
+			// shutdown) means the UI is gone, so the process stops too.
 			close(serveFailed)
 			stopSignals()
 		}
@@ -261,7 +269,7 @@ func run() int {
 
 	slog.Info("shutdown complete")
 
-	// A port already in use has to read as a failure, or a service manager's
+	// A server that died has to read as a failure, or a service manager's
 	// restart-on-failure never fires.
 	select {
 	case <-serveFailed:
@@ -716,7 +724,7 @@ func warnFirewall(confPath, addr string, udp []string) {
 
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil || port == "" {
-		port = "8085"
+		port = "8080"
 	}
 
 	allowUDP := "sudo ufw allow " + strings.Join(udp, ",") + "/udp"
@@ -853,6 +861,22 @@ func publishGeometryToHub(wsHub *hub.Hub, geom *geometry.Geometry) {
 	}
 
 	wsHub.Publish(wrapperPacketTopic, data)
+}
+
+// listenUI binds the GUI's port. Its error is a whole sentence for the log,
+// saying how to pick another port when this one is taken.
+func listenUI(addr string) (net.Listener, error) {
+	ln, err := net.Listen("tcp", addr)
+	if err == nil {
+		return ln, nil
+	}
+
+	if errors.Is(err, syscall.EADDRINUSE) {
+		return nil, fmt.Errorf("can't open the GUI on %s: another program is using that port, possibly another copy of this GUI or its system service. "+
+			"Stop it, or choose another port with -address (for the system service: ADDRESS in /etc/default/ssl-vision-processor-gui)", addr)
+	}
+
+	return nil, fmt.Errorf("can't open the GUI on %s (check -address): %w", addr, err)
 }
 
 // runBackground runs task in its own goroutine tracked by wg, logging its

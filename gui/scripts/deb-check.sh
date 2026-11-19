@@ -39,10 +39,10 @@ answer() {
 	echo "$package $package/$1 select $2" | debconf-set-selections
 }
 
-# wait_healthy waits for the service to answer on port 8085.
+# wait_healthy waits for the service to answer on port 8080.
 wait_healthy() {
 	for _ in $(seq 1 100); do
-		if health=$(curl -sf http://127.0.0.1:8085/api/health); then
+		if health=$(curl -sf http://127.0.0.1:8080/api/health); then
 			case "$health" in
 			*"\"version\":\"$version\""*) return ;;
 			*) fail "/api/health said: $health" ;;
@@ -51,7 +51,7 @@ wait_healthy() {
 		sleep 0.1
 	done
 	journalctl -u "$unit" --no-pager -n 30 >&2 || true
-	fail "the service didn't answer on port 8085"
+	fail "the service didn't answer on port 8080"
 }
 
 # A non-interactive install takes the defaults: no service.
@@ -59,7 +59,7 @@ apt-get install -y "$deb" >/dev/null
 
 [ "$(ssl-vision-processor-gui -version)" = "ssl-vision-processor-gui $version" ] || fail "wrong binary version"
 id -nG rcssl-vp-gui | tr ' ' '\n' | grep -qx rcssl || fail "rcssl-vp-gui isn't in the rcssl group"
-grep -qx 'ADDRESS=127.0.0.1:8085' "$defaults" || fail "$defaults doesn't limit the GUI to this machine"
+grep -qx 'ADDRESS=127.0.0.1:8080' "$defaults" || fail "$defaults doesn't limit the GUI to this machine"
 grep -qx 'ARGS=' "$defaults" || fail "$defaults has no ARGS line for extra options"
 [ ! -e "$wants" ] || fail "a non-interactive install enabled the service"
 
@@ -79,14 +79,14 @@ answer listen network
 dpkg-reconfigure "$package"
 
 [ -e "$wants" ] || fail "reconfiguring didn't enable the service"
-grep -qx 'ADDRESS=:8085' "$defaults" || fail "reconfiguring didn't open the GUI to the network"
+grep -qx 'ADDRESS=:8080' "$defaults" || fail "reconfiguring didn't open the GUI to the network"
 grep -qx 'ARGS="-logLevel Debug"' "$defaults" || fail "reconfiguring dropped ARGS"
 
 if $systemd; then
 	wait_healthy
 	[ "$(stat -c %U:%G "$state")" = rcssl-vp-gui:rcssl ] || fail "$state is owned by $(stat -c %U:%G "$state")"
 	grep -q '^first_run: true$' "$state/vision.yml" || fail "the service's new config isn't a first run"
-	ss -ltnH 'sport = :8085' | grep -Eq '(\*|0\.0\.0\.0|\[::\]):8085' || fail "the service isn't listening on every interface"
+	ss -ltnH 'sport = :8080' | grep -Eq '(\*|0\.0\.0\.0|\[::\]):8080' || fail "the service isn't listening on every interface"
 	tr '\0' ' ' </proc/"$(systemctl show -p MainPID --value "$unit")"/cmdline | grep -q -- '-logFile= -logLevel Debug' ||
 		fail "ARGS didn't reach the service's command line"
 fi
@@ -95,11 +95,11 @@ fi
 # the stored answers say: here, an address narrowed by hand, and a stored
 # answer of no service.
 answer service none
-sed -i 's/^ADDRESS=.*/ADDRESS=127.0.0.1:8085/' "$defaults"
+sed -i 's/^ADDRESS=.*/ADDRESS=127.0.0.1:8080/' "$defaults"
 apt-get install -y --reinstall "$deb" >/dev/null
 
 [ -e "$wants" ] || fail "an upgrade disabled the service"
-grep -qx 'ADDRESS=127.0.0.1:8085' "$defaults" || fail "an upgrade changed the address"
+grep -qx 'ADDRESS=127.0.0.1:8080' "$defaults" || fail "an upgrade changed the address"
 
 if $systemd; then
 	wait_healthy

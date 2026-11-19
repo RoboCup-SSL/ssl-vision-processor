@@ -35,7 +35,7 @@ These steps are for 64-bit Linux, tested on Ubuntu 24.04.
    INF paths configDir=/home/you/.config/rcssl/vision-processor-gui configFile=vision.yml
    INF paths logFile=/home/you/.local/state/rcssl/vision-processor-gui/logs/vision-processor-gui.log
    INF paths imgDir=/home/you/.local/state/rcssl/vision-processor-gui/img
-   INF UI is available url=http://192.168.1.20:8085
+   INF UI is available url=http://192.168.1.20:8080
    ```
 
 3. Open that address in a browser. The setup wizard opens by itself: choose your division, or enter your field's
@@ -152,7 +152,7 @@ Every option is optional. `-h` lists them all.
 
 | Option         | Default              | What it does                                                                       |
 | -------------- | -------------------- | ---------------------------------------------------------------------------------- |
-| `-address`     | `:8085`              | Address and port for the GUI. `127.0.0.1:8085` allows this machine only.           |
+| `-address`     | `:8080`              | Address and port for the GUI. `127.0.0.1:8080` allows this machine only.           |
 | `-configDir`   | see above            | The config folder. Created if missing.                                             |
 | `-configFile`  | `vision.yml`         | The file to use in the config folder: a file name, not a path. Created if missing. |
 | `-logFile`     | see above            | Rotating log file. `-logFile ""` turns it off.                                     |
@@ -170,7 +170,7 @@ Multicast addresses are set on the GUI's Network page; these are the defaults.
 
 | Traffic                       | Address                                                               | Direction  |
 | ----------------------------- | --------------------------------------------------------------------- | ---------- |
-| GUI in a browser              | TCP `8085`                                                            | In         |
+| GUI in a browser              | TCP `8080`                                                            | In         |
 | Vision (geometry, detections) | UDP `224.5.23.2:10006`                                                | In and out |
 | Game controller               | UDP `224.5.23.1:10003`                                                | In         |
 | Autoref tracker               | UDP `224.5.23.2:10010`                                                | In         |
@@ -186,11 +186,11 @@ it on (`sudo ufw status` says `active`), it blocks the GUI's port and the traffi
 allow them. The GUI warns at startup when `ufw` is on. Allow its traffic with:
 
 ```sh
-sudo ufw allow 8085/tcp
+sudo ufw allow 8080/tcp
 sudo ufw allow 10003,10006,10010,10100/udp
 ```
 
-Use your own port in place of `8085` if you've changed it with `-address`.
+Use your own port in place of `8080` if you've changed it with `-address`.
 
 **Live video stutters or breaks up.** Linux's default network receive buffer is too small for a video keyframe,
 and the GUI gets no warning when it's capped. [The package](#installing-the-package) raises the limit for you.
@@ -219,7 +219,7 @@ FFmpeg libraries, so if video stays blank there, try Chrome first.
 ⚠️ **The GUI has no login.** Anyone who can reach its port can change the running configuration and overwrite
 files in the config folder, including locked calibrations. It can't write outside that folder through the API.
 
-Run it only on a network you trust, or use `-address 127.0.0.1:8085` to allow this machine only. Marking a setup
+Run it only on a network you trust, or use `-address 127.0.0.1:8080` to allow this machine only. Marking a setup
 as a competition field limits which web pages can use the API, but that only applies to browsers.
 
 ## Cameras
@@ -274,7 +274,7 @@ Check the GUI's Alerts page first; most alerts have a how-to. The printed log fi
 
 | Problem                                      | Likely cause and fix                                                                                                                                                                |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `http server init failed` and it exits       | Something else is using the port, often another copy of the GUI. Stop it, or use another `-address`.                                                                                |
+| `can't open the GUI on …` and it exits        | Something else is using the port, often another copy of the GUI. Stop it, or use another `-address`.                                                                                |
 | `no default config folder, set -configDir`   | `HOME` isn't set, as in some service environments. Set `-configDir`, `-logFile`, and `-imgDir`.                                                                                     |
 | Page doesn't load from another machine       | It allows this machine only: check the address it printed, or the service's [setting](#installing-the-package). Then the firewall, if it's on; see [Network setup](#network-setup). |
 | "This host doesn't answer to..."             | You're using a name the GUI doesn't know. Add it with `-allowHost`.                                                                                                                 |

@@ -68,11 +68,11 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
   },
   server: {
-    // The Go host serves /api and /ws on :8085; everything else (this dev
+    // The Go host serves /api and /ws on :8080; everything else (this dev
     // server) is same-origin so no CORS handling is needed on either side.
     proxy: {
-      "/api": "http://localhost:8085",
-      "/ws": { target: "ws://localhost:8085", ws: true },
+      "/api": "http://localhost:8080",
+      "/ws": { target: "ws://localhost:8080", ws: true },
     },
   },
 });

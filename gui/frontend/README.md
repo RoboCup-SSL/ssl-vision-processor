@@ -23,12 +23,12 @@ the root [README.md](../../README.md).
 Two options, both from `gui/`:
 
 ```
-# Through the Go host itself: builds everything, serves on :8085
+# Through the Go host itself: builds everything, serves on :8080
 make run
 ```
 
 ```
-# Vite dev server with hot reload on :5173, proxying /api and /ws to :8085.
+# Vite dev server with hot reload on :5173, proxying /api and /ws to :8080.
 # Needs the host running (make run, in another terminal) and one `make
 # frontend` first: the protobuf bindings (src/proto) and the API types
 # (src/lib/generated) are generated, not committed.

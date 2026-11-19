@@ -26,9 +26,9 @@ and printed by
 .TP
 .BI \-address " host:port"
 Address and port for the GUI and its API. Default
-.BR :8085 ,
+.BR :8080 ,
 every interface;
-.B 127.0.0.1:8085
+.B 127.0.0.1:8080
 allows this machine only.
 .TP
 .BI \-configDir " dir"
@@ -157,7 +157,7 @@ The GUI has no login. Anyone who can reach its port can change the running
 configuration and overwrite files in the config folder, including locked
 calibrations. Run it only on a network you trust, or allow this machine only
 with
-.BR "\-address 127.0.0.1:8085" .
+.BR "\-address 127.0.0.1:8080" .
 .SH SEE ALSO
 .BR systemctl (1),
 .BR systemd.unit (5),

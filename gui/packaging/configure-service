@@ -33,7 +33,7 @@ none | boot | now) ;;
 esac
 
 old=""
-port=8085
+port=8080
 if [ -f "$defaults" ]; then
 	old=$(sed -n 's/^ADDRESS=//p' "$defaults" | tail -n 1)
 	[ -z "$old" ] || port="${old##*:}"
@@ -63,7 +63,7 @@ else
 # sudo systemctl restart ssl-vision-processor-gui
 
 # Where the GUI listens. 127.0.0.1 allows this machine only; leave the host
-# out (:8085) for every interface. The GUI has no login.
+# out (:8080) for every interface. The GUI has no login.
 ADDRESS=$address
 
 # Extra options, as on the command line, e.g. ARGS="-logLevel Debug". See

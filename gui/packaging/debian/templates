@@ -21,5 +21,5 @@ Description: Who can open the GUI?
  The GUI has no login. Anyone who can reach it can change the running
  configuration and overwrite its files, including locked calibrations.
  .
- Choose the network only on a network you trust. The port is 8085, or the one
+ Choose the network only on a network you trust. The port is 8080, or the one
  in /etc/default/ssl-vision-processor-gui if you've changed it there.

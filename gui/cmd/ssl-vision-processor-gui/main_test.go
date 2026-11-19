@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -136,8 +137,8 @@ func TestManPageListsEveryFlag(t *testing.T) {
 }
 
 func TestFormattedAddressUsesAnExplicitHostAsIs(t *testing.T) {
-	got := formattedAddress("192.168.1.50:8085")
-	want := "http://192.168.1.50:8085"
+	got := formattedAddress("192.168.1.50:8080")
+	want := "http://192.168.1.50:8080"
 
 	if got != want {
 		t.Errorf("formattedAddress = %q, want %q", got, want)
@@ -148,10 +149,10 @@ func TestFormattedAddressUsesAnExplicitHostAsIs(t *testing.T) {
 // (LAN IP if one's reachable, localhost otherwise) -- what's worth asserting
 // is that it always resolves to a well-formed URL on the right port.
 func TestFormattedAddressResolvesABindAllHostToAURL(t *testing.T) {
-	got := formattedAddress(":8085")
+	got := formattedAddress(":8080")
 
-	if !strings.HasPrefix(got, "http://") || !strings.HasSuffix(got, ":8085") {
-		t.Errorf("formattedAddress(%q) = %q, want an http://<host>:8085 URL", ":8085", got)
+	if !strings.HasPrefix(got, "http://") || !strings.HasSuffix(got, ":8080") {
+		t.Errorf("formattedAddress(%q) = %q, want an http://<host>:8080 URL", ":8080", got)
 	}
 }
 
@@ -162,4 +163,34 @@ func TestFormattedAddressFallsBackOnUnparseableInput(t *testing.T) {
 	if got != want {
 		t.Errorf("formattedAddress = %q, want %q", got, want)
 	}
+}
+
+// A taken port is the likeliest first-day failure (another copy, its system
+// service); the error has to say how to move.
+func TestListenUIExplainsATakenPort(t *testing.T) {
+	taken, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer taken.Close()
+
+	ln, err := listenUI(taken.Addr().String())
+	if err == nil {
+		ln.Close()
+		t.Fatal("listenUI bound a port that's already taken")
+	}
+
+	for _, want := range []string{taken.Addr().String(), "-address", "/etc/default/ssl-vision-processor-gui"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("listenUI error = %q, want it to mention %q", err, want)
+		}
+	}
+}
+
+func TestListenUIBindsAFreePort(t *testing.T) {
+	ln, err := listenUI("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listenUI: %v", err)
+	}
+	ln.Close()
 }

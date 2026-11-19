@@ -707,7 +707,7 @@ func TestUnknownHostIsRefused(t *testing.T) {
 		t.Errorf("code = %q, want unknown_host", code)
 	}
 
-	if rec := send(h, httptest.NewRequest(http.MethodGet, "http://192.168.1.50:8085/api/health", nil)); rec.Code != http.StatusOK {
+	if rec := send(h, httptest.NewRequest(http.MethodGet, "http://192.168.1.50:8080/api/health", nil)); rec.Code != http.StatusOK {
 		t.Errorf("GET by IP = %d, want 200", rec.Code)
 	}
 }

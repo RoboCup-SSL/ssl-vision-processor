@@ -21,7 +21,7 @@ User=rcssl-vp-gui
 Group=rcssl
 # This machine only unless the setup question says otherwise: the GUI has no
 # login.
-Environment=ADDRESS=127.0.0.1:8085 ARGS=
+Environment=ADDRESS=127.0.0.1:8080 ARGS=
 EnvironmentFile=-/etc/default/ssl-vision-processor-gui
 # No HOME, so every location is given. Logs go to the journal (an empty
 # -logFile). $ARGS, unlike ${ADDRESS}, splits into one argument per word.

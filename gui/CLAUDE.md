@@ -17,7 +17,7 @@ All run from `gui/`.
 
 ```
 make               # list the targets
-make run           # build everything, run the host from the repo root on :8085 (ARGS="..." for flags)
+make run           # build everything, run the host from the repo root on :8080 (ARGS="..." for flags)
 make test          # go test -race + the frontend's checks and unit tests
 make check         # everything CI checks: gofmt, vet, tests, generated files, browser tests
 make e2e           # Playwright browser tests (frontend/e2e/): real host, installed Google Chrome
@@ -41,7 +41,7 @@ network fetch) and `npm ci` in `frontend/` (installs `@bufbuild/protoc-gen-es`
 from `package.json`).
 
 ```
-cd frontend && npm run dev   # Vite HMR on :5173, proxies /api and /ws to :8085
+cd frontend && npm run dev   # Vite HMR on :5173, proxies /api and /ws to :8080
 ```
 
 ## Repository layout

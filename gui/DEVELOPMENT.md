@@ -32,7 +32,7 @@ OpenAPI spec and the TypeScript types generated from it, and the frontend. None 
 
 | Command              | Effect                                                                                          |
 | -------------------- | ----------------------------------------------------------------------------------------------- |
-| `make run`           | Build everything and run the host from the repo root on `:8085`. Flags go in `ARGS="..."`.      |
+| `make run`           | Build everything and run the host from the repo root on `:8080`. Flags go in `ARGS="..."`.      |
 | `make test`          | `go test -race` for every package, and the frontend's type checks, lint, unit tests and format. |
 | `make check`         | Everything CI checks: gofmt, vet, the tests, the committed generated file, the browser tests.   |
 | `make e2e`           | Playwright browser tests: the real host in the installed Google Chrome.                         |
@@ -211,7 +211,7 @@ runs systemd.
 
 ### With the packages installed
 
-If the GUI's service runs on your development machine, `make run` can't take port 8085 (`http server init failed`).
+If the GUI's service runs on your development machine, `make run` can't take port 8080 (`can't open the GUI on :8080`).
 On another port, both publish geometry on the same multicast group, and the Network page shows a sender conflict.
 Stop the service while developing: `sudo systemctl stop ssl-vision-processor-gui`. The same will go for
 vision_processor's services once they're packaged.

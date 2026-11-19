@@ -39,7 +39,7 @@ func TestAllowedInTheLab(t *testing.T) {
 
 	for origin, want := range map[string]bool{
 		"":                            true, // not a browser
-		"http://vision-pc:8085":       true, // the host's own page
+		"http://vision-pc:8080":       true, // the host's own page
 		"http://localhost:5173":       true,
 		"http://127.0.0.1:5173":       true,
 		"http://192.168.1.20:3000":    true,
@@ -52,7 +52,7 @@ func TestAllowedInTheLab(t *testing.T) {
 		"http://8.8.8.8":              false,
 		"http://192.168.1.20.evil.io": false,
 	} {
-		if got := p.Allowed(request(http.MethodGet, "vision-pc:8085", origin)); got != want {
+		if got := p.Allowed(request(http.MethodGet, "vision-pc:8080", origin)); got != want {
 			t.Errorf("lab: Allowed(Origin %q) = %v, want %v", origin, got, want)
 		}
 	}
@@ -64,20 +64,20 @@ func TestAllowedOnACompetitionField(t *testing.T) {
 
 	for origin, want := range map[string]bool{
 		"":                         true,
-		"http://vision-pc:8085":    true,
+		"http://vision-pc:8080":    true,
 		"https://ui.example.org":   true,
 		"http://192.168.1.20:3000": false,
 		"http://localhost:5173":    false,
 		"http://evil.example":      false,
 	} {
-		if got := p.Allowed(request(http.MethodGet, "vision-pc:8085", origin)); got != want {
+		if got := p.Allowed(request(http.MethodGet, "vision-pc:8080", origin)); got != want {
 			t.Errorf("strict: Allowed(Origin %q) = %v, want %v", origin, got, want)
 		}
 	}
 
 	p.SetStrict(false)
 
-	if !p.Allowed(request(http.MethodGet, "vision-pc:8085", "http://192.168.1.20:3000")) {
+	if !p.Allowed(request(http.MethodGet, "vision-pc:8080", "http://192.168.1.20:3000")) {
 		t.Error("back in the lab: a LAN origin should be allowed again")
 	}
 }
@@ -86,7 +86,7 @@ func TestTrustAll(t *testing.T) {
 	p := policy(t, Options{TrustedOrigins: []string{"*"}})
 	p.SetStrict(true)
 
-	if !p.Allowed(request(http.MethodGet, "vision-pc:8085", "http://evil.example")) {
+	if !p.Allowed(request(http.MethodGet, "vision-pc:8080", "http://evil.example")) {
 		t.Error(`"*" should trust every origin`)
 	}
 }
@@ -96,15 +96,15 @@ func TestHostAllowed(t *testing.T) {
 	p.AddOwnHosts("vision-pc.cs.example.edu.")
 
 	for host, want := range map[string]bool{
-		"192.168.1.50:8085":             true,
-		"203.0.113.9:8085":              true, // any IP literal
-		"[::1]:8085":                    true,
-		"localhost:8085":                true,
-		"vision-pc:8085":                true,
-		"vision-pc.local:8085":          true,
-		"vision-pc.cs.example.edu:8085": true,  // its own reverse-DNS name
+		"192.168.1.50:8080":             true,
+		"203.0.113.9:8080":              true, // any IP literal
+		"[::1]:8080":                    true,
+		"localhost:8080":                true,
+		"vision-pc:8080":                true,
+		"vision-pc.local:8080":          true,
+		"vision-pc.cs.example.edu:8080": true,  // its own reverse-DNS name
 		"VISION.example.edu":            true,  // listed alias
-		"evil.example:8085":             false, // a rebinding attacker's name
+		"evil.example:8080":             false, // a rebinding attacker's name
 		"vision-pc.evil.example":        false,
 	} {
 		if got := p.HostAllowed(request(http.MethodGet, host, "")); got != want {
@@ -130,13 +130,13 @@ func TestHandler(t *testing.T) {
 		want                     int
 		cors                     bool
 	}{
-		{"same origin", "vision-pc:8085", "http://vision-pc:8085", "", http.StatusNoContent, false},
-		{"same origin by fetch metadata", "vision-pc:8085", "", "same-origin", http.StatusNoContent, false},
-		{"lab UI on the LAN", "vision-pc:8085", "http://192.168.1.20:3000", "cross-site", http.StatusNoContent, true},
-		{"public site", "vision-pc:8085", "http://evil.example", "cross-site", http.StatusForbidden, false},
-		{"cross-site without Origin", "vision-pc:8085", "", "cross-site", http.StatusForbidden, false},
-		{"no browser", "vision-pc:8085", "", "", http.StatusNoContent, false},
-		{"DNS rebinding", "evil.example:8085", "http://evil.example:8085", "same-origin", http.StatusMisdirectedRequest, false},
+		{"same origin", "vision-pc:8080", "http://vision-pc:8080", "", http.StatusNoContent, false},
+		{"same origin by fetch metadata", "vision-pc:8080", "", "same-origin", http.StatusNoContent, false},
+		{"lab UI on the LAN", "vision-pc:8080", "http://192.168.1.20:3000", "cross-site", http.StatusNoContent, true},
+		{"public site", "vision-pc:8080", "http://evil.example", "cross-site", http.StatusForbidden, false},
+		{"cross-site without Origin", "vision-pc:8080", "", "cross-site", http.StatusForbidden, false},
+		{"no browser", "vision-pc:8080", "", "", http.StatusNoContent, false},
+		{"DNS rebinding", "evil.example:8080", "http://evil.example:8080", "same-origin", http.StatusMisdirectedRequest, false},
 	} {
 		req := request(http.MethodPost, tc.host, tc.origin)
 		if tc.site != "" {
@@ -155,7 +155,7 @@ func TestHandler(t *testing.T) {
 		}
 	}
 
-	preflight := request(http.MethodOptions, "vision-pc:8085", "http://localhost:5173")
+	preflight := request(http.MethodOptions, "vision-pc:8080", "http://localhost:5173")
 	preflight.Header.Set("Access-Control-Request-Method", "PATCH")
 
 	rec := httptest.NewRecorder()
@@ -167,7 +167,7 @@ func TestHandler(t *testing.T) {
 
 	p.SetStrict(true)
 
-	req := request(http.MethodPost, "vision-pc:8085", "http://192.168.1.20:3000")
+	req := request(http.MethodPost, "vision-pc:8080", "http://192.168.1.20:3000")
 	req.Header.Set("Sec-Fetch-Site", "cross-site")
 
 	rec = httptest.NewRecorder()
