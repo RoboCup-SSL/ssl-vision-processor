@@ -52,7 +52,7 @@ func openapiSpec() ([]byte, error) {
 
 // newAPI is the host's typed route registry and spec.
 func newAPI(mux *http.ServeMux) *api.API {
-	a := api.New(mux, api.Info{Title: "vision_processor GUI host", Version: specVersion, Description: specIntro},
+	a := api.New(mux, api.Info{Title: "vision_processor GUI host", Version: specVersion, Description: specIntro, Tags: specTags},
 		func(w http.ResponseWriter, err error) { respondConfigErr(w, err, "handling request") })
 
 	a.SchemaFor(reflect.TypeFor[config.Settings](), settingsSchema())

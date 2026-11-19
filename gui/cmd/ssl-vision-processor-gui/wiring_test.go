@@ -125,7 +125,7 @@ func until(t *testing.T, conn *websocket.Conn, what string, done func(envelope) 
 }
 
 func TestAChangeReachesWebSocketSubscribers(t *testing.T) {
-	_, srv := testHost(t)
+	h, srv := testHost(t)
 
 	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+"/ws", nil)
 	if err != nil {
@@ -139,9 +139,11 @@ func TestAChangeReachesWebSocketSubscribers(t *testing.T) {
 		}
 	}
 
-	// Subscriptions are handled on the server's read loop; give them a moment
+	// Subscriptions are handled on the server's read loop; wait for them
 	// before changing anything.
-	time.Sleep(50 * time.Millisecond)
+	for _, topic := range []string{configStateTopic, alertsStateTopic} {
+		waitUntil(t, topic+" subscribed", func() bool { return h.hub.Watched(topic) })
+	}
 
 	// Four regions, two cameras: regions 2 and 3 have no camera.
 	if resp := patch(t, srv, `{"layout":{"cameraCount":4}}`, ""); resp.StatusCode != http.StatusOK {
@@ -208,4 +210,19 @@ func mustGet(t *testing.T, url string) *http.Response {
 	resp.Body.Close()
 
 	return resp
+}
+
+// waitUntil polls cond until it holds, failing the test after 10 seconds.
+func waitUntil(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(10 * time.Second)
+
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
 }

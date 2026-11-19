@@ -80,7 +80,10 @@ const host = spawn(
     "-logLevel",
     "Warn",
   ],
-  { cwd: repo, stdio: "inherit" },
+  // Its own process group: Playwright signals this script's group, and a
+  // second signal (that one plus the forwarded one) makes the host quit
+  // without its clean shutdown, losing make e2e-cover's coverage.
+  { cwd: repo, stdio: "inherit", detached: true },
 );
 
 for (const signal of ["SIGINT", "SIGTERM"]) {

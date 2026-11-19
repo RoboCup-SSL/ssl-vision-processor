@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"net"
 	"os"
@@ -8,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 )
@@ -210,5 +213,37 @@ func TestReadmeLinksWorkOutsideTheRepo(t *testing.T) {
 		}
 
 		t.Errorf("README.md links to %q, which doesn't exist beside the shipped README; use a full URL", target)
+	}
+}
+
+func TestEveryTickRunsAtOnceThenEachInterval(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	steps := make(chan struct{}, 10)
+	done := make(chan error, 1)
+
+	go func() { done <- everyTick(ctx, time.Millisecond, func() { steps <- struct{}{} }) }()
+
+	for range 3 {
+		select {
+		case <-steps:
+		case <-time.After(5 * time.Second):
+			t.Fatal("everyTick stopped stepping")
+		}
+	}
+
+	cancel()
+
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Errorf("everyTick returned %v, want context.Canceled", err)
+	}
+}
+
+func TestEveryTickDoesNothingOnceCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	ran := false
+	if err := everyTick(ctx, time.Hour, func() { ran = true }); !errors.Is(err, context.Canceled) || ran {
+		t.Errorf("everyTick on a cancelled context: err %v, ran %v", err, ran)
 	}
 }

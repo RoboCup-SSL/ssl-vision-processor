@@ -56,6 +56,7 @@ var allowHost = flag.String("allowHost", "", "Comma-separated extra names this h
 var openapiOut = flag.String("openapi", "", "Write the API's OpenAPI spec to this path and exit (make builds openapi.json with it)")
 var imgDir = flag.String("imgDir", "", "Directory the vision processor writes debug snapshot images to. Default: $XDG_STATE_HOME or ~/.local/state, then rcssl/vision-processor-gui/img")
 var logLevelFlag = flag.String("logLevel", "Info", "Log Level: Debug, Info, Warn, Error. Default: Info")
+var verbose = flag.Bool("verbose", false, "Same as -logLevel Debug, as in the other league tools")
 
 // A host either runs every camera's vision_processor or none: then they run
 // as their own services, configured over the network.
@@ -101,6 +102,9 @@ func run() int {
 	// but reported after it, so the warning goes through the same handler as
 	// everything else.
 	level, levelErr := logging.ParseLevel(*logLevelFlag)
+	if *verbose {
+		level, levelErr = slog.LevelDebug, nil
+	}
 
 	closeLog, logErr := logging.Setup(logging.Config{
 		Level: level,
@@ -198,10 +202,10 @@ func run() int {
 		return geom.Run(ctx, func(encoded []byte) {
 			sendGeometry(sockets, store, encoded)
 			publishGeometryToHub(wsHub, geom)
-			// Live calibration and socket state come from the network, not the
-			// store, so they're refreshed on this tick rather than only on
-			// store changes.
-			publishConfigState(wsHub, store)
+		})
+	})
+	runBackground(&wg, "housekeeping loop", func() error {
+		return everyTick(ctx, housekeepingInterval, func() {
 			// After a suspend every socket is reopened: the network may have
 			// gone away and come back while nothing ran to notice.
 			if slept := suspend.Check(); slept > 0 {
@@ -212,6 +216,10 @@ func run() int {
 			// follows cables, Wi-Fi, and containers coming and going.
 			sockets.apply(store)
 			match.SetHeightsFile(botHeightsFile(store))
+			// Live calibration and socket state come from the network, not the
+			// store, so they're refreshed on this tick rather than only on
+			// store changes.
+			publishConfigState(wsHub, store)
 			publishStatus(wsHub, status)
 			publishJSON(wsHub, processesStateTopic, h.procs.Statuses())
 		})
@@ -329,10 +337,16 @@ func newHost(path string, opts hostOptions) (*host, error) {
 	instances := discovery.NewRegistry()
 	match := &referee.Match{}
 	watches := newPeerWatches()
+	var gcSource referee.Source
 	trackReferee := func(r *gamecontroller.Referee, from *net.UDPAddr) {
 		now := time.Now()
-		match.Teams.Record(r.GetYellow().GetName(), r.GetBlue().GetName(), r.BlueTeamOnPositiveHalf, now)
+		// Every sender counts towards the sender_conflict alert; only one
+		// game controller's teams are followed.
 		watches.referee.Record("game controller", nil, from, now)
+
+		if gcSource.Accept(from.IP, now) {
+			match.Teams.Record(r.GetYellow().GetName(), r.GetBlue().GetName(), r.BlueTeamOnPositiveHalf, now)
+		}
 	}
 	live := livefield.NewFeed()
 	track := func(d *vision.SSL_DetectionFrame, from *net.UDPAddr) {
@@ -877,6 +891,31 @@ func listenUI(addr string) (net.Listener, error) {
 	}
 
 	return nil, fmt.Errorf("can't open the GUI on %s (check -address): %w", addr, err)
+}
+
+// housekeepingInterval paces the host's own upkeep: following the network
+// and the machine, and pushing status to browsers.
+const housekeepingInterval = time.Second
+
+// everyTick runs step now and then every interval until ctx is cancelled. The
+// housekeeping has its own clock, not the geometry tick's, so a slow step
+// (listing interfaces, reading the heights file) can't delay publishing.
+func everyTick(ctx context.Context, interval time.Duration, step func()) error {
+	if ctx.Err() == nil {
+		step()
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			step()
+		}
+	}
 }
 
 // runBackground runs task in its own goroutine tracked by wg, logging its

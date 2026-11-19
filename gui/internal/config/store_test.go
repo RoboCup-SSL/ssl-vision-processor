@@ -21,6 +21,8 @@ type fakeLive struct {
 	locked   map[uint32]*vision.SSL_GeometryCameraCalibration
 	unlocked []uint32
 	live     map[uint32]*vision.SSL_GeometryCameraCalibration
+	// failLocked makes the next SetLocked fail, as a failed encode would.
+	failLocked bool
 }
 
 func (f *fakeLive) ApplyConfig(field geometry.FieldConfig, _ geometry.OptionalLinesConfig, _ *vision.SSL_GeometryModels) error {
@@ -35,6 +37,12 @@ func (f *fakeLive) ApplyConfig(field geometry.FieldConfig, _ geometry.OptionalLi
 func (f *fakeLive) SetLocked(locked map[uint32]*vision.SSL_GeometryCameraCalibration) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	if f.failLocked {
+		f.failLocked = false
+
+		return errors.New("encode failed")
+	}
 
 	f.locked = locked
 
@@ -658,5 +666,54 @@ func TestRenderNamesTheHeightsTableBesideTheSource(t *testing.T) {
 
 	if !strings.Contains(string(data), "bot_heights_file: /srv/rcssl/robot-heights.yml\n") {
 		t.Errorf("render = %s\nwant an absolute bot_heights_file", data)
+	}
+}
+
+// A change that fails partway leaves the live system as it was, not with
+// the new field and the old calibrations.
+func TestUpdateFailingPartwayLeavesTheLiveSystemAsItWas(t *testing.T) {
+	store, live, _ := testStore(t)
+	doc, rev := store.Working()
+	before := live.field
+
+	doc.Field.FieldLength += 1000
+	live.mu.Lock()
+	live.failLocked = true
+	live.mu.Unlock()
+
+	if _, err := store.Update(rev, doc); err == nil {
+		t.Fatal("Update succeeded although SetLocked failed")
+	}
+
+	live.mu.Lock()
+	defer live.mu.Unlock()
+
+	if live.field != before {
+		t.Errorf("live field = %+v, want it back to %+v", live.field, before)
+	}
+
+	if working, after := store.Working(); after != rev || working.Field.FieldLength != before.FieldLength {
+		t.Errorf("working document changed: revision %d, field length %v", after, working.Field.FieldLength)
+	}
+}
+
+// A calibration that can't be built is refused before anything changes.
+func TestUpdateWithABrokenCalibrationChangesNothing(t *testing.T) {
+	store, live, _ := testStore(t)
+	doc, rev := store.Working()
+	before := live.field
+
+	doc.Field.FieldLength += 1000
+	doc.Cameras[0].Calibration = &Calibration{Camera: map[string]any{"cameraId": 0}}
+
+	if _, err := store.Update(rev, doc); err == nil {
+		t.Fatal("Update accepted an incomplete calibration")
+	}
+
+	live.mu.Lock()
+	defer live.mu.Unlock()
+
+	if live.field != before {
+		t.Errorf("live field changed to %+v before the calibration was refused", live.field)
 	}
 }

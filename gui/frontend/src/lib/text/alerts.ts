@@ -19,6 +19,7 @@ export const alerts = {
     layout: "Layout",
     geometry: "Geometry",
     network: "Network",
+    camera: "Camera",
   },
 
   renderFailed: (camera: string): string =>
@@ -58,6 +59,10 @@ export const alerts = {
     `Camera ${String(camera)}'s vision_processor isn't started`,
   deviceConflictDetail: (conflict: string): string =>
     `${conflict.charAt(0).toUpperCase()}${conflict.slice(1)}.`,
+  processCrashing: (camera: number, crashes: number): string =>
+    `Camera ${String(camera)}'s vision_processor keeps exiting (${String(crashes)} times in a row)`,
+  processCrashingDetail: (lastLine: string, exit: string): string =>
+    lastLine ? `Last output: ${lastLine}` : `It printed nothing; ${exit}.`,
   firstRun: "Not publishing until you save",
   firstRunDetail:
     "This is a new configuration. Check the field, then save it to start publishing on the network.",

@@ -56,8 +56,12 @@ export function yuvToRgb(c: YUV): RGB {
 // ones (YuvPositionPane.svelte shades the unreachable ones on its canvas,
 // same convention as a CIE chromaticity diagram graying out everything
 // outside the sRGB triangle).
+// rgbToYuv rounds to integers, which can put a real color (white, every
+// saturated primary) up to ~2.9 outside, so a smaller overflow still counts.
+export const GAMUT_TOLERANCE = 3;
+
 export function yuvInGamut(c: YUV): boolean {
-  return yuvGamutOverflow(c) === 0;
+  return yuvGamutOverflow(c) < GAMUT_TOLERANCE;
 }
 
 // How far the unclamped decode lands outside [0,255], summed over R/G/B --

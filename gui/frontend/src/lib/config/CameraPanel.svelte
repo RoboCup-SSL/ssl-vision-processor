@@ -493,7 +493,11 @@
               max={ranges.gamma.max}
               step={ranges.gamma.step}
               unit={ranges.gamma.unit}
-              auto={{ value: 1, fallback: ranges.gamma.fallback, label: "Off" }}
+              auto={{
+                value: 1,
+                fallback: ranges.gamma.fallback,
+                label: "Linear",
+              }}
               notes={gammaNotes}
               warnings={gammaWarnings}
               onchange={(v: number) => {

@@ -67,6 +67,9 @@ export const geometry = {
 
   cornerPicker: {
     title: "Corner picker",
+    noFrame: (camera: number): string =>
+      `No calibration frame from camera ${String(camera)} yet. Its vision_processor saves one when it starts calibrating, on this machine only; Refresh frame checks again.`,
+    refresh: "Refresh frame",
     intro:
       "Drag the four markers onto the real field corners in the image below, then click the number on whichever one sits where the goal line meets the touchline nearest this field's (0,0) corner -- that one turns green and becomes first in the output. The other three can be in any order; the calibration algorithm works that out itself. The goal and penalty area this camera should see are drawn dashed through the markers, as vision_processor will read them: if they don't sit on the real ones, the green marker is on the wrong corner. Changes apply when you let go of a marker; Save keeps them.",
     region: (
@@ -87,6 +90,8 @@ export const geometry = {
 
   lockTitle: "Store the calibration this camera last sent",
   nothingToLock: "No calibration received from this camera yet",
+  nothingToLockDetail:
+    "Nothing to lock yet: this camera hasn't sent a calibration. It sends one once it has calibrated.",
   relock: "Re-lock latest live calibration",
   lock: "Lock current calibration",
   unlockTitle: "Unlock calibration?",

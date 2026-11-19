@@ -11,6 +11,15 @@ export const video = {
     `Can't listen for video on ${address}: ${problem}. Retrying…`,
   waiting: (address: string): string =>
     `Waiting for video on ${address}. Is the vision_processor running?`,
+  // When the host runs this camera's vision_processor itself and knows why
+  // there's no video.
+  processExiting: (lastLine: string): string =>
+    lastLine
+      ? `vision_processor keeps exiting: ${lastLine}`
+      : "vision_processor keeps exiting. Its output is on the Camera page.",
+  processHeld: (conflict: string): string =>
+    `vision_processor isn't started: ${conflict}.`,
+  processStarting: "Waiting for video: vision_processor is starting…",
   waitingKeyframe: "Waiting for a keyframe…",
   // The rate frames arrive from vision_processor.
   receivedFps: (fps: number): string =>

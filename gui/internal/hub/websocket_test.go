@@ -51,10 +51,9 @@ func TestWebSocketDeliversPublishedData(t *testing.T) {
 		t.Fatalf("WriteJSON: %v", err)
 	}
 
-	// Subscribe is handled by the connection's read loop; give it a moment to
-	// register with the hub before publishing, or the publish can race ahead
-	// of it.
-	time.Sleep(50 * time.Millisecond)
+	// Subscribe is handled by the connection's read loop; publishing before
+	// it registers would test the latest-on-subscribe path instead.
+	waitSubscribers(t, h, "geometry", 1)
 
 	h.Publish("geometry", []byte(`{"fieldLength":9000}`))
 
@@ -76,13 +75,13 @@ func TestWebSocketUnsubscribeStopsDelivery(t *testing.T) {
 		t.Fatalf("WriteJSON: %v", err)
 	}
 
-	time.Sleep(50 * time.Millisecond)
+	waitSubscribers(t, h, "geometry", 1)
 
 	if err := conn.WriteJSON(clientMessage{Action: "unsubscribe", Topic: "geometry"}); err != nil {
 		t.Fatalf("WriteJSON: %v", err)
 	}
 
-	time.Sleep(50 * time.Millisecond)
+	waitSubscribers(t, h, "geometry", 0)
 
 	h.Publish("geometry", []byte(`{"x":1}`))
 
@@ -105,7 +104,7 @@ func TestWebSocketTwoConnectionsOnSameTopic(t *testing.T) {
 		}
 	}
 
-	time.Sleep(50 * time.Millisecond)
+	waitSubscribers(t, h, "geometry", 2)
 
 	h.Publish("geometry", []byte(`{"x":1}`))
 
@@ -154,5 +153,29 @@ func TestWebSocketRejectsWhatItCantAct(t *testing.T) {
 		if got.Error != want {
 			t.Errorf("%s: error = %+v, want %s", raw, got, want)
 		}
+	}
+}
+
+// waitSubscribers waits until topic has n subscribers: the connection's read
+// loop registers them some time after the client's message is written.
+func waitSubscribers(t *testing.T, h *Hub, topic string, n int) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+
+	for {
+		h.mu.Lock()
+		got := len(h.subs[topic])
+		h.mu.Unlock()
+
+		if got == n {
+			return
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("%s has %d subscribers, want %d", topic, got, n)
+		}
+
+		time.Sleep(time.Millisecond)
 	}
 }

@@ -41,6 +41,14 @@ type Info struct {
 	Title       string
 	Version     string
 	Description string
+	// Tags lists every route tag, in the order the reference shows them.
+	Tags []Tag
+}
+
+// Tag is one group of routes in the reference.
+type Tag struct {
+	Name        string
+	Description string
 }
 
 // New returns an API registering on mux. onError writes a handler's error as
@@ -48,6 +56,9 @@ type Info struct {
 func New(mux *http.ServeMux, info Info, onError func(http.ResponseWriter, error)) *API {
 	r := openapi31.NewReflector()
 	r.Spec.Info.WithTitle(info.Title).WithVersion(info.Version).WithDescription(info.Description)
+	for _, t := range info.Tags {
+		r.Spec.Tags = append(r.Spec.Tags, openapi31.Tag{Name: t.Name, Description: &t.Description})
+	}
 	r.JSONSchemaReflector().DefaultOptions = append(r.JSONSchemaReflector().DefaultOptions,
 		jsonschema.InterceptSchema(describe),
 		// A slice or map the host sends is [] or {}, never null: Go's nil

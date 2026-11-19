@@ -11,14 +11,22 @@ import (
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/video"
 )
 
-// Tags group the routes in the API reference.
+// Tags group the routes in the API reference, in specTags' order.
 var (
 	tagStatus  = []string{"Status"}
 	tagConfig  = []string{"Configuration"}
 	tagField   = []string{"Field"}
-	tagHost    = []string{"Host-local"}
 	tagUpdates = []string{"Live updates"}
+	tagHost    = []string{"Host-local"}
 )
+
+var specTags = []api.Tag{
+	{Name: tagStatus[0], Description: "The host's health, version, sockets, alerts, logs, and the vision_processors it hears."},
+	{Name: tagConfig[0], Description: "The shared vision.yml document: read, edit, save, load, and lock calibrations."},
+	{Name: tagField[0], Description: "The field geometry the host publishes, and the rulebook presets it starts from."},
+	{Name: tagUpdates[0], Description: "What the host is hearing right now, and the WebSocket topics that push it."},
+	{Name: tagHost[0], Description: "This machine only: its capture devices, its supervised vision_processors, and debug images on its disk."},
+}
 
 // Error codes every route with a JSON body can answer, from decoding it.
 var bodyErrors = []string{httpjson.CodeBadRequest, httpjson.CodeUnsupportedMedia}
@@ -75,7 +83,7 @@ func (s *VisionServer) addRoutes(mux *http.ServeMux, a *api.API) {
 
 	api.Route(a, "GET /api/geometry", api.Doc{Tags: tagField}, s.getGeometry)
 	api.Route(a, "GET /api/geometry/presets", api.Doc{Tags: tagField}, s.fieldPresets)
-	api.Route(a, "GET /api/live_field", api.Doc{Tags: tagField}, s.getLiveField)
+	api.Route(a, "GET /api/live_field", api.Doc{Tags: tagUpdates}, s.getLiveField)
 
 	api.Route(a, "GET /api/camera/devices", api.Doc{Tags: tagHost}, s.cameraDevices)
 	api.Route(a, "GET /api/processes", api.Doc{Tags: tagHost}, s.processes)

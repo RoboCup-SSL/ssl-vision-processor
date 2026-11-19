@@ -176,7 +176,24 @@
     });
   }
 
+  // The out-of-gamut checkerboard follows the page theme, which the header's
+  // DarkMode button switches by toggling html.dark.
+  let dark = $state(document.documentElement.classList.contains("dark"));
+
   $effect(() => {
+    const html = document.documentElement;
+    const observer = new MutationObserver(() => {
+      dark = html.classList.contains("dark");
+    });
+    observer.observe(html, { attributes: true, attributeFilter: ["class"] });
+
+    return () => {
+      observer.disconnect();
+    };
+  });
+
+  $effect(() => {
+    void dark;
     scheduleRedraw(sliceY);
   });
 
@@ -218,6 +235,7 @@
     gamutFraction = inGamutCount / (size * size);
 
     const image = ctx.createImageData(size, size);
+    const hatch: [number, number] = dark ? [48, 58] : [212, 226];
     const isInGamut = (u: number, v: number): boolean =>
       u >= 0 && u < size && v >= 0 && v < size && inGamut[v * size + u] === 1;
 
@@ -251,7 +269,7 @@
             image.data[i + 2] = rgb.b;
           }
         } else {
-          const shade = (u + v) % 16 < 8 ? 212 : 226;
+          const shade = (u + v) % 16 < 8 ? hatch[0] : hatch[1];
           image.data[i] = shade;
           image.data[i + 1] = shade;
           image.data[i + 2] = shade;

@@ -72,3 +72,4 @@ export type LogRecord = Schemas["LoggingRecord"];
 export type LogLevel = LogRecord["level"];
 export type BuildInfo = Schemas["BuildinfoInfo"];
 export type GitState = Schemas["BuildinfoGit"];
+export type HealthResponse = Schemas["HealthResponse"];

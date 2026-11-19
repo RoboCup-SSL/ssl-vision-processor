@@ -24,7 +24,7 @@ SHA256SUM = $(shell command -v sha256sum >/dev/null 2>&1 && echo sha256sum || ec
 
 .DEFAULT_GOAL := help
 
-.PHONY: help run install test check e2e vet lint vulncheck build go-test frontend-test fmt-check generate-check \
+.PHONY: help run install test check e2e e2e-cover vet lint vulncheck build go-test frontend-test fmt-check generate-check \
 	multicast-note e2e-if-chrome npm proto defaults redoc comments openapi frontend generate clean release release-check deb
 
 ## Running
@@ -115,6 +115,17 @@ check: multicast-note fmt-check vet lint go-test frontend-test generate-check e2
 e2e: frontend ## Browser tests: the real host in Google Chrome (frontend/e2e/)
 	go build -o $(E2E_BIN) ./cmd/$(BINARY)
 	cd frontend && GUI_BIN=$(E2E_BIN) npx playwright test; status=$$?; rm -f $(E2E_BIN); exit $$status
+
+E2E_COVER_DIR = bin/cover/e2e
+
+e2e-cover: frontend ## make e2e with a coverage-built host: what the browser tests reach, incl. main's startup
+	rm -rf $(E2E_COVER_DIR) && mkdir -p $(E2E_COVER_DIR)
+	go build -cover -coverpkg=./cmd/...,./internal/... -o $(E2E_BIN) ./cmd/$(BINARY)
+	cd frontend && GUI_BIN=$(E2E_BIN) GOCOVERDIR=$(CURDIR)/$(E2E_COVER_DIR) npx playwright test; \
+		status=$$?; rm -f $(E2E_BIN); exit $$status
+	go tool covdata percent -i=$(E2E_COVER_DIR)
+	go tool covdata textfmt -i=$(E2E_COVER_DIR) -o $(E2E_COVER_DIR).out
+	@echo "Per function: go tool cover -func=$(E2E_COVER_DIR).out; as a page: go tool cover -html=$(E2E_COVER_DIR).out"
 
 vet: frontend ## go vet every package
 	go vet $(GO_PACKAGES)

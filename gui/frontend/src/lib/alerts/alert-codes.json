@@ -8,6 +8,7 @@
   "first_run_not_publishing",
   "heights_unreadable",
   "loopback_multicast_off",
+  "process_crashing",
   "region_uncovered",
   "render_failed",
   "seed_aspect_mismatch",

@@ -159,6 +159,7 @@ Every option is optional. `-h` lists them all.
 | `-imgDir`      | see above            | Where the GUI looks for vision_processor's debug images.                           |
 | `-runCameras`  | off                  | Run every camera's vision_processor on this machine; see [Cameras](#cameras).      |
 | `-logLevel`    | `Info`               | `Debug`, `Info`, `Warn`, or `Error`.                                               |
+| `-verbose`     | off                  | The same as `-logLevel Debug`, as in the other league tools.                       |
 | `-allowOrigin` | none                 | Other web pages allowed to use the API on a competition field.                     |
 | `-allowHost`   | none                 | Extra names this machine is reached by, such as a DNS alias.                       |
 | `-version`     |                      | Print the version and exit.                                                        |

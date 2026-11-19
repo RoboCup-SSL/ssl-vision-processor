@@ -57,13 +57,16 @@ export const config = $state<{
 });
 
 const PUT_DEBOUNCE_MS = 250;
+// How soon an edit the host didn't receive is sent again.
+const RETRY_MS = 2_000;
 
-// JSON of the doc as last sent to (or received from) the host -- the root
+// JSON of the doc as last accepted by (or received from) the host -- the root
 // effect compares against this so a doc that just arrived from the host isn't
-// echoed straight back.
+// echoed straight back, and an edit that never arrived is still unsent.
 let lastSynced = "";
 let putTimer: ReturnType<typeof setTimeout> | null = null;
-let inFlight: Promise<void> | null = null;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let inFlight: Promise<boolean> | null = null;
 
 export function cameraDoc(cameraId: number): CameraDoc | undefined {
   return config.doc?.cameras.find((c) => c.cameraId === cameraId);
@@ -102,9 +105,11 @@ export async function loadConfig(): Promise<void> {
 // Resolves once no edit is waiting to be sent or in flight, so a save sees
 // everything the user has typed.
 export async function flushEdits(): Promise<void> {
-  if (putTimer !== null) {
-    clearTimeout(putTimer);
+  if (putTimer !== null || retryTimer !== null) {
+    if (putTimer !== null) clearTimeout(putTimer);
+    if (retryTimer !== null) clearTimeout(retryTimer);
     putTimer = null;
+    retryTimer = null;
     void sendPending();
   }
 
@@ -121,41 +126,66 @@ function schedulePut(): void {
 }
 
 async function sendPending(): Promise<void> {
-  if (inFlight) {
-    await inFlight;
-  }
+  // A loop: another waiter may have started the next send first.
+  while (inFlight) await inFlight;
 
   const json = JSON.stringify(config.doc);
   if (!config.doc || json === lastSynced) return;
 
-  lastSynced = json;
   inFlight = putDoc(json);
+  let delivered: boolean;
 
   try {
-    await inFlight;
+    delivered = await inFlight;
   } finally {
     inFlight = null;
+  }
+
+  if (!delivered) {
+    retryLater();
+
+    return;
   }
 
   // Anything typed while that was in flight goes out next.
   if (JSON.stringify(config.doc) !== lastSynced) void sendPending();
 }
 
-async function putDoc(json: string): Promise<void> {
-  const response = await fetch("/api/config", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: `{"revision":${String(config.revision)},"document":${json}}`,
-  });
+function retryLater(): void {
+  if (retryTimer !== null) return;
+
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    void sendPending();
+  }, RETRY_MS);
+}
+
+// False when the host never answered (restarting, network down): the edit
+// stays unsent. Any answer, even a refusal, counts as delivered.
+async function putDoc(json: string): Promise<boolean> {
+  let response: Response;
+
+  try {
+    response = await fetch("/api/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: `{"revision":${String(config.revision)},"document":${json}}`,
+    });
+  } catch {
+    config.error = app.notSent;
+
+    return false;
+  }
 
   if (response.ok) {
+    lastSynced = json;
     config.revision = (
       (await response.json()) as { revision: number }
     ).revision;
     config.error = null;
     await refreshFieldMarkings();
 
-    return;
+    return true;
   }
 
   if (response.status === 409) {
@@ -164,10 +194,14 @@ async function putDoc(json: string): Promise<void> {
     config.error = app.editedElsewhere;
     await loadConfig();
 
-    return;
+    return true;
   }
 
+  // Refused (T4-3: the form keeps the refused value until the next edit).
+  lastSynced = json;
   config.error = await errorMessage(response);
+
+  return true;
 }
 
 $effect.root(() => {
@@ -179,7 +213,8 @@ $effect.root(() => {
   // State arrives on every host change and once a second (live calibration
   // state comes from the network). A revision we don't have means someone
   // else changed the document -- another tab, or a lock/reload -- so refetch,
-  // unless our own edit is mid-flight and about to report that revision.
+  // unless our own edit is mid-flight and about to report that revision, or
+  // waiting to be retried (a reload would drop it).
   $effect(() => {
     return topic<ConfigState>("config.state").subscribe((state) => {
       if (!state) return;
@@ -190,7 +225,8 @@ $effect.root(() => {
         config.doc &&
         state.revision !== config.revision &&
         !inFlight &&
-        putTimer === null
+        putTimer === null &&
+        retryTimer === null
       ) {
         void loadConfig();
       }

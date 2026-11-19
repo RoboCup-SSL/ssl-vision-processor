@@ -22,6 +22,7 @@ make test          # go test -race + the frontend's checks and unit tests
 make check         # everything CI checks: gofmt, vet, staticcheck, tests, generated files, browser tests
 make vulncheck     # govulncheck (needs the network; CI reports it, doesn't fail on it)
 make e2e           # Playwright browser tests (frontend/e2e/): real host, installed Google Chrome
+make e2e-cover     # make e2e with a coverage-built host, so main's startup shows up (bin/cover/e2e.out)
 make generate      # rewrite the one committed generated file: the alert codes
 make release-check # build the static release, run it as a new user would
 make clean         # remove everything built, generated or fetched

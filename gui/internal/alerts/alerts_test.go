@@ -92,6 +92,12 @@ func TestCollect(t *testing.T) {
 				{CameraID: 1, State: supervisor.StateConflict, Conflict: "camera 0 already uses OPENCV /dev/video0"},
 			}
 		}, "device-1", "device_conflict/error"},
+		"crash loop": {func(_ *config.Document, _ *config.State, n *Network) {
+			n.Processes = []supervisor.Status{{
+				CameraID: 0, State: supervisor.StateWaiting, Crashes: 2, LastExit: "exit status 1",
+				Output: []string{"opening /dev/video0", "VIDIOC_REQBUFS: Device or resource busy", ""},
+			}}
+		}, "crashing-0", "process_crashing/error"},
 		"heights unreadable": {func(_ *config.Document, _ *config.State, n *Network) {
 			n.Referee.HeightsError = "no such file"
 		}, "heights-unreadable", "heights_unreadable/warning"},
@@ -240,4 +246,32 @@ func TestSenderConflictSeverity(t *testing.T) {
 			})
 		}
 	}
+}
+
+// One failed start can be a slow device; two in a row is a loop worth an
+// alert, and its last output line usually says why.
+func TestCrashingProcessNeedsTwoFailuresAndQuotesTheLastLine(t *testing.T) {
+	doc, state, net := healthy()
+
+	net.Processes = []supervisor.Status{{CameraID: 0, State: supervisor.StateWaiting, Crashes: 1, Output: []string{"bad"}}}
+	for _, a := range Collect(doc, state, net) {
+		if a.Code == CodeProcessCrashing {
+			t.Fatalf("one crash raised %v", a)
+		}
+	}
+
+	net.Processes[0].Crashes = 3
+	net.Processes[0].Output = []string{"opening", "  no such device  ", " "}
+
+	for _, a := range Collect(doc, state, net) {
+		if a.Code == CodeProcessCrashing {
+			if a.Params["lastLine"] != "no such device" || a.Params["crashes"] != 3 {
+				t.Errorf("params = %v", a.Params)
+			}
+
+			return
+		}
+	}
+
+	t.Fatal("three crashes in a row raised no process_crashing alert")
 }

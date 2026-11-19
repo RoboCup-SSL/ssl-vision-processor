@@ -47,3 +47,40 @@ func TestEveryOKResponseHasABody(t *testing.T) {
 		}
 	}
 }
+
+// Redoc shows tags in the spec's own order, with their descriptions; a tag
+// missing from specTags would be appended undescribed.
+func TestEveryTagIsDescribed(t *testing.T) {
+	data, err := openapiSpec()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var spec struct {
+		Tags []struct {
+			Name        string
+			Description string
+		}
+		Paths map[string]map[string]struct {
+			Tags []string
+		}
+	}
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatal(err)
+	}
+
+	described := map[string]bool{}
+	for _, tag := range spec.Tags {
+		described[tag.Name] = tag.Description != ""
+	}
+
+	for path, ops := range spec.Paths {
+		for method, op := range ops {
+			for _, tag := range op.Tags {
+				if !described[tag] {
+					t.Errorf("%s %s: tag %q isn't in specTags", method, path, tag)
+				}
+			}
+		}
+	}
+}

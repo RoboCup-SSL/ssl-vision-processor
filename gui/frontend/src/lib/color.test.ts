@@ -79,14 +79,16 @@ describe("gamut", () => {
         }
   });
 
-  // Known bug (REVIEW.md T7-8): yuvInGamut has no rounding tolerance, so
-  // rgbToYuv's integer rounding leaves ~4% of real colors, every saturated
-  // primary and white among them, outside by up to 2.9. Remove .fails once fixed.
-  it.fails("holds every color an RGB camera can produce", () => {
+  it("holds every color an RGB camera can produce", () => {
     for (const cls of COLOR_CLASSES) {
       expect(yuvInGamut(rgbToYuv(CANONICAL_COLORS[cls])), cls).toBe(true);
     }
     expect(yuvInGamut(rgbToYuv({ r: 255, g: 255, b: 255 }))).toBe(true);
+    for (let r = 0; r <= 255; r += 5)
+      for (let g = 0; g <= 255; g += 5)
+        for (let b = 0; b <= 255; b += 5) {
+          expect(yuvInGamut(rgbToYuv({ r, g, b }))).toBe(true);
+        }
   });
 
   it("excludes saturated chroma at extreme brightness", () => {

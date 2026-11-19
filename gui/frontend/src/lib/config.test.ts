@@ -237,9 +237,45 @@ describe("edits", () => {
     expect(config.revision).toBe(5);
   });
 
-  it.todo(
-    "sent while the host is unreachable are reported and retried (REVIEW.md T4-2)",
-  );
+  it("sent while the host is unreachable are reported and retried", async () => {
+    const { config } = await loaded();
+    reply("PUT", "/api/config", new TypeError("Failed to fetch"), {
+      status: 200,
+      body: { revision: 4 },
+    });
+
+    docOf(config).field.fieldLength = 9100;
+    await settle(300);
+
+    expect(sent("PUT", "/api/config")).toHaveLength(1);
+    expect(config.error).toBe(app.notSent);
+    expect(docOf(config).field.fieldLength).toBe(9100);
+
+    await settle(2000);
+
+    const puts = sent("PUT", "/api/config");
+    expect(puts).toHaveLength(2);
+    expect(puts[1]?.body).toMatchObject({
+      revision: 3,
+      document: { field: { fieldLength: 9100 } },
+    });
+    expect(config.error).toBeNull();
+    expect(config.revision).toBe(4);
+
+    await settle(5000);
+    expect(sent("PUT", "/api/config")).toHaveLength(2);
+  });
+
+  it("keeps retrying while the host stays unreachable", async () => {
+    const { config } = await loaded();
+    reply("PUT", "/api/config", new TypeError("Failed to fetch"));
+
+    docOf(config).field.fieldLength = 9100;
+    await settle(300 + 3 * 2000);
+
+    expect(sent("PUT", "/api/config")).toHaveLength(4);
+    expect(config.error).toBe(app.notSent);
+  });
 });
 
 describe("flushEdits", () => {
@@ -251,6 +287,21 @@ describe("flushEdits", () => {
     await flushEdits();
 
     expect(sent("PUT", "/api/config")).toHaveLength(1);
+    expect(config.revision).toBe(4);
+  });
+
+  it("sends an unsent edit at once instead of waiting for the retry", async () => {
+    const { config, flushEdits } = await loaded();
+    reply("PUT", "/api/config", new TypeError("Failed to fetch"), {
+      status: 200,
+      body: { revision: 4 },
+    });
+
+    docOf(config).field.fieldLength = 9100;
+    await settle(300);
+    await flushEdits();
+
+    expect(sent("PUT", "/api/config")).toHaveLength(2);
     expect(config.revision).toBe(4);
   });
 

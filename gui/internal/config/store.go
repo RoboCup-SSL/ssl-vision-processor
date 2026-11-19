@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -268,6 +269,9 @@ func (s *Store) update(rev int64, doc Document) (int64, error) {
 	for _, c := range s.working.Cameras {
 		if next := doc.camera(c.CameraID); c.Calibration != nil && (next == nil || next.Calibration == nil) {
 			if err := s.live.Unlock(uint32(c.CameraID)); err != nil {
+				s.restoreLive()
+				s.renderErrs = renderAll(s.working, s.dir, s.path)
+
 				return 0, err
 			}
 		}
@@ -281,14 +285,37 @@ func (s *Store) update(rev int64, doc Document) (int64, error) {
 
 // apply pushes doc into the live system and regenerates config.yml files.
 // doc must already be validated. Callers must hold mu.
+//
+// All or nothing: everything that can fail on doc's contents is built before
+// the live system changes, and a later failure puts the working document's
+// state back.
 func (s *Store) apply(doc Document) error {
-	models, err := doc.ModelsProto()
+	models, locked, err := liveState(doc)
 	if err != nil {
 		return err
 	}
 
 	if err := s.live.ApplyConfig(doc.Field, doc.OptionalFieldLines, models); err != nil {
 		return err
+	}
+
+	if err := s.live.SetLocked(locked); err != nil {
+		s.restoreLive()
+
+		return err
+	}
+
+	s.renderErrs = renderAll(doc, s.dir, s.path)
+
+	return nil
+}
+
+// liveState is what the live system gets from doc: its models and its
+// locked calibrations by camera_id.
+func liveState(doc Document) (*vision.SSL_GeometryModels, map[uint32]*vision.SSL_GeometryCameraCalibration, error) {
+	models, err := doc.ModelsProto()
+	if err != nil {
+		return nil, nil, err
 	}
 
 	locked := map[uint32]*vision.SSL_GeometryCameraCalibration{}
@@ -300,19 +327,31 @@ func (s *Store) apply(doc Document) error {
 
 		calib, err := c.Calibration.Proto()
 		if err != nil {
-			return err
+			return nil, nil, fmt.Errorf("cameras[%d].calibration: %w", c.CameraID, err)
 		}
 
 		locked[uint32(c.CameraID)] = calib
 	}
 
-	if err := s.live.SetLocked(locked); err != nil {
-		return err
+	return models, locked, nil
+}
+
+// restoreLive puts the working document back into the live system after a
+// failed change. It applied once, so it applies again; an error here is
+// only logged, as the caller is already returning the first one.
+func (s *Store) restoreLive() {
+	models, locked, err := liveState(s.working)
+	if err == nil {
+		err = s.live.ApplyConfig(s.working.Field, s.working.OptionalFieldLines, models)
 	}
 
-	s.renderErrs = renderAll(doc, s.dir, s.path)
+	if err == nil {
+		err = s.live.SetLocked(locked)
+	}
 
-	return nil
+	if err != nil {
+		slog.Error("restoring the live geometry after a failed change", "err", err)
+	}
 }
 
 // checkNotOverActive refuses a document that would render a camera's config.yml

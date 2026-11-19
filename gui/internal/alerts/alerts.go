@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/config"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/detections"
@@ -40,7 +41,12 @@ const (
 	CodeSenderConflict    = "sender_conflict"
 	CodeFirstRun          = "first_run_not_publishing"
 	CodeDeviceConflict    = "device_conflict"
+	CodeProcessCrashing   = "process_crashing"
 )
+
+// crashingAfter is how many failed runs in a row make a supervised
+// vision_processor's crashes an alert: one can be a slow device, two is a loop.
+const crashingAfter = 2
 
 // Alert is one problem.
 type Alert struct {
@@ -72,7 +78,7 @@ func Codes() []string {
 	codes := append([]string{
 		CodeRenderFailed, CodeCameraIDConflict, CodeRegionUncovered, CodeCameraUnplaced, CodeFileChanged,
 		CodeSocketProblem, CodeSocketSilent, CodeHeightsUnreadable, CodeTeamDefaultHeight, CodeLoopbackMulticast,
-		CodeSenderConflict, CodeFirstRun, CodeDeviceConflict,
+		CodeSenderConflict, CodeFirstRun, CodeDeviceConflict, CodeProcessCrashing,
 	}, config.WarningCodes...)
 
 	slices.Sort(codes)
@@ -125,6 +131,15 @@ func Collect(doc config.Document, state config.State, net Network) []Alert {
 	}
 
 	for _, p := range net.Processes {
+		if p.State != supervisor.StateConflict && p.Crashes >= crashingAfter {
+			last := LastLine(p.Output)
+			add(Alert{
+				ID: "crashing-" + strconv.Itoa(p.CameraID), Code: CodeProcessCrashing, Severity: Error, CameraID: ptr(p.CameraID),
+				Params:  map[string]any{"crashes": p.Crashes, "exit": p.LastExit, "lastLine": last},
+				Message: fmt.Sprintf("Camera %d's vision_processor keeps exiting (%d times in a row, %s): %s", p.CameraID, p.Crashes, p.LastExit, last),
+			})
+		}
+
 		if p.State != supervisor.StateConflict {
 			continue
 		}
@@ -414,3 +429,15 @@ func sortedKeys(m map[int]string) []int {
 }
 
 func ptr(v int) *int { return &v }
+
+// LastLine is the last non-blank line of a process's output: usually why it
+// exited.
+func LastLine(output []string) string {
+	for i := len(output) - 1; i >= 0; i-- {
+		if line := strings.TrimSpace(output[i]); line != "" {
+			return line
+		}
+	}
+
+	return ""
+}

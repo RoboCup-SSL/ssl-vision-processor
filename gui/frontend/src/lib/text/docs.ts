@@ -121,6 +121,17 @@ export const RESOLUTION_DOCS = {
       "It starts by itself as soon as its device is free. Nothing needs restarting.",
     ],
   },
+  "process-crashing": {
+    title: "A camera's vision_processor keeps exiting",
+    cause:
+      "The host runs every camera's vision_processor itself (-runCameras) and restarts one that exits, waiting longer each time. This one has failed several times in a row, usually because it can't open its camera: the wrong driver, a device that's missing or busy, or a driver the build doesn't include.",
+    steps: [
+      "Read its last output, here and in full at the bottom of the Camera page. It usually names the problem.",
+      "Check the camera's driver and device on the Camera page. A webcam needs OPENCV and a /dev/video path; the default, SPINNAKER, is for FLIR cameras only.",
+      "Check nothing else has the camera open (another vision_processor, a video call, cheese).",
+      "It restarts by itself after each change. Nothing else needs restarting.",
+    ],
+  },
   "first-run": {
     title: "Nothing is published until you save",
     cause:

@@ -27,7 +27,7 @@ Owner per finding: **Will** (Go/Svelte) or **Claude** (build/CI/packaging/docs i
 
 ## Status
 
-Updated 2026-11-18. **Open** 47 · **Partial** 5 · **Done** 15 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, dropped, merged.
+Updated 2026-11-18. **Open** 33 · **Partial** 4 · **Done** 29 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
 
 **Next up** (MVP gate order; see the end of this file):
 All blockers are fixed. T4-1, T2-1, L-1 and the build/docs batch (T1-5, T1-7, T1-9, T1-10, T2-7, T4-8, T6-3, T6-4, T6-6, T6-7, T7-3, L-6) are awaiting commit.
@@ -47,8 +47,8 @@ All blockers are fixed. T4-1, T2-1, L-1 and the build/docs batch (T1-5, T1-7, T1
 | T1-10 | nit | Claude | unpinned nix actions | done |
 | T1-11 | nit | Will | `DEB_MAINTAINER` personal address | open |
 | T2-1 | major | Will | HTTP bind happens last; "UI is available" logged early | done |
-| T2-2 | minor | Will | publish tick is the host's only clock | open |
-| T2-3 | minor | Will | `Store.apply` not atomic | open |
+| T2-2 | minor | Will | publish tick is the host's only clock | done |
+| T2-3 | minor | Will | `Store.apply` not atomic | done |
 | T2-4 | minor | Will | `main.go` too big | open |
 | T2-5 | minor | Will | CLI help | open |
 | T2-6 | minor | Will | log keys and messages | open |
@@ -56,27 +56,27 @@ All blockers are fixed. T4-1, T2-1, L-1 and the build/docs batch (T1-5, T1-7, T1
 | T3-1 | major | Will | WS topic contract in three places | open |
 | T3-2 | major | Will | generated `paths` unused | open |
 | T3-3 | major | Will | naming pass before freezing API 1.0 | open |
-| T3-4 | minor | Will | response-spec test coverage | partial |
-| T3-5 | nit | Will | OpenAPI tag descriptions | open |
+| T3-4 | minor | Will | response-spec test coverage | done |
+| T3-5 | nit | Will | OpenAPI tag descriptions | done |
 | T4-1 | blocker | Will | "Temporary debug utilities" on every page | done |
-| T4-2 | major | Will | edits lost while host unreachable | open |
+| T4-2 | major | Will | edits lost while host unreachable | done |
 | T4-3 | minor | Will | rejected value stays in the form | open |
-| T4-4 | minor | Will | no stale-frontend detection | open |
+| T4-4 | minor | Will | no stale-frontend detection | done |
 | T4-5 | minor | Will | large components | open |
 | T4-6 | minor | Will | bus still on `svelte/store` | open |
 | T4-7 | nit | Will | hex colours | partial |
 | T4-8 | nit | Claude | Flowbite `@source` CSS bloat | dropped |
 | T5-1 | blocker | Will | placeholder Debug page | done |
-| T5-2 | major | Will | crash-looping VP raises no alert | open |
+| T5-2 | major | Will | crash-looping VP raises no alert | done |
 | T5-3 | major | Will | SPINNAKER default driver | open |
 | T5-4 | major | Will | 4 warnings on a fresh install | open |
-| T5-5 | major | Will | accessibility (labels, contrast) | open |
+| T5-5 | major | Will | accessibility (labels, contrast) | v2.1 |
 | T5-6 | major | Will | two navigation systems | open |
 | T5-7 | minor | Will | first-run wording | open |
-| T5-8 | minor | Will | broken image in corner picker | open |
+| T5-8 | minor | Will | broken image in corner picker | done |
 | T5-9 | minor | Will | Camera page edits undeliverable settings | open |
 | T5-10 | — | — | phone widths | dropped |
-| T5-11 | nit | Will | Gamma toggle label | open |
+| T5-11 | nit | Will | Gamma toggle label | done |
 | T6-1 | major | Claude (Will reviews) | `ARCHITECTURE.md` drift | open |
 | T6-2 | minor | Claude (Will decides) | `CLAUDE.md` vs `ARCHITECTURE.md` split | open |
 | T6-3 | minor | Claude | frontend README describes old tabs | done |
@@ -89,9 +89,9 @@ All blockers are fixed. T4-1, T2-1, L-1 and the build/docs batch (T1-5, T1-7, T1
 | T7-3 | major | Will | flowbite `Input` unmount error (`test.fail`) | done |
 | T7-4 | major | Will + Claude | e2e scenario gaps, axe | open |
 | T7-5 | minor | Claude | frontend coverage tooling | done |
-| T7-6 | nit | Claude | coverage for binary-only paths | open |
-| T7-7 | nit | Will | `time.Sleep` in Go tests | open |
-| T7-8 | minor | Will | `yuvInGamut` rounding tolerance | open |
+| T7-6 | nit | Claude | coverage for binary-only paths | done |
+| T7-7 | nit | Will | `time.Sleep` in Go tests | done |
+| T7-8 | minor | Will | `yuvInGamut` rounding tolerance | done |
 | T8-1 | major | Will | four product names | open |
 | T8-2 | minor | Will + Claude | page names | open |
 | T8-3 | minor | Will | identifier naming across layers | open |
@@ -101,9 +101,9 @@ All blockers are fixed. T4-1, T2-1, L-1 and the build/docs batch (T1-5, T1-7, T1
 | L-2 | minor | Will | league-style address flags | open |
 | L-3 | — | — | arm64 assets | merged (T1-4) |
 | L-4 | minor | Claude | no dependency bot | open |
-| L-5 | major | Will | duplicate GC flaps referee state | open |
+| L-5 | major | Will | duplicate GC flaps referee state | done |
 | L-6 | nit | Claude | `CLAUDE.md` sslnet note | done |
-| L-7 | nit | Will | `-verbose` alias | open |
+| L-7 | nit | Will | `-verbose` alias | done |
 | L-8 | nit | Claude | docker image | open |
 
 Upstream proposals (U-1..U-5) are tracked in "League alignment", not here.
@@ -232,9 +232,13 @@ Fix: `net.Listen` synchronously right after `newHost` and before any `runBackgro
 The geometry publish tick is the host's only clock. Every second it also checks for suspend, re-lists interfaces and reapplies the sockets, refreshes the heights file, and publishes config state, status, alerts and processes. That ties unrelated work to `Geometry.Run`'s lifetime and makes a slow step (interface listing, heights-file stat) delay geometry publishing.
 Fix: a separate `housekeeping` loop (`runBackground`) for socket/suspend/status work, leaving the geometry tick to send and publish geometry only.
 
+*Done 2026-11-18 (Claude, at Will's request):* the geometry tick only sends and publishes geometry. Suspend checks, socket and interface re-evaluation, the heights file and the config/status/process topics run on their own 1 s `everyTick` loop (`housekeeping loop`). Endpoint methods lock, so the two loops can share the sockets. Tests: `TestEveryTick*`.
+
 **T2-3 | minor | Will | `internal/config/store.go:262-274`, `:484-491`**
 `apply` is not atomic. It pushes the field (`ApplyConfig`), then the locked calibrations (`SetLocked`), then renders every camera's `config.yml`. A failure after the first step returns an error with live geometry (and, in `update`, the `Unlock` loop) already changed but `working` not updated. `loadLocked` restores `s.path` on failure but not the live state. Unlikely in practice, since the inputs are validated first, but the failure leaves the published geometry disagreeing with the document the GUI shows.
 Fix: build everything first (models, locked map, renders into memory), then commit in one step; or on error re-apply the previous `working`.
+
+*Done 2026-11-18 (Claude, at Will's request):* `apply` builds the models and every locked calibration (`liveState`) before touching the live system, so a bad calibration changes nothing. If `SetLocked` (or `update`'s unlock loop) fails after `ApplyConfig` succeeded, `restoreLive` re-applies the working document. The unlock loop's `Unlock` also clears absorbed calibrations, which a rollback can't bring back; the camera re-sends one. Tests: `TestUpdateFailingPartwayLeavesTheLiveSystemAsItWas`, `TestUpdateWithABrokenCalibrationChangesNothing` (`fakeLive.failLocked`).
 
 **T2-4 | minor | Will | `main.go` (964 lines)**
 It mixes flag definitions, path bootstrap, firewall and ufw sniffing, socket management (`networkSockets`), topic publishing and the run loop.
@@ -281,8 +285,12 @@ Fix: pick one convention (kebab-case paths, plural collections, `{id}`, `verbNou
 Fix: derive the GET list from the spec and fail on any route not exercised. Add write-route and error-envelope checks. If the custom validator keeps growing, swap it for `kin-openapi`'s `openapi3filter` in tests only.
 *Progress 2026-11-11 (Claude):* `TestEveryGETRouteIsChecked` now fails when a GET route is neither checked nor listed as non-JSON, and `/api/geometry` was added to the checked set. Still open: write-route 200 bodies and the error envelope.
 
+*Done 2026-11-18 (Claude, at Will's request):* `TestWriteResponsesMatchTheSpec` runs every write route on one host (PUT, PATCH, lock/unlock, save, save-as, load, reload, restart), including stale, bad-body, missing If-Match, not-found and bad-name errors, and checks each status is in the spec and each body (success or error envelope) matches it. It fails when a write route isn't exercised. `checkResponseFor` generalizes the GET check.
+
 **T3-5 | nit | Will | `cmd/ssl-vision-processor-gui/routes.go`**
 Tags (`Status`, `Host-local`, `Configuration`, `Field`, `Live updates`) have no descriptions and no top-level `tags` order, so Redoc orders groups by first use. `/api/live_field` sits under "Field" while its topic sits under "Live updates". Add a top-level `tags` list with one-line descriptions.
+
+*Done 2026-11-18 (Claude, at Will's request):* `api.Info.Tags` sets the spec's top-level `tags`: Status, Configuration, Field, Live updates, Host-local, each with a one-line description (`specTags`, `routes.go`). `/api/live_field` moved to Live updates. `TestEveryTagIsDescribed` fails on a route tag missing from `specTags`.
 
 ### Track 4: frontend architecture
 
@@ -306,6 +314,8 @@ An edit made while the host is unreachable is silently lost. `sendPending` sets 
 Fix: set `lastSynced` only after a 2xx. On a network error, set `config.error` ("not saved: host unreachable, will retry") and retry when the connection returns. Hold off `loadConfig()` while a local edit is unsent, or merge it.
 *Test status:* `config.test.ts` covers the edit and sync paths (97% statements). This bug is pinned as an `it.todo`, not an expected failure, because it surfaces as an unhandled rejection, which fails the whole vitest run. Turn it into a real test with the fix.
 
+*Done 2026-11-18 (Claude, at Will's request):* `lastSynced` moves only when the host answers. A PUT the host never answers (fetch rejects) shows "Not sent: the host can't be reached…", keeps the edit, and retries every 2 s; `flushEdits` (Save, lock) sends it at once. The `config.state` refetch holds off while a retry is pending, so a reconnect doesn't drop the edit. If the host restarted at another revision, the retry gets a 409 and the usual "edited elsewhere" reload applies. Also fixed: two waiters could both send the same edit after an in-flight PUT (`while (inFlight)`). The `it.todo` is now three tests in `config.test.ts`.
+
 **T4-3 | minor | Will | `config.svelte.ts:170`**
 After a 400 (validation), the rejected value stays in the local document while the host keeps the old one, and `lastSynced` now equals the rejected JSON, so nothing reconciles them until the next edit or a reload. The banner shows the reason, but the form shows a value the host isn't using. The "a rejected edit shows the host's reason" e2e test checks the banner, not the field.
 Fix: on 400, keep the message and restore the host's document. Better, map `issues` to the field (FormRow already has message slots) so the user sees which value was refused.
@@ -313,6 +323,8 @@ Fix: on 400, keep the message and restore the host's document. Better, map `issu
 **T4-4 | minor | Will | `frontend/src/lib/wrapper-bus.ts`, `config.svelte.ts`**
 No stale-frontend detection. After a `.deb` upgrade restarts the service, every open browser keeps the old bundle and talks to the new API. Mismatched shapes then surface as odd errors, not as "reload".
 Fix: embed the build version in the page. On WS reconnect, compare it with `/api/health`'s `version`, and show a "the GUI was updated, reload" notice when they differ.
+
+*Done 2026-11-18 (Claude, at Will's request):* `hostVersion.svelte.ts` remembers the version `/api/health` reports when the page first connects (the bundle comes from the same binary, so that's the bundle's) and checks again on every WebSocket reconnect. A different version shows `UpdateNotice.svelte`: "The GUI was updated (old → new). Reload this page…" with a Reload button. No build step needed. `hostVersion.test.ts` (3 tests).
 
 **T4-5 | minor | Will | large components**
 `config/YuvPositionPane.svelte` (1047 lines, 288 of them CSS), `config/CameraPanel.svelte` (650), `config/WeightTriangle.svelte` (529), `layout/Shell.svelte` (510).
@@ -354,6 +366,8 @@ The `configFields.ts` comments are wrong for two of them (`debug_images` "in img
 A crash-looping supervised vision_processor raises **no alert**. Only `StateConflict` becomes one. With the stand-in failing every start, `/api/alerts` still lists only `socket_silent`, two `team_default_height` and `loopback_multicast_off`. The sidebar shows `cam 0` with no status. The Camera and Stream pages show "Waiting for video on 224.5.23.100:10100. Is the vision_processor running?" even though the host knows it isn't, and why. The crash count and the captured stderr are only in a card at the bottom of the Camera page. This is the most likely failure in the lab setup `-runCameras` exists for (wrong driver, busy or missing `/dev/video0`).
 Fix: an `Error` alert per camera when `crashes ≥ 2` (or state `waiting` after a crash), with the last output line as its message and "How to fix" pointing at the Camera page. A state dot on the sidebar camera row. The video placeholder should read process state and say "vision_processor keeps exiting: <last line>" when supervised.
 
+*Done 2026-11-18 (Claude, at Will's request):* `process_crashing` (Error) once a supervised vision_processor fails twice in a row (`crashingAfter`), with the crash count, exit and last non-blank output line; the GUI words it, with a How to fix doc (`process-crashing`: driver, device, something else holding the camera) and a link to the Camera page. The sidebar row of a supervised camera has a status dot (green running, yellow starting, red failing or held, with screen-reader text). The video placeholder says "vision_processor keeps exiting: <last line>", "isn't started: <conflict>" or "is starting" instead of asking whether it runs. Tests: two alert cases in `alerts_test.go`, `processes.test.ts`.
+
 **T5-3 | major | Will | `cmd/ssl-vision-processor-gui/main.go:436-467` (`bootstrapConfig`), wizard**
 Every new camera defaults to the **Spinnaker (FLIR)** driver (the schema's `camera.driver` default `SPINNAKER`, vision_processor's own fallback). The planned CV package is FOSS-only (OpenCV/V4L, DC1394) and `-runCameras` targets student labs with webcams, so a new lab user's first `-runCameras` start crash-loops on a driver they don't have, and (T5-2) nothing says so. No C++ change is needed: the host owns the bootstrapped `vision.yml`.
 Fix: write `defaults.camera.driver: OPENCV` in a new config, or better, a wizard step "What cameras?" (webcam / FLIR / FireWire / mvIMPACT) that sets it and offers the `/api/camera/devices` picker.
@@ -373,6 +387,8 @@ Fix:
 
 Fix: label the controls (likely the slider/number pairs; each needs `aria-label` or `aria-labelledby` to its FormRow label), raise the muted grays one step, and add the axe check to e2e (T7-4) so it stays fixed.
 
+*Deferred to v2.1 (Will, 2026-11-18):* handled as one accessibility pass with color-blind safety and related items; see Future features.
+
 **T5-6 | major | Will | `layout/Shell.svelte`, `layout/TabBar.svelte`**
 There are two navigation systems with different contents. The sidebar lists Live Field, Teams, Network, Dimensions and Layout, then Camera, Geometry, Color, Stream and Debug. The top tab bar repeats them under "GLOBAL CONFIGS" and "PER-CAMERA CONFIGS - FIELD CAM #0", but has no Stream, Debug, Alerts or Advanced. A new user can't tell which is primary, or why some pages appear in only one.
 Fix: pick one. Keep the sidebar (it scales to several cameras) and drop the tab bar, or keep the tabs only on narrow screens as a replacement for the sidebar.
@@ -391,6 +407,8 @@ Fix: first-run-aware text in the wizard and save dialog, a welcome line, the sid
 With no snapshot yet, the corner picker renders a broken-image icon with its alt text ("cam 0 calibration input") and a bare `line_corners:` code block, and the page requests `/api/snapshot/0/geomcalib_input` and logs a 404 in the console on every visit. "Lock current calibration" is styled like an enabled primary button when there's nothing to lock.
 Fix: an empty state ("No calibration frame yet. vision_processor saves one when it starts calibrating"), fetch only what `/api/snapshots` lists, and a plainly disabled lock button with a reason.
 
+*Done 2026-11-18 (Claude, at Will's request):* the corner picker lists `/api/snapshots` first (and on Refresh frame) and only requests `geomcalib_input` when it exists, so no broken image or 404; otherwise it says no calibration frame has been saved yet and that it's local-only. The `line_corners:` block shows only with an image. The Lock button was already disabled without a live calibration; a visible line under it now says why (the tooltip only showed on hover).
+
 **T5-9 | minor | Will | Camera page, external cameras**
 Without `-runCameras`, the Camera page edits settings the host can't deliver: "This camera has no `config_path`, so the host doesn't write its config file; copy these to it by hand." This is a known limitation (config push isn't built), but the page still looks like a working form.
 Fix: in that mode, show the settings read-only with a "Copy as YAML" button, or link to the docs section on running vision_processor with a host-written config.
@@ -400,6 +418,8 @@ At 390 px pages scroll horizontally; not a target. 1024 px is fine.
 
 **T5-11 | nit | Will | Camera page**
 The Gamma toggle shows **on** with the label "Off" next to it (`t-camera.png`), unlike Exposure and Gain, where on means "Auto". The Color page's YUV plane keeps a bright light-gray hatched background in dark mode.
+
+*Done 2026-11-18 (Claude, at Will's request):* the Gamma toggle reads "Linear" (on means 1.0, no gamma), so on no longer sits next to "Off". The YUV plane's out-of-gamut checkerboard uses dark shades in dark mode and redraws when the theme changes.
 
 ### Track 6: documentation
 
@@ -509,12 +529,18 @@ No way to measure frontend coverage (`@vitest/coverage-v8` isn't installed, so `
 **T7-6 | nit | Claude | `gui/Makefile` e2e / release-check**
 `main.run()` and the wiring around it show 0% because they're only exercised as a binary. `go build -cover` with `GOCOVERDIR` for the e2e and release-check binaries would measure that, and show which startup paths no test reaches.
 
+*Done 2026-11-18 (Claude, at Will's request):* `make e2e-cover` builds the host with `-cover` and runs the browser tests with `GOCOVERDIR`, then prints per-package coverage and writes `bin/cover/e2e.out`. `run` goes from 0% to 70.4%. Needed two fixes: Playwright now stops the hosts with SIGTERM (`gracefulShutdown`), and `serve.mjs` starts the host in its own process group, since a second SIGTERM (the group's plus the forwarded one) made it quit without a clean exit. `release-check` isn't instrumented.
+
 **T7-7 | nit | Will | 26 `time.Sleep` calls in 11 Go test files**
 Three `-race` reruns were clean, but sleeps are where CI-load flakes start. Where a sleep waits for a condition rather than for time to pass, poll against a deadline instead (`mctest` already has helpers).
+
+*Done 2026-11-18 (Claude, at Will's request):* condition sleeps are now waits: the hub's WebSocket tests wait for the subscriber count (`waitSubscribers`), and `TestAChangeReachesWebSocketSubscribers` waits for `hub.Watched` (`waitUntil`). The sleeps left assert that something does *not* happen (no restart after a debounce, no packet from another group, no suspend while awake) or space edits inside a debounce window, and need real time; the rest are inside poll loops.
 
 **T7-8 | minor | Will | `frontend/src/lib/color.svelte.ts:59-77`**
 Found while adding tests. `yuvInGamut` has no rounding tolerance. Because `rgbToYuv` rounds to integers, about 4% of real RGB colors (5,821 of 140,608 sampled) come back outside the gamut by up to 2.9. Every saturated canonical color and pure white is among them. The YUV plane on the Color page therefore shades part of the true gamut boundary as unreachable, and "least unreachable Y" picks can be off by one at the edge.
 Fix: treat an overflow under ~3 as in gamut (or compare against the rounded decode). Pinned as `it.fails` in `color.test.ts`: remove the `.fails` when it's fixed.
+
+*Done 2026-11-18 (Claude, at Will's request):* `yuvInGamut` accepts an overflow under `GAMUT_TOLERANCE` (3). The pinned test is a real one now and also checks every RGB color in steps of 5 (140,608) is in gamut. `yuvGamutOverflow` is unchanged, so the least-unreachable-Y search still ranks by the exact overflow.
 
 ### Track 8: cross-cutting consistency
 
@@ -547,7 +573,7 @@ Read-only fresh clones, 2026-11-11: ssl-go-tools master `ce5fa35` (latest tag v1
 
 - **Nothing new has been merged to sslnet.** No sslnet change has landed on master since v1.12.0 (2026-07-02). Nicolai's work is **open PR #29** "feat: Add UdpServer for multicast and broadcast reception" (g3force, 2026-11-07, branch `improved-multicast`). CI is green and it has no human review. On master and v1.12.0, which GC and status-board pin, **all four deficiencies in `gui/CLAUDE.md` remain**. Two more bugs on master: a socket fd leak on a failed `JoinGroup` (`multicast_server.go:113-116`), and an unguarded write to `r.connection` racing with `Stop` (`:103` vs `:57`).
 - **PR #29 fixes all four for receive, without breaking anything.** `MulticastServer` and `BroadcastServer` become deprecated wrappers with the same signatures. It joins every eligible interface on one socket and re-checks every 5 s, uses a 2 MiB SO_RCVBUF with a 64 KiB read buffer, and filters by destination via IP_PKTINFO on Linux. It has no send-side changes, no health or status for callers, a fixed buffer size, and no runtime address change.
-- **We can adopt very little.** Upstream protobuf bindings are all under `internal/` (not importable). Only `pkg/sslnet` and `pkg/sourcefilter` are safe to import. **Never** import `pkg/persistence`, `player`, `stats` or `auto`: they register a second `ssl_vision_wrapper.proto` under the same name, a protobuf-go registry conflict (inferred, not reproduced). `sourcefilter` is the one cheap, worthwhile adoption.
+- **We can adopt very little.** Upstream protobuf bindings are all under `internal/` (not importable). Only `pkg/sslnet` and `pkg/sourcefilter` are safe to import. **Never** import `pkg/persistence`, `player`, `stats` or `auto`: they register a second `ssl_vision_wrapper.proto` under the same name, a protobuf-go registry conflict (inferred, not reproduced). `sourcefilter` is the one cheap, worthwhile adoption. **Correction 2026-11-18:** ssl-go-tools is GPL-3.0 and this repo is Apache-2.0, so nothing from it can be imported or copied without making the binary GPL; L-5 was written independently.
 - **Upstream contributions:** the receive-buffer option, a health accessor, interface listing, a resilient sender and the loopback test helper can all land as **purely additive** additions on top of #29. Anything that changes `MulticastServer`/`UdpClient` behaviour for existing users stays local.
 - **Shared protos are in sync.** Referee, game event, common, GC geometry, tracked and vision geometry are identical to GC master once comments are stripped. Ours adds only `t_offsets` and `SSL_VPConfig config`, both wire-compatible. ssl-go-tools' own referee proto is stale against GC; that doesn't affect us.
 - **For context only (protocol track, out of scope):** the `proto` submodule is at `fdd7988` on ssl-protocol-defs `dev/vision-processor`, two commits ahead of `main` and not merged.
@@ -559,7 +585,7 @@ Read-only fresh clones, 2026-11-11: ssl-go-tools master `ce5fa35` (latest tag v1
 | Receive sockets (v1.12.0) | `internal/multicast/socket.go`, `endpoint.go` | `sslnet.MulticastServer` | **Reject**: all four deficiencies, plus the leak and race |
 | Receive sockets (PR #29) | `socket.go:33-140`, `socket_linux.go` | `sslnet.UdpServer` | **Defer.** Unreleased. Would save ~150 lines, but we'd lose `Status.Problem` (Network page) and the per-endpoint buffer (video wants 4 MiB). Revisit when it's tagged *and* U-1/U-2 have landed. `Select`'s skip list maps straight onto `SkipInterfaces`. |
 | Send sockets | `sender.go` | `sslnet.UdpClient` | **Reject**: it dials once and drops failed connections forever; no health, no `IsOwn` |
-| Duplicate-GC filtering | `main.go:324-327` | `pkg/sourcefilter` (`ab1bf6e`), ~100 lines, stdlib only | **Adopt**: see L-5 |
+| Duplicate-GC filtering | `main.go:324-327` | `pkg/sourcefilter` (`ab1bf6e`), ~100 lines, stdlib only | ~~Adopt~~ GPL-3.0: own implementation, see L-5 |
 | Protobuf bindings | `internal/vision`, `internal/gamecontroller` | upstream `internal/...` | **Keep**: not importable, lacks our VP fields |
 
 ### Upstream candidates (additive only, on top of PR #29)
@@ -598,6 +624,8 @@ No dependency bot. Every league Go repo runs Renovate (GC `.github/renovate.json
 Every referee packet from any sender overwrites `match.Teams`. With a second GC on the network (common in labs and in team areas at events), team names, side assignment and the missing-height alert flap. Upstream fixed exactly this for its own tools (`pkg/sourcefilter`, `ab1bf6e`).
 Fix: gate `trackReferee` with `sourcefilter.Accept(from.IP)` (or copy its ~30-line `Accept`), and keep the `peers` alert.
 
+*Done 2026-11-18 (Claude, at Will's request):* `referee.Source` follows the first game controller heard and switches only after it's silent for 3 s (`SourceTimeout`); every sender still counts toward the `sender_conflict` alert. **Not** upstream's `pkg/sourcefilter`: ssl-go-tools is GPL-3.0 and this repo is Apache-2.0, so importing or copying it would make the binary GPL. Written from the idea, not the code. The same applies to the "Adopt from upstream" table and "safe to import" note below: sslnet is GPL too.
+
 **L-6 | nit | Claude | `gui/CLAUDE.md` Stack (sslnet bullet)**
 Add "re-evaluate when ssl-go-tools PR #29 is released; still needs U-1/U-2", plus the leak and race as further reasons.
 
@@ -605,6 +633,8 @@ Add "re-evaluate when ssl-go-tools PR #29 is released; still needs U-1/U-2", plu
 
 **L-7 | nit | Will | `main.go:58`**
 GC, vision-client and status-board use `-verbose`; we use `-logLevel`. Accept `-verbose` as an alias for `-logLevel Debug`.
+
+*Done 2026-11-18 (Claude, at Will's request):* `-verbose` sets the level to Debug, overriding `-logLevel`. In the man page and README flag table.
 
 **L-8 | nit | Claude | packaging**
 No docker image (`robocupssl/<cmd>` is the league pattern). A host-only image would join GC's compose stack. Defer past v1.
@@ -616,6 +646,8 @@ No docker image (`robocupssl/<cmd>` is the league pattern). A host-only image wo
 ## Future features
 
 These came up during the review. They're out of scope for the MVP and not findings.
+
+- **Accessibility pass (v2.1, from T5-5).** Labels for every form control, contrast for the muted grays and tab headers, focusable scroll regions, and axe in e2e (T7-4) so it stays fixed. Also color-blind safety: team and blob colors, alert severities and status dots shouldn't rely on hue alone (add shape, text or pattern), checked with a color-vision simulator.
 
 - **The rest of `debug:` in the GUI** (from T5-1). Each one is left out for a reason:
   - `wait_for_geometry` hangs vision_processor on a first run, because nothing is published before the first save. Before exposing it, either the host publishes field-only geometry during the first run, or the toggle carries a first-run warning.

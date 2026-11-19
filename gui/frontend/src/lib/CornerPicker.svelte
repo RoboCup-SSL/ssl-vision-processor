@@ -4,6 +4,8 @@
   const text = geometry.cornerPicker;
   import SettingsCard from "./SettingsCard.svelte";
   import { Button, P } from "flowbite-svelte";
+  import { requestJSON } from "./api";
+  import type { SnapshotEntry } from "./apiTypes";
   import { untrack } from "svelte";
   import { config, cameraDoc } from "./config.svelte";
   import { cameraCount, regionLabel, slotSlice } from "./cameraLayout";
@@ -37,6 +39,9 @@
   const view = "geomcalib_input"; // GeomModel.cpp's calibration input snapshot
 
   let cacheBuster = $state(Date.now());
+  // Whether the host lists the frame, so a missing one shows a message rather
+  // than a broken image and a 404. Unknown until the first listing.
+  let hasFrame = $state<boolean | null>(null);
   let imageWidth = $state(0);
   let imageHeight = $state(0);
 
@@ -169,9 +174,20 @@
     commit();
   }
 
-  function refreshFrame(): void {
+  async function refreshFrame(): Promise<void> {
+    try {
+      const response = await requestJSON("/api/snapshots");
+      const all = (await response.json()) as SnapshotEntry[];
+      hasFrame = all.some((s) => s.cameraId === cameraId && s.view === view);
+    } catch {
+      hasFrame = false;
+    }
     cacheBuster = Date.now();
   }
+
+  $effect(() => {
+    void untrack(refreshFrame);
+  });
 
   // The chosen origin corner first, the other three following it around the
   // quadrilateral. Any order of those three is correct per the note above,
@@ -305,10 +321,17 @@
     size="sm"
     color="alternative"
     class="self-start"
-    onclick={refreshFrame}>Refresh frame</Button
+    onclick={() => void refreshFrame()}>{text.refresh}</Button
   >
 
+  {#if hasFrame === false}
+    <P size="sm" class="mt-2 text-gray-600 dark:text-gray-400"
+      >{text.noFrame(cameraId)}</P
+    >
+  {/if}
+
   <div
+    hidden={!hasFrame}
     class="overlay-container"
     role="application"
     aria-label="Calibration corner picker"
@@ -316,13 +339,15 @@
     onpointerup={endDrag}
     onpointercancel={endDrag}
   >
-    <img
-      src={`/api/snapshot/${String(cameraId)}/${view}?t=${String(cacheBuster)}`}
-      alt={`cam ${String(cameraId)} calibration input`}
-      onload={(e: Event) => {
-        handleImageLoad(e.currentTarget as HTMLImageElement);
-      }}
-    />
+    {#if hasFrame}
+      <img
+        src={`/api/snapshot/${String(cameraId)}/${view}?t=${String(cacheBuster)}`}
+        alt={`cam ${String(cameraId)} calibration input`}
+        onload={(e: Event) => {
+          handleImageLoad(e.currentTarget as HTMLImageElement);
+        }}
+      />
+    {/if}
 
     {#if imageWidth > 0}
       <svg
@@ -383,7 +408,9 @@
     {/if}
   </div>
 
-  <pre>{yamlSnippet}</pre>
+  {#if hasFrame}
+    <pre>{yamlSnippet}</pre>
+  {/if}
 </SettingsCard>
 
 <style>

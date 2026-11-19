@@ -160,6 +160,16 @@ function present(a: HostAlert): Alert {
         detail: text.deviceConflictDetail(str("conflict")),
         actions: [howTo("device-conflict")],
       };
+    case "process_crashing":
+      return {
+        ...base,
+        title: text.processCrashing(a.cameraId ?? 0, Number(p["crashes"])),
+        detail: text.processCrashingDetail(str("lastLine"), str("exit")),
+        actions: [
+          howTo("process-crashing"),
+          page(text.pages.camera, a.cameraId, "camera"),
+        ],
+      };
     case "first_run_not_publishing":
       return {
         ...base,

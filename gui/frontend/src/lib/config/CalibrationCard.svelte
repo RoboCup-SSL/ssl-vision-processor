@@ -3,7 +3,7 @@
   import StatusAlert from "../StatusAlert.svelte";
   import { geometry as text } from "../text/geometry";
   import SettingsCard from "../SettingsCard.svelte";
-  import { Button, Spinner, P } from "flowbite-svelte";
+  import { Button, Helper, Spinner, P } from "flowbite-svelte";
   import {
     config,
     cameraDoc,
@@ -106,6 +106,9 @@
         {text.calibration.unlock}
       </Button>
     </div>
+    {#if !status.live && status.calibration === "none"}
+      <Helper class="mt-1">{text.nothingToLockDetail}</Helper>
+    {/if}
   {/if}
 </SettingsCard>
 

@@ -28,6 +28,9 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 30_000,
       stdout: "pipe",
+      // The host shuts down cleanly, which also writes its coverage under
+      // make e2e-cover; a kill would lose it.
+      gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
     },
     {
       command: `node e2e/serve.mjs ${String(FIRST_RUN_PORT)} --first-run`,
@@ -35,6 +38,7 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 30_000,
       stdout: "pipe",
+      gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
     },
   ],
 });

@@ -7,6 +7,7 @@
     type StreamStatus,
   } from "./videoStream";
   import { video as text } from "../text/video";
+  import { lastLine, processFor, processHealth } from "../processes.svelte";
 
   // One camera's live stream. Built to be reused by a grid later: each
   // player owns its own connection, and "keyframes" mode costs a fraction of
@@ -93,17 +94,46 @@
     };
   });
 
+  // The host's own vision_processor for this camera keeps exiting or isn't
+  // started: no video is coming, so no spinner.
+  let stuck = $derived.by(() => {
+    const proc = processFor(cameraId);
+
+    return (
+      proc !== undefined && ["failing", "held"].includes(processHealth(proc))
+    );
+  });
+
   // Still expecting video, as opposed to an error or streaming being off.
   let waiting = $derived(
-    !error && (!status || (status.active && (!status.receiving || !format))),
+    !error &&
+      !stuck &&
+      (!status || (status.active && (!status.receiving || !format))),
   );
+
+  // Why there's no video, when the host runs the vision_processor itself.
+  function notReceiving(address: string): string {
+    const proc = processFor(cameraId);
+    if (!proc) return text.waiting(address);
+
+    switch (processHealth(proc)) {
+      case "failing":
+        return text.processExiting(lastLine(proc));
+      case "held":
+        return text.processHeld(proc.conflict ?? "");
+      case "starting":
+        return text.processStarting;
+      case "running":
+        return text.waiting(address);
+    }
+  }
 
   let overlay = $derived.by((): string | null => {
     if (error) return error;
     if (!status) return text.connecting;
     if (!status.active) return text.streamingOff;
     if (status.problem) return text.cantListen(status.address, status.problem);
-    if (!status.receiving) return text.waiting(status.address);
+    if (!status.receiving) return notReceiving(status.address);
     if (!format) return text.waitingKeyframe;
 
     return null;
