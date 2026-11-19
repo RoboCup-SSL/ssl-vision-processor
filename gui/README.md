@@ -1,13 +1,13 @@
 # vision_processor GUI
 
-A browser interface for setting up and running [vision_processor](../README.md), the SSL's shared vision system.
+A browser interface for setting up and running [vision_processor](https://github.com/RoboCup-SSL/ssl-vision-processor#readme), the SSL's shared vision system.
 It holds your field geometry and camera settings, locks in camera calibrations, shows live video and the live
 field, and publishes the field geometry to the rest of the league's software.
 
 It is one self-contained program: download it and run it. It needs no installation, no root, and no other files.
 On Ubuntu you can [install the package](#installing-the-package) instead, which can also run it as a service.
 
-Working on the GUI itself? See [DEVELOPMENT.md](DEVELOPMENT.md).
+Working on the GUI itself? See [DEVELOPMENT.md](https://github.com/RoboCup-SSL/ssl-vision-processor/blob/master/gui/DEVELOPMENT.md).
 
 ## Quick start
 
@@ -225,7 +225,7 @@ as a competition field limits which web pages can use the API, but that only app
 ## Cameras
 
 This download is the GUI only. It doesn't include vision_processor, which does the camera processing. For now you
-build that from source: see the [main README](../README.md). The GUI finds running vision_processors through the
+build that from source: see the [main README](https://github.com/RoboCup-SSL/ssl-vision-processor#readme). The GUI finds running vision_processors through the
 multicast traffic they send, wherever they run.
 
 There are two ways to run the cameras:

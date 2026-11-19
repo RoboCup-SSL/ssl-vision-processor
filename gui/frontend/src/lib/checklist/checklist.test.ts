@@ -49,16 +49,13 @@ function state(
     file: over.path ?? "vision.yml",
     firstRun: over.firstRun ?? false,
     revision: 1,
-    changes: Array.from(
-      { length: over.changes ?? 0 },
-      (_, i): Change => ({
-        path: `p${String(i)}`,
-        jsonPath: `p${String(i)}`,
-        before: null,
-        after: null,
-        section: "camera",
-      }),
-    ),
+    changes: Array.from({ length: over.changes ?? 0 }, (_, i): Change => ({
+      path: `p${String(i)}`,
+      jsonPath: `p${String(i)}`,
+      before: null,
+      after: null,
+      section: "camera",
+    })),
     cameras: over.cameras ?? [],
     localCameras: false,
   };

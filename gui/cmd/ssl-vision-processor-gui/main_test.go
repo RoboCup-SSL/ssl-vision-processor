@@ -194,3 +194,21 @@ func TestListenUIBindsAFreePort(t *testing.T) {
 	}
 	ln.Close()
 }
+
+// The README ships on its own (the tarball, the .deb's doc folder, -readme),
+// so a link to another file only works as a full URL.
+func TestReadmeLinksWorkOutsideTheRepo(t *testing.T) {
+	readme, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, m := range regexp.MustCompile(`\]\(([^)\s]+)`).FindAllSubmatch(readme, -1) {
+		target := string(m[1])
+		if strings.HasPrefix(target, "#") || strings.HasPrefix(target, "https://") || strings.HasPrefix(target, "http://") {
+			continue
+		}
+
+		t.Errorf("README.md links to %q, which doesn't exist beside the shipped README; use a full URL", target)
+	}
+}

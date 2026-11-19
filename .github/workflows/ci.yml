@@ -21,8 +21,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - name: Build all targets
         run: |
@@ -67,8 +67,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       # The socket tests send real multicast over loopback, which Ubuntu
       # ships with multicast off. They fail rather than skip under CI, so a
@@ -76,16 +76,23 @@ jobs:
       - name: Enable loopback multicast
         run: sudo scripts/lo-multicast.sh on
 
-      - name: Format, vet, build, test
+      - name: Format, vet, lint, build, test
         run: |
           nix develop --command bash -c '
             cd gui
             make fmt-check
             make vet
+            make lint
             make build
             make go-test
             make generate-check
           '
+
+      # Reported, not enforced: a new advisory shouldn't fail an unrelated
+      # PR. Read it before tagging a release.
+      - name: Known vulnerabilities
+        continue-on-error: true
+        run: nix develop --command bash -c 'cd gui && make vulncheck'
 
   gui-apt:
     name: Go and frontend (gui, Ubuntu 24.04, no nix)
@@ -144,8 +151,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       # A first run publishes nothing, so this can't disturb anything.
       - name: Build it and run it as a new user would
@@ -163,8 +170,8 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - name: Build
         run: nix develop --command bash -c 'cd gui && make deb'
@@ -189,8 +196,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - name: Lint, check, build
         run: |
@@ -211,8 +218,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - name: Smoke tests
         run: |

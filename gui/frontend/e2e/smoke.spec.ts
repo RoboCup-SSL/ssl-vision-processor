@@ -136,12 +136,9 @@ test("unlocking a calibration goes through the API", async ({ page }) => {
 });
 
 test("leaving a page right after an edit", async ({ page }) => {
-  // Known bug: flowbite-svelte 1.33.1's Input calls its onblur prop through
-  // state Svelte has already torn down when a focused input unmounts
-  // (derived_inert, then "L(...) is not a function"). The edit itself is
-  // saved first. Remove test.fail once it's fixed, and this test guards it.
-  test.fail();
-
+  // Guards a fixed bug: unmounting a focused flowbite-svelte Input called its
+  // onblur through torn-down state ("L(...) is not a function"). Gone with
+  // svelte 5.58.0 (flowbite-svelte 1.33.1 unchanged).
   const errors = pageErrors(page);
 
   await page.goto("/#0/field_dimensions");

@@ -24,7 +24,7 @@ SHA256SUM = $(shell command -v sha256sum >/dev/null 2>&1 && echo sha256sum || ec
 
 .DEFAULT_GOAL := help
 
-.PHONY: help run install test check e2e vet build go-test frontend-test fmt-check generate-check \
+.PHONY: help run install test check e2e vet lint vulncheck build go-test frontend-test fmt-check generate-check \
 	multicast-note e2e-if-chrome npm proto defaults redoc comments openapi frontend generate clean release release-check deb
 
 ## Running
@@ -110,7 +110,7 @@ deb: frontend ## Build the .deb packages, amd64 and arm64, in bin/deb
 
 test: go-test frontend-test ## Go tests (-race), and the frontend's checks and unit tests
 
-check: multicast-note fmt-check vet go-test frontend-test generate-check e2e-if-chrome ## Everything CI checks for gui/
+check: multicast-note fmt-check vet lint go-test frontend-test generate-check e2e-if-chrome ## Everything CI checks for gui/
 
 e2e: frontend ## Browser tests: the real host in Google Chrome (frontend/e2e/)
 	go build -o $(E2E_BIN) ./cmd/$(BINARY)
@@ -118,6 +118,12 @@ e2e: frontend ## Browser tests: the real host in Google Chrome (frontend/e2e/)
 
 vet: frontend ## go vet every package
 	go vet $(GO_PACKAGES)
+
+lint: frontend ## staticcheck every package (version pinned in go.mod)
+	go tool staticcheck $(GO_PACKAGES)
+
+vulncheck: frontend ## Known vulnerabilities in what the host calls; needs the network, so not in check
+	go tool govulncheck $(GO_PACKAGES)
 
 build: frontend ## go build every package, without installing
 	go build $(GO_PACKAGES)

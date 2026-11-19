@@ -19,7 +19,8 @@ All run from `gui/`.
 make               # list the targets
 make run           # build everything, run the host from the repo root on :8080 (ARGS="..." for flags)
 make test          # go test -race + the frontend's checks and unit tests
-make check         # everything CI checks: gofmt, vet, tests, generated files, browser tests
+make check         # everything CI checks: gofmt, vet, staticcheck, tests, generated files, browser tests
+make vulncheck     # govulncheck (needs the network; CI reports it, doesn't fail on it)
 make e2e           # Playwright browser tests (frontend/e2e/): real host, installed Google Chrome
 make generate      # rewrite the one committed generated file: the alert codes
 make release-check # build the static release, run it as a new user would
@@ -97,7 +98,10 @@ buf.gen.yaml   generates both internal/{vision,gamecontroller} and
   never connected, which crashed the host whenever no interface was usable
   (a suspend, an unplugged cable); its receiver also listens on one interface
   at a time, binds `0.0.0.0` (mixing groups that share a port), and uses an
-  8 KB receive buffer.
+  8 KB receive buffer. It also leaks the socket when `JoinGroup` fails, and
+  races `Stop` against its own reconnect. Re-evaluate once ssl-go-tools PR
+  #29 (`UdpServer`) is released, if it also has a settable receive buffer and
+  a health accessor (REVIEW.md U-1, U-2); `pkg/sourcefilter` is fine to use.
 - **`google.golang.org/protobuf` + `protojson`**, never `encoding/json` on a
   generated message (see Gotchas).
 - **Svelte 5 runes only**, no stores added beyond what predates this work

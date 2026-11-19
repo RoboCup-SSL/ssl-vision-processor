@@ -27,10 +27,10 @@ Owner per finding: **Will** (Go/Svelte) or **Claude** (build/CI/packaging/docs i
 
 ## Status
 
-Updated 2026-11-18. **Open** 58 · **Partial** 4 · **Done** 6 · **Dropped/merged** 2. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, dropped, merged.
+Updated 2026-11-18. **Open** 47 · **Partial** 5 · **Done** 15 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, dropped, merged.
 
 **Next up** (MVP gate order; see the end of this file):
-All blockers are fixed. T4-1, T2-1 and L-1 are awaiting commit.
+All blockers are fixed. T4-1, T2-1, L-1 and the build/docs batch (T1-5, T1-7, T1-9, T1-10, T2-7, T4-8, T6-3, T6-4, T6-6, T6-7, T7-3, L-6) are awaiting commit.
 1. T5-3, T5-2, T5-4: lab path.
 
 | ID | Sev | Owner | Item | Status |
@@ -39,12 +39,12 @@ All blockers are fixed. T4-1, T2-1 and L-1 are awaiting commit.
 | T1-2 | major | Claude | release tag not gated on `make check` / e2e | open |
 | T1-3 | major | Claude + Will | package description promises a VP package that doesn't exist | open |
 | T1-4 | minor | Claude | tarball and `-bin` amd64 only (absorbs L-3) | open |
-| T1-5 | minor | Claude | stale toolchain and dependencies | open |
+| T1-5 | minor | Claude | stale toolchain and dependencies | partial |
 | T1-6 | minor | Claude | CI skips the `v2.0-alpha` branch | open |
-| T1-7 | minor | Claude | no Go linter beyond vet | open |
+| T1-7 | minor | Claude | no Go linter beyond vet | done |
 | T1-8 | minor | Claude | `setup.sh` still offers `geom_publisher` | open |
-| T1-9 | nit | Claude | legacy `.gitlab-ci.yml` | open |
-| T1-10 | nit | Claude | unpinned nix actions | open |
+| T1-9 | nit | Claude | legacy `.gitlab-ci.yml` | done |
+| T1-10 | nit | Claude | unpinned nix actions | done |
 | T1-11 | nit | Will | `DEB_MAINTAINER` personal address | open |
 | T2-1 | major | Will | HTTP bind happens last; "UI is available" logged early | done |
 | T2-2 | minor | Will | publish tick is the host's only clock | open |
@@ -52,7 +52,7 @@ All blockers are fixed. T4-1, T2-1 and L-1 are awaiting commit.
 | T2-4 | minor | Will | `main.go` too big | open |
 | T2-5 | minor | Will | CLI help | open |
 | T2-6 | minor | Will | log keys and messages | open |
-| T2-7 | nit | Will | staticcheck hits | partial |
+| T2-7 | nit | Will | staticcheck hits | done |
 | T3-1 | major | Will | WS topic contract in three places | open |
 | T3-2 | major | Will | generated `paths` unused | open |
 | T3-3 | major | Will | naming pass before freezing API 1.0 | open |
@@ -65,7 +65,7 @@ All blockers are fixed. T4-1, T2-1 and L-1 are awaiting commit.
 | T4-5 | minor | Will | large components | open |
 | T4-6 | minor | Will | bus still on `svelte/store` | open |
 | T4-7 | nit | Will | hex colours | partial |
-| T4-8 | nit | Claude | Flowbite `@source` CSS bloat | open |
+| T4-8 | nit | Claude | Flowbite `@source` CSS bloat | dropped |
 | T5-1 | blocker | Will | placeholder Debug page | done |
 | T5-2 | major | Will | crash-looping VP raises no alert | open |
 | T5-3 | major | Will | SPINNAKER default driver | open |
@@ -79,14 +79,14 @@ All blockers are fixed. T4-1, T2-1 and L-1 are awaiting commit.
 | T5-11 | nit | Will | Gamma toggle label | open |
 | T6-1 | major | Claude (Will reviews) | `ARCHITECTURE.md` drift | open |
 | T6-2 | minor | Claude (Will decides) | `CLAUDE.md` vs `ARCHITECTURE.md` split | open |
-| T6-3 | minor | Claude | frontend README describes old tabs | open |
-| T6-4 | minor | Claude | README relative links break when shipped | open |
+| T6-3 | minor | Claude | frontend README describes old tabs | done |
+| T6-4 | minor | Claude | README relative links break when shipped | done |
 | T6-5 | major | Claude + Will | quick start stops at first save | open |
-| T6-6 | minor | Claude | root README pointers | open |
-| T6-7 | nit | Claude | README details | open |
+| T6-6 | minor | Claude | root README pointers | done |
+| T6-7 | nit | Claude | README details | partial |
 | T7-1 | major | Will | no component tests | open |
 | T7-2 | major | Will | untested logic modules | partial |
-| T7-3 | major | Will | flowbite `Input` unmount error (`test.fail`) | open |
+| T7-3 | major | Will | flowbite `Input` unmount error (`test.fail`) | done |
 | T7-4 | major | Will + Claude | e2e scenario gaps, axe | open |
 | T7-5 | minor | Claude | frontend coverage tooling | done |
 | T7-6 | nit | Claude | coverage for binary-only paths | open |
@@ -102,7 +102,7 @@ All blockers are fixed. T4-1, T2-1 and L-1 are awaiting commit.
 | L-3 | — | — | arm64 assets | merged (T1-4) |
 | L-4 | minor | Claude | no dependency bot | open |
 | L-5 | major | Will | duplicate GC flaps referee state | open |
-| L-6 | nit | Claude | `CLAUDE.md` sslnet note | open |
+| L-6 | nit | Claude | `CLAUDE.md` sslnet note | done |
 | L-7 | nit | Will | `-verbose` alias | open |
 | L-8 | nit | Claude | docker image | open |
 
@@ -182,6 +182,8 @@ Fix: loop `release` over `DEB_ARCHES` (or a `RELEASE_ARCHES`), and include both 
 Stale toolchain and dependencies at release time: go 1.26.7 (10 reachable stdlib advisories fixed by 1.26.11), `golang.org/x/net` 0.55 (0.60), 23 `npm audit` entries, most cleared by in-range `npm update`.
 Fix: bump all three before tagging. Add `govulncheck` as a non-blocking CI step, or to a pre-release checklist.
 
+*Progress 2026-11-18 (Claude):* Go modules bumped within their majors (`x/net` 0.55→0.63, `x/sys`, `tint`, `mediacommon`, `pion/rtp`); `npm update` within ranges took `npm audit` from 16 findings to 0 (lockfile only). `make vulncheck` (govulncheck, pinned in `go.mod`) runs in CI as a non-blocking step. **Left for Will:** `flake.lock`. `nix flake update` brings Go 1.27.3, but also protobuf 35→36 and yaml-cpp 0.8→0.9 for vision_processor's C++ build, so it was reverted. govulncheck still reports 10 stdlib advisories that only a newer Go clears.
+
 **T1-6 | minor | Claude | `.github/workflows/ci.yml:3-6`**
 CI runs on `push: [master]` and PRs only. `v2.0-alpha`, the integration branch the MVP ships from, is tested only when a PR targets it; direct pushes and merges into it (e.g. `443d12a`, `fd10e0b`) are never built.
 Fix: add `v2.0-alpha` (or `v*-alpha`) to `push.branches` until it merges.
@@ -190,6 +192,8 @@ Fix: add `v2.0-alpha` (or `v*-alpha`) to `push.branches` until it merges.
 No Go linter beyond `vet`. staticcheck finds two things today (`internal/config/store_test.go:506` dead assignment; `internal/logging/logging.go:83` deprecated `tint.NewHandler`).
 Fix: `go get -tool honnef.co/go/tools/cmd/staticcheck`, run it in `make check` / the `gui-go` job. Will fixes the two hits.
 
+*Done 2026-11-18 (Claude, at Will's request):* staticcheck is a Go tool pinned in `gui/go.mod` (`go tool staticcheck`), run by `make lint`, which `make check` and the `gui-go` CI job include. Clean today.
+
 **T1-8 | minor | Claude | `setup.sh:126-131`**
 The C++ setup script still offers a `geom_publisher` user service and never mentions the GUI. A user who answers `y` and later runs the GUI has two geometry publishers. The host raises a `sender_conflict` error for that (`internal/alerts/alerts.go:107`), so it's caught, but it's an avoidable first-day trap. Also a typo: "installationa".
 Fix: drop the prompt, or print "the GUI (gui/README.md) replaces this; say no unless you aren't using it", with default `N` (already the default).
@@ -197,8 +201,12 @@ Fix: drop the prompt, or print "the GUI (gui/README.md) replaces this; say no un
 **T1-9 | nit | Claude | `.gitlab-ci.yml`**
 A legacy C++-only build on `ubuntu:latest`, duplicating `build-apt` in GitHub CI and pinned to nothing. Remove it, or note who still uses it.
 
+*Done 2026-11-18 (Claude, at Will's request):* `.gitlab-ci.yml` and its `.gitignore` exception are deleted. `build-apt` in GitHub CI covers the same build.
+
 **T1-10 | nit | Claude | `.github/workflows/*.yml`**
 `DeterminateSystems/nix-installer-action@main` and `magic-nix-cache-action@main` are unpinned, so the release build's toolchain setup can change under a tag. Pin to a release tag.
+
+*Done 2026-11-18 (Claude, at Will's request):* pinned to `nix-installer-action@v23` and `magic-nix-cache-action@v15`, the latest releases, in both workflows.
 
 **T1-11 | nit | Will | `gui/Makefile:84`**
 `DEB_MAINTAINER` defaults to a personal address. Decide whether the league package should name a team or committee alias.
@@ -243,6 +251,8 @@ Fix: one key per concept (`camera`, `err`, `path`, `interface`) in one case, and
 **T2-7 | nit | Will | `internal/logging/logging.go:83`, `internal/config/store_test.go:506`**
 The staticcheck hits from Phase 0: deprecated `tint.NewHandler` → `tint.NewTextHandler`, and an unused `rev` assignment.
 *Progress 2026-11-11 (Claude):* the `store_test.go` dead assignment is fixed. `tint.NewHandler` is application code and remains.
+
+*Done 2026-11-18 (Claude, at Will's request):* `tint.NewHandler` → `tint.NewTextHandler`. staticcheck is now clean and enforced (T1-7).
 
 ### Track 3: API / OpenAPI contract
 
@@ -319,6 +329,8 @@ Fix: one CSS custom property each in `app.css`.
 
 **T4-8 | nit | Claude | `frontend/src/app.css:129`**
 `@source "../node_modules/flowbite-svelte/dist"` generates CSS for every class any Flowbite component uses: 294 kB raw, 40 kB gzipped. Fine on a LAN; noted only so it isn't mistaken for a leak.
+
+*Dropped 2026-11-18:* noted, no action; it's a size note, not a defect.
 
 ### Track 5: new-user experience (hands-on)
 
@@ -407,9 +419,13 @@ Fix: make `ARCHITECTURE.md` the single home for decisions and gotchas, and slim 
 **T6-3 | minor | Claude | `gui/frontend/README.md:8-18`**
 It describes a tab bar with "the shared Overview, Network, Field Dimensions, Camera Layout and Advanced". The real tab bar is Live Field, Teams, Network, Dimensions, Layout | Camera, Geometry, Color. There is no Overview, and Advanced isn't in it. It also defers to "the root README" for the snapshot same-filesystem limitation, but that's documented in `ARCHITECTURE.md`. Fix both.
 
+*Done 2026-11-18 (Claude, at Will's request):* the page and tab lists match `configCategories.ts`, the snapshot limitation points at `ARCHITECTURE.md`'s "Not yet built", the App.svelte bullet describes what's left after T4-1, `SnapshotViews.svelte` is listed, the snapshot JSON field is `cameraId`, and `make run` points at `DEVELOPMENT.md`.
+
 **T6-4 | minor | Claude | `gui/README.md` relative links**
 The README ships in the tarball (beside `LICENSE.md`), in the `.deb` (`/usr/share/doc/…/README.md`) and through `-readme`. Its links `../README.md` (lines 3, 228), `DEVELOPMENT.md` (10) and `LICENSE.md` (296) resolve only inside the repo; in the tarball, `../README.md` points outside the folder.
 Fix: absolute GitHub URLs for links out of `gui/`, keeping `#anchors` relative. Add a test, like the man page one, that fails on a relative link that leaves the file.
+
+*Done 2026-11-18 (Claude, at Will's request):* the links to the root README and `DEVELOPMENT.md` are absolute GitHub URLs (`blob/master/gui/…`, which resolve once `gui/` is on master). `TestReadmeLinksWorkOutsideTheRepo` fails on any README link that isn't an `#anchor` or a full URL.
 
 **T6-5 | major | Claude + Will | `gui/README.md` quick start, Cameras**
 The quick start ends after the first save. A new user is then left with a GUI showing warnings (T5-4) and no cameras, and the guide's next steps are much further down. The webcam steps also document the T5-3 trap as an instruction ("ready to go… once its driver is set to OPENCV on the Camera Settings page"). The troubleshooting table has no row for the commonest local failure: vision_processor keeps restarting (wrong driver, busy device).
@@ -425,11 +441,15 @@ Fix:
 
 Fix: the root README gives one sentence plus links to `gui/README.md` (users) and `gui/DEVELOPMENT.md` (contributors), and nothing else about the GUI.
 
+*Done 2026-11-18 (Claude, at Will's request):* the root README's GUI section is one sentence and two links (`gui/README.md`, `gui/DEVELOPMENT.md`). The `setup.sh` part stays with T1-8.
+
 **T6-7 | nit | Claude | `gui/README.md:16, 52, 155-193`**
 - The README promises a `.tar.gz` "for your machine", but there's no arm64 tarball yet (T1-4).
 - Every port mention follows `:8085` (L-1).
 
 Update both together with those fixes.
+
+*Progress 2026-11-18:* the port mentions follow 8080 (L-1). The tarball wording waits on T1-4.
 
 ### Track 7: tests
 
@@ -467,6 +487,8 @@ Fix: unit tests, with a fake `WebSocket` for `wrapper-bus` (close → reconnect 
 **T7-3 | major | Will | `frontend/e2e/smoke.spec.ts:139-160`**
 Known bug, marked `test.fail()` since `09cf1ee` (2026-10-24): leaving a page while an input is focused throws an uncaught page error (`derived_inert`, "L(...) is not a function") from flowbite-svelte 1.33.1's `Input` calling `onblur` after unmount. That is the most common editing path (type a value, click another tab). The edit itself saves; any other impact of the uncaught error is unverified. 1.33.1 is the newest release in range, so there is no upgrade fix.
 Fix: work around it (blur `document.activeElement` before a route change in `nav.svelte.ts`, or wrap `Input`'s `onblur`), file it upstream, and remove `test.fail()`. Don't ship a known uncaught error on the main path.
+
+*Done 2026-11-18 (Claude, with T1-5):* fixed upstream by svelte 5.55.5 → 5.58.0 (flowbite-svelte still 1.33.1). `test.fail()` is removed; the test passed 20 of 20 repeats and now guards it.
 
 **T7-4 | major | Will + Claude | `frontend/e2e/`**
 E2E doesn't cover the first-release paths most likely to go wrong. Missing scenarios:
@@ -578,6 +600,8 @@ Fix: gate `trackReferee` with `sourcefilter.Accept(from.IP)` (or copy its ~30-li
 
 **L-6 | nit | Claude | `gui/CLAUDE.md` Stack (sslnet bullet)**
 Add "re-evaluate when ssl-go-tools PR #29 is released; still needs U-1/U-2", plus the leak and race as further reasons.
+
+*Done 2026-11-18 (Claude, at Will's request):* the sslnet bullet in `gui/CLAUDE.md` adds the leak and race, and says when to look again (PR #29 released, with U-1/U-2).
 
 **L-7 | nit | Will | `main.go:58`**
 GC, vision-client and status-board use `-verbose`; we use `-logLevel`. Accept `-verbose` as an alias for `-logLevel Debug`.

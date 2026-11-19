@@ -50,14 +50,12 @@
       ? []
       : selection.skip
           .filter((name) => !ifaces.some((i) => i.name === name))
-          .map(
-            (name): Row => ({
-              name,
-              detail: detail(undefined, "not present"),
-              checked: false,
-              disabled: false,
-            }),
-          );
+          .map((name): Row => ({
+            name,
+            detail: detail(undefined, "not present"),
+            checked: false,
+            disabled: false,
+          }));
 
     return [...present, ...missing];
   });

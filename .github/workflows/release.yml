@@ -20,8 +20,8 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - name: Build and check
         run: nix develop --command bash -c 'cd gui && make release-check VERSION="$GITHUB_REF_NAME"'

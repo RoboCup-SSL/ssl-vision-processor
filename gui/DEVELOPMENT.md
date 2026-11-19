@@ -34,9 +34,11 @@ OpenAPI spec and the TypeScript types generated from it, and the frontend. None 
 | -------------------- | ----------------------------------------------------------------------------------------------- |
 | `make run`           | Build everything and run the host from the repo root on `:8080`. Flags go in `ARGS="..."`.      |
 | `make test`          | `go test -race` for every package, and the frontend's type checks, lint, unit tests and format. |
-| `make check`         | Everything CI checks: gofmt, vet, the tests, the committed generated file, the browser tests.   |
+| `make check`         | Everything CI checks: gofmt, vet, staticcheck, the tests, the committed generated file, e2e.    |
 | `make e2e`           | Playwright browser tests: the real host in the installed Google Chrome.                         |
 | `make vet`           | `go vet` for every package.                                                                     |
+| `make lint`          | staticcheck for every package, at the version `go.mod` pins.                                    |
+| `make vulncheck`     | govulncheck: known vulnerabilities in code the host calls. Needs the network; CI reports it.    |
 | `make build`         | `go build` for every package, without installing.                                               |
 | `make install`       | `go install` the host.                                                                          |
 | `make openapi`       | Write the API's OpenAPI spec to `openapi.json`.                                                 |

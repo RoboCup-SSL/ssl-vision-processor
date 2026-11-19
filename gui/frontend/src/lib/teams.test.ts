@@ -47,15 +47,13 @@ function unsavedChanges(...paths: string[]): void {
     file: "vision.yml",
     firstRun: false,
     revision: 1,
-    changes: paths.map(
-      (path): Change => ({
-        path,
-        jsonPath: path,
-        before: null,
-        after: null,
-        section: "team_assignment",
-      }),
-    ),
+    changes: paths.map((path): Change => ({
+      path,
+      jsonPath: path,
+      before: null,
+      after: null,
+      section: "team_assignment",
+    })),
     cameras: [],
     localCameras: false,
   };

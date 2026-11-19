@@ -30,6 +30,11 @@ export default ts.config(
       parser: svelteParser,
       parserOptions: { parser: ts.parser },
     },
+    rules: {
+      // `void x;` in an $effect is how a component makes the effect depend
+      // on x without using it; the rule only knows void as discarding a call.
+      "@typescript-eslint/no-meaningless-void-operator": "off",
+    },
   },
   {
     // eslint-plugin-svelte's own base config matches *.svelte.ts/*.svelte.js

@@ -51,16 +51,14 @@ export function sourcesOf(snapshot: LiveFieldSnapshot | null): Source[] {
     ageMs: ages.length > 0 ? Math.min(...ages) : null,
   };
 
-  const trackers = (snapshot?.trackers ?? []).map(
-    (t): Source => ({
-      key: trackerKey(t),
-      kind: "tracker",
-      name: t.sourceName || t.uuid,
-      receiving: t.receiving,
-      fps: t.fps,
-      ageMs: snapshot ? age(snapshot, t.receivedAt) : null,
-    }),
-  );
+  const trackers = (snapshot?.trackers ?? []).map((t): Source => ({
+    key: trackerKey(t),
+    kind: "tracker",
+    name: t.sourceName || t.uuid,
+    receiving: t.receiving,
+    fps: t.fps,
+    ageMs: snapshot ? age(snapshot, t.receivedAt) : null,
+  }));
 
   // Two autorefs sending the same name share a key; keep the first.
   const unique = trackers.filter(

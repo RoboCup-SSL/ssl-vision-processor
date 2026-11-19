@@ -35,7 +35,6 @@ __pycache__
 # Not configs: test fixtures, CI, and vision_processor's default robot height
 # table, which it reads from the working directory.
 !**/testdata/**/*.yml
-!/.gitlab-ci.yml
 !/.github/**/*.yml
 !/robot-heights.yml
 

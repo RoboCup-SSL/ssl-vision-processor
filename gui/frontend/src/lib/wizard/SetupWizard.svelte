@@ -81,7 +81,7 @@
     <WizardOptionalLines />
   {:else if wizard.step === "dimensions"}
     <WizardDimensions />
-  {:else if wizard.step === "finish"}
+  {:else}
     <WizardFinish />
   {/if}
 

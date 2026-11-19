@@ -118,10 +118,7 @@ export function setCustomHeight(slot: Slot, height: number): void {
 //   customMissing: a custom height chosen but not entered yet
 //   unsaved: a choice not written to disk yet
 export type HeightIssue =
-  | "notInTable"
-  | "noHeight"
-  | "customMissing"
-  | "unsaved";
+  "notInTable" | "noHeight" | "customMissing" | "unsaved";
 
 // Decided by the host (gui/internal/alerts' HeightIssue), which raises a
 // team_default_height alert per affected color.

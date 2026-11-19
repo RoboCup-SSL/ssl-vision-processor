@@ -80,7 +80,7 @@ func Setup(cfg Config) (func(), error) {
 	logLevel.Set(cfg.Level)
 
 	handlers := []slog.Handler{
-		tint.NewHandler(os.Stderr, &tint.Options{
+		tint.NewTextHandler(os.Stderr, &tint.Options{
 			Level:      &logLevel,
 			AddSource:  true,
 			TimeFormat: "15:04:05.000",

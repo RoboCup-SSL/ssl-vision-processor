@@ -46,8 +46,7 @@ $effect.root(() => {
 
 function block(): Record<string, unknown> | undefined {
   return config.doc?.defaults?.["network"] as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
 }
 
 // The shared network block with fallbacks applied.

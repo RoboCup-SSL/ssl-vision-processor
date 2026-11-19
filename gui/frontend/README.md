@@ -5,18 +5,18 @@ Browser UI for the vision-processor GUI. Svelte 5, TypeScript, and Vite. See
 [`gui/ARCHITECTURE.md`](../ARCHITECTURE.md) for how the whole system fits
 together. This document covers the frontend's own layout and scripts.
 
-The UI is organized as a two column shell: an instance list and config
-category nav on the left, the selected category's panel on the right. A tab
-bar above the panel gives quick access to the categories used most: the
-shared Overview, Network, Field Dimensions, Camera Layout and Advanced, and the
-selected camera's Camera Settings, Geometry and Color. They edit the host's
+The UI is organized as a two column shell: the camera list and page nav on
+the left, the selected page on the right. A tab bar above the page repeats the
+pages used most: the shared Live Field, Teams, Network, Dimensions, Layout and
+Advanced, and the selected camera's Camera, Geometry and Color. Alerts and
+Stream are in the sidebar only. The settings pages edit the host's
 `vision.yml` working copy, which applies live; Save in the settings menu
-writes it to disk, and a tab shows an asterisk while it has unsaved changes. Field Dimensions edits the
-shared field. Geometry holds the selected camera's calibration lock and the
-corner picker, which marks calibration corners on a debug snapshot. Debug
-snapshots (via `GET /api/snapshots`) are only
-meaningful when the browser and the vision processor share a filesystem, see
-the root [README.md](../../README.md).
+writes it to disk, and a tab shows an asterisk while it has unsaved changes.
+Dimensions edits the shared field. Geometry holds the selected camera's
+calibration lock and the corner picker, which marks calibration corners on a
+debug snapshot. The snapshots (via `GET /api/snapshots`) exist only when the
+host and the vision_processor share a filesystem; see "Not yet built" in
+[`gui/ARCHITECTURE.md`](../ARCHITECTURE.md).
 
 ## Run
 
@@ -83,9 +83,11 @@ Node 22 (`.nvmrc`); the nix dev shell provides it.
   latest message on that topic). A topic subscribes lazily on first reader
   and unsubscribes when the last reader goes away. It reconnects on close
   with exponential backoff, from 1 second up to 30.
-- `src/App.svelte` mounts the shell and still carries a couple of temporary
-  debug utilities predating it (a snapshot grid and a raw `wrapper_packet.out`
-  dump), kept until the mockup's real Video and Debug Console panels exist.
+- `src/lib/SnapshotViews.svelte` is the debug image card on the Color and
+  Geometry pages: the views a camera has written, listed on demand (not
+  polled), with their labels in `src/lib/text/snapshots.ts`.
+- `src/App.svelte` mounts the shell and the setup wizard, and loads the
+  config.
 - `src/main.ts` mounts `App` into `#app`.
 
 The WS wire format (`gui/internal/hub`):
@@ -102,8 +104,8 @@ The WS wire format (`gui/internal/hub`):
 canonical protojson, republished once per second.
 
 Snapshot endpoints are plain HTTP: `GET /api/snapshots` returns the
-list of available `{cam_id, view}` entries as JSON;
-`GET /api/snapshot/<cam_id>/<view>` returns the actual `image/jpeg` or
+list of available `{cameraId, view}` entries as JSON;
+`GET /api/snapshot/<cameraId>/<view>` returns the actual `image/jpeg` or
 `image/png` (or 404 if missing).
 
 ## Scripts
@@ -130,4 +132,4 @@ TypeScript is configured strict (`strict`,
 `npm run build` produces `dist/`, which the Go host in `gui/` embeds
 directly into its binary (`gui/frontend/embed.go`) and serves on its
 own port, with a fallback to `index.html` for client-side routes. See
-`make run` in the root [README.md](../../README.md).
+`make run` in [`gui/DEVELOPMENT.md`](../DEVELOPMENT.md).
