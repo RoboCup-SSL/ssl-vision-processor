@@ -22,6 +22,7 @@
 #include <thread>
 
 #include "opencl.h"
+#include "vision/ssl_vp_config.pb.h"
 
 
 typedef struct AVCodec AVCodec;
@@ -34,19 +35,22 @@ typedef struct AVPacket AVPacket;
 
 class RTPStreamer {
 public:
-	explicit RTPStreamer(bool active, std::string uri, int framerate = 30);
+	explicit RTPStreamer();
 	~RTPStreamer();
 	void sendFrame(std::shared_ptr<RawImage> image);
+	void updateConfig(const SSL_VPConfigStream& stream_config);
 private:
 	void encoderRun();
 
 	void allocResources();
 	void freeResources();
 
-	const bool active;
-	const std::string uri;
-	const int framerate;
+	std::mutex configMutex = std::mutex();
+	SSL_VPConfigStream pendingConfig;
+
+	const int framerate = 30;
 	const int frametime_us;
+	std::string uri = "rtp://127.0.0.1:10100";
 	int width = 0;
 	int height = 0;
 
@@ -64,3 +68,5 @@ private:
 	AVFrame* frame = nullptr;
 	AVPacket* pkt = nullptr;
 };
+
+extern RTPStreamer rtpStreamer;

@@ -16,10 +16,12 @@
 #include <yaml-cpp/node/parse.h>
 #include <opencv2/imgproc.hpp>
 #include "Resources.h"
+#include "driver/cameradriver.h"
 #include "GroundTruth.h"
 #include "proto/vision/ssl_vision_wrapper.pb.h"
 #include "calib/LineDetection.h"
 #include "calib/GeomModel.h"
+#include "config.h"
 
 static void moveRobot(const Resources& r, SSL_DetectionRobot& robot) {
 	Eigen::Vector3f pos = r.perspective->model.image2field({robot.pixel_x(), robot.pixel_y()}, robot.height());
@@ -45,7 +47,7 @@ static void geometryBenchmark(Resources& r, const uint32_t frameId) {
 		ball.set_y(pos.y());
 	}
 
-	detection->set_camera_id(r.camId);
+	detection->set_camera_id(config.camera_id());
 	detection->set_t_capture(getRealTime());
 	detection->set_t_sent(getRealTime());
 	r.socket->send(wrapper);
@@ -54,7 +56,7 @@ static void geometryBenchmark(Resources& r, const uint32_t frameId) {
 int main(int argc, char* argv[]) {
 	Resources r(argc > 1 ? argv[1] : "config.yml");
 
-	std::shared_ptr<RawImage> img = r.camera->readImage();
+	std::shared_ptr<RawImage> img = camera->readImage();
 	r.perspective->geometryCheck(img->width, img->height, r.gcSocket->maxBotHeight, r.resamplingFactor);
 	std::shared_ptr<CLImage> channels[4];
 	r.raw2quad(*img, channels);

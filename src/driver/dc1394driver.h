@@ -7,7 +7,7 @@
 /** IIDC (FireWire) cameras via libdc1394, e.g. AVT Stingray. Captures Format7 mode 0 in YUV422 and converts to BGR8. */
 class DC1394Driver : public CameraDriver {
 public:
-	explicit DC1394Driver(const CameraConfig& config);
+	explicit DC1394Driver(uint32_t hardwareId);
 	~DC1394Driver() override;
 
 	std::shared_ptr<RawImage> readImage() override;
@@ -29,10 +29,10 @@ public:
 	float getGamma() override;
 	void setGamma(float gamma) override;
 
-	WhiteBalanceType getWhiteBalanceType() override;
+	SSL_VPConfigCameraWBType getWhiteBalanceType() override;
 	float getWhiteBalanceBlue() override;
 	float getWhiteBalanceRed() override;
-	void setWhiteBalance(WhiteBalanceType type, float blue, float red) override;
+	void setWhiteBalance(SSL_VPConfigCameraWBType type, float blue, float red) override;
 
 private:
 	void startCapture();

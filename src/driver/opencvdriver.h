@@ -21,7 +21,7 @@
 
 class OpenCVDriver : public CameraDriver {
 public:
-	explicit OpenCVDriver(const CameraConfig& config);
+	explicit OpenCVDriver(std::string path);
 
 	std::shared_ptr<RawImage> readImage() override;
 
@@ -44,10 +44,10 @@ public:
 	float getGamma() override;
 	void setGamma(float gamma) override;
 
-	WhiteBalanceType getWhiteBalanceType() override;
+	SSL_VPConfigCameraWBType getWhiteBalanceType() override;
 	float getWhiteBalanceBlue() override;
 	float getWhiteBalanceRed() override;
-	void setWhiteBalance(WhiteBalanceType type, float blue, float red) override;
+	void setWhiteBalance(SSL_VPConfigCameraWBType type, float blue, float red) override;
 
 private:
 	void applyExposure();

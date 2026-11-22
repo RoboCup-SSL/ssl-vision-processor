@@ -1,6 +1,9 @@
 #include "colorupdate.h"
 #include "kmeans.h"
 #include "pattern.h"
+#include "config.h"
+#include "proto/vision/ssl_vp_config.pb.h"
+#include <eigen3/Eigen/Core>
 
 
 static float sqPointLineSegmentDistance(const SSL_FieldLineSegment& line, const Eigen::Vector2f& point) {
@@ -18,7 +21,7 @@ static bool ballAtLine(const Resources& r, const BallHypothesis& ball) {
 	const Eigen::Vector2f imgPos = r.perspective->model.field2image({ball.pos.x(), ball.pos.y(), (float)r.gcSocket->maxBotHeight});
 	const Eigen::Vector2f ballPos = r.perspective->model.image2field(imgPos, r.perspective->field.ball_radius()).head<2>();
 
-	const float maxLineDistance = (float)r.perspective->field.line_thickness()/2 + r.geometryTolerance;
+	const float maxLineDistance = (float)r.perspective->field.line_thickness()/2 + config.thresholds().geometry_tolerance();
 	const float sqMaxLineDistance = maxLineDistance*maxLineDistance;
 
 	for(const auto& line : r.perspective->field.field_lines()) {
@@ -52,22 +55,19 @@ static void determineFieldLineBlobColor(Resources& r, const std::list<std::uniqu
 
 	//TODO median instead?
 	if(amount > 2)
-		r.fieldLineColor = colorSum /= amount;
+		liveFieldLineColor = colorSum /= amount;
 }
 
-static inline void updateColor(const Resources& r, const Eigen::Vector3i& reference, const Eigen::Vector3i& oldColor, Eigen::Vector3i& color) {
-	const float updateForce = 1.0f - r.referenceForce - r.historyForce;
-	color = (r.referenceForce*reference.cast<float>() + r.historyForce*oldColor.cast<float>() + updateForce*color.cast<float>()).cast<int>();
+static inline void updateColor(VPColor* field, const Eigen::Vector3i& color) {
+	const float updateForce = 1.0f - config.color().reference_force() - config.color().history_force();
+	Eigen::Vector3f newColor = config.color().reference_force()*eigen_from_color(field->reference()).cast<float>() +
+		config.color().history_force()*eigen_from_color(field->live()).cast<float>() +
+		updateForce*color.cast<float>();
+
+	field->mutable_live()->CopyFrom(color_from_eigen(newColor.cast<int>()));
 }
 
 void updateColors(Resources& r, const std::list<std::unique_ptr<BotHypothesis>>& bestBotModels, const std::list<std::unique_ptr<BallHypothesis>>& ballCandidates) {
-	Eigen::Vector3i oldField = r.field;
-	Eigen::Vector3i oldOrange = r.orange;
-	Eigen::Vector3i oldYellow = r.yellow;
-	Eigen::Vector3i oldBlue = r.blue;
-	Eigen::Vector3i oldGreen = r.green;
-	Eigen::Vector3i oldPink = r.pink;
-
 	std::vector<Eigen::Vector3i> centerBlobs;
 	Eigen::Vector3i pink(0, 0, 0);
 	int pinkN = 0;
@@ -94,27 +94,30 @@ void updateColors(Resources& r, const std::list<std::unique_ptr<BotHypothesis>>&
 	}
 
 	if(pinkN > 0) {
-		r.pink = pink / pinkN;
-		updateColor(r, r.pinkReference, oldPink, r.pink);
+		updateColor(config.mutable_color()->mutable_pink(), pink / pinkN);
 	}
 	if(greenN > 0) {
-		r.green = green / greenN;
-		updateColor(r, r.greenReference, oldGreen, r.green);
+		updateColor(config.mutable_color()->mutable_green(), green / greenN);
 	}
 
-	if(kMeans(r.pink, centerBlobs, r.yellow, r.blue)) {
-		updateColor(r, r.yellowReference, oldYellow, r.yellow);
-		updateColor(r, r.blueReference, oldBlue, r.blue);
+	Eigen::Vector3i yellow = liveYellow;
+	Eigen::Vector3i blue = liveBlue;
+	if(kMeans(livePink, centerBlobs, yellow, blue)) {
+		updateColor(config.mutable_color()->mutable_yellow(), yellow);
+		updateColor(config.mutable_color()->mutable_blue(), blue);
 	}
 
 	std::vector<Eigen::Vector3i> ballBlobs;
 	for (const auto& ball : ballCandidates)
 		ballBlobs.push_back(ball->blob->center);
 
-	if(kMeans(r.blue, ballBlobs, r.orange, r.field)) {
-		updateColor(r, r.orangeReference, oldOrange, r.orange);
-		updateColor(r, r.fieldReference, oldField, r.field);
+	Eigen::Vector3i orange = liveOrange;
+	Eigen::Vector3i field = liveField;
+	if(kMeans(liveBlue, ballBlobs, orange, field)) {
+		updateColor(config.mutable_color()->mutable_orange(), orange);
+		updateColor(config.mutable_color()->mutable_field(), field);
 	}
 
 	determineFieldLineBlobColor(r, ballCandidates);
+	apply_color_update();
 }

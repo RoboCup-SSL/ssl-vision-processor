@@ -37,11 +37,11 @@ static dc1394camera_t* getCamera(dc1394_t* dc1394, int hardwareId) {
 	return camera;
 }
 
-DC1394Driver::DC1394Driver(const CameraConfig& config): dc1394(dc1394_new()) {
+DC1394Driver::DC1394Driver(uint32_t hardwareId): dc1394(dc1394_new()) {
 	if(dc1394 == nullptr)
 		FATAL("[DC1394] Could not initialize libdc1394");
 
-	camera = getCamera(dc1394, config.hardwareId);
+	camera = getCamera(dc1394, hardwareId);
 	name = std::string(camera->vendor) + "_" + camera->model;
 	std::replace(name.begin(), name.end(), ' ', '_');
 
@@ -271,10 +271,10 @@ void DC1394Driver::setGamma(float gamma) {
 	dc1394_feature_set_value(camera, DC1394_FEATURE_GAMMA, gamma < 1.0f ? max : min);
 }
 
-WhiteBalanceType DC1394Driver::getWhiteBalanceType() {
+SSL_VPConfigCameraWBType DC1394Driver::getWhiteBalanceType() {
 	dc1394feature_mode_t featureMode = DC1394_FEATURE_MODE_MANUAL;
 	dc1394_feature_get_mode(camera, DC1394_FEATURE_WHITE_BALANCE, &featureMode);
-	return featureMode == DC1394_FEATURE_MODE_MANUAL ? WhiteBalanceType_Manual : WhiteBalanceType_AutoOutdoor;
+	return featureMode == DC1394_FEATURE_MODE_MANUAL ? MANUAL : OUTDOOR;
 }
 
 float DC1394Driver::getWhiteBalanceBlue() {
@@ -289,8 +289,8 @@ float DC1394Driver::getWhiteBalanceRed() {
 	return (float)red;
 }
 
-void DC1394Driver::setWhiteBalance(WhiteBalanceType type, float blue, float red) {
-	if(!setAuto(DC1394_FEATURE_WHITE_BALANCE, type != WhiteBalanceType_Manual))
+void DC1394Driver::setWhiteBalance(SSL_VPConfigCameraWBType type, float blue, float red) {
+	if(!setAuto(DC1394_FEATURE_WHITE_BALANCE, type != MANUAL))
 		return;
 
 	// IIDC white balance has no standardized unit, the values are the raw U/B and V/R camera registers

@@ -31,7 +31,7 @@ typedef struct __attribute__ ((packed)) {
 
 class Perspective {
 public:
-	Perspective(std::shared_ptr<VisionSocket> socket, int camId, float geometryTolerance): socket(std::move(socket)), camId(camId), geometryTolerance(geometryTolerance) {}
+	Perspective(std::shared_ptr<VisionSocket> socket): socket(std::move(socket)) {}
 	void geometryCheck(int width, int height, double maxBotHeight, float resamplingFactor);
 
 	Eigen::Vector2f flat2field(const Eigen::Vector2f& pos) const;
@@ -53,6 +53,4 @@ public:
 
 private:
 	const std::shared_ptr<VisionSocket> socket;
-	const unsigned int camId;
-	const float geometryTolerance;
 };

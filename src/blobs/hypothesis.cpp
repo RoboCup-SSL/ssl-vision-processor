@@ -14,6 +14,7 @@
      limitations under the License.
  */
 #include "hypothesis.h"
+#include "config.h"
 #include "kmeans.h"
 #include "pattern.h"
 
@@ -81,9 +82,9 @@ void BallHypothesis::addToDetectionFrame(const Resources& r, SSL_DetectionFrame*
 }
 
 void BallHypothesis::calcColorScore(const Resources& r) {
-	int falseOrange = (blob->color - r.field).squaredNorm();
-	int orange = (blob->color - r.orange).squaredNorm();
-	int fieldLine = (blob->color - r.fieldLineColor).squaredNorm();
+	int falseOrange = (blob->color - liveField).squaredNorm();
+	int orange = (blob->color - liveOrange).squaredNorm();
+	int fieldLine = (blob->color - liveFieldLineColor).squaredNorm();
 
 	if (falseOrange <= orange || fieldLine <= orange) {
 		score = 0;
@@ -116,7 +117,7 @@ bool BotHypothesis::isClipping(const Resources& r, const BotHypothesis& other) c
 	float minDistance =
 			(abs(selfAngle) < MIN_ROBOT_OPENING_ANGLE ? MIN_ROBOT_FRONT_DISTANCE/cosf(selfAngle) : MIN_ROBOT_RADIUS) +
 			(abs(otherAngle) < MIN_ROBOT_OPENING_ANGLE ? MIN_ROBOT_FRONT_DISTANCE/cosf(otherAngle) : MIN_ROBOT_RADIUS)
-			- r.clippingTolerance;
+			- config.thresholds().clipping_tolerance();
 
 	return sqDistance < minDistance*minDistance;
 }
@@ -133,7 +134,7 @@ bool BotHypothesis::isClipping(const Resources& r, const BallHypothesis& ball) c
 	if(abs(angle) >= MIN_ROBOT_OPENING_ANGLE)
 		return true;
 
-	minDistance = (MIN_ROBOT_FRONT_DISTANCE + clippedBallRadius) / cosf(angle) - r.clippingTolerance;
+	minDistance = (MIN_ROBOT_FRONT_DISTANCE + clippedBallRadius) / cosf(angle) - config.thresholds().clipping_tolerance();
 
 	return sqDistance < minDistance*minDistance;
 }
@@ -214,11 +215,11 @@ void DetectionBotHypothesis::recalcPostColorCalib(const Resources& r) {
 }
 
 void DetectionBotHypothesis::calcBotId(const Resources& r) {
-	Eigen::Vector3i green = r.green;
-	Eigen::Vector3i pink = r.pink;
+	Eigen::Vector3i green = liveGreen;
+	Eigen::Vector3i pink = livePink;
 	kMeans(blobs[0]->color, {blobs[1]->color, blobs[2]->color, blobs[3]->color, blobs[4]->color}, green, pink);
 
-	botId = ((blobs[0]->color - r.blue).squaredNorm() < (blobs[0]->color - r.yellow).squaredNorm() ? 16 : 0) + patternLUT[
+	botId = ((blobs[0]->color - liveBlue).squaredNorm() < (blobs[0]->color - liveYellow).squaredNorm() ? 16 : 0) + patternLUT[
 			(((blobs[1]->color - green).squaredNorm() < (blobs[1]->color - pink).squaredNorm() ? 1 : 0) << 3) +
 			(((blobs[2]->color - green).squaredNorm() < (blobs[2]->color - pink).squaredNorm()? 1 : 0) << 2) +
 			(((blobs[3]->color - green).squaredNorm() < (blobs[3]->color - pink).squaredNorm() ? 1 : 0) << 1) +
@@ -256,11 +257,11 @@ void TrackedBotHypothesis::calcTrackingScore(const Resources& r) {
 		Eigen::Vector3i blobColor;
 		Eigen::Vector3i oppositeColor;
 		if(i == 0) {
-			blobColor = botId >= 16 ? r.blue : r.yellow;
-			oppositeColor = botId >= 16 ? r.yellow : r.blue;
+			blobColor = botId >= 16 ? liveBlue : liveYellow;
+			oppositeColor = botId >= 16 ? liveYellow : liveBlue;
 		} else {
-			blobColor = ((patterns[botId % 16] >> (4-i)) & 1) ? r.green : r.pink;
-			oppositeColor = ((patterns[botId % 16] >> (4-i)) & 1) ? r.pink : r.green;
+			blobColor = ((patterns[botId % 16] >> (4-i)) & 1) ? liveGreen : livePink;
+			oppositeColor = ((patterns[botId % 16] >> (4-i)) & 1) ? livePink : liveGreen;
 		}
 
 		if((blob->color - oppositeColor).squaredNorm() - (blob->color - blobColor).squaredNorm() <= 0) {

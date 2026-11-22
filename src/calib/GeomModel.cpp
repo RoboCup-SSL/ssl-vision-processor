@@ -20,6 +20,7 @@
 #include "LineDetection.h"
 #include "proto/vision/ssl_vision_wrapper.pb.h"
 #include "log.h"
+#include "config.h"
 
 #include <eigen3/unsupported/Eigen/LevenbergMarquardt>
 
@@ -30,7 +31,7 @@ float dist(const cv::Vec2f& v1, const cv::Vec2f& v2) {
 }
 
 void visibleFieldExtent(const Resources &r, const bool withBoundary, Eigen::Vector2f &min, Eigen::Vector2f &max) {
-	return visibleFieldExtentEstimation(r.camId, r.cameraAmount, r.socket->getGeometry().field(), withBoundary, min, max);
+	return visibleFieldExtentEstimation(config.camera_id(), r.cameraAmount, r.socket->getGeometry().field(), withBoundary, min, max);
 }
 
 Eigen::Vector2f cv2eigen(const cv::Vec2f& v) {
@@ -475,10 +476,10 @@ static bool cornerCalibration(const Resources& r, const std::vector<std::vector<
 }
 
 void geometryCalibration(const Resources& r, const CLImage& rgba) {
-	const std::string prefix = "img/" + std::to_string(r.camId) + ".";
+	const std::string prefix = "img/" + std::to_string(config.camera_id()) + ".";
 
 	CalibDiagnostic diag;
-	diag.camera_id = r.camId;
+	diag.camera_id = config.camera_id();
 	diag.image_width = rgba.width;
 	diag.image_height = rgba.height;
 	diag.line_corners = r.lineCorners;
@@ -555,7 +556,7 @@ void geometryCalibration(const Resources& r, const CLImage& rgba) {
 	cv::imwrite(diag.lines_image_path, bgr);
 
 	const bool calibHeight = r.cameraHeight == 0.0;
-	CameraModel model({thresholded.cols, thresholded.rows}, r.camId, r.cameraAmount, (float)r.cameraHeight, r.socket->getGeometry().field());
+	CameraModel model({thresholded.cols, thresholded.rows}, config.camera_id(), r.cameraAmount, (float)r.cameraHeight, r.socket->getGeometry().field());
 	//drawModel(r, thresholded, linePixels, model);
 	//thresholded.save(".initial.png");
 
@@ -582,7 +583,7 @@ void geometryCalibration(const Resources& r, const CLImage& rgba) {
 	wrapper.set_source(SSL_SOURCE_VISION_PROCESSOR);
 	wrapper.mutable_geometry()->CopyFrom(r.socket->getGeometry());
 	wrapper.mutable_geometry()->clear_calib();
-	wrapper.mutable_geometry()->add_calib()->CopyFrom(model.getProto(r.camId));
+	wrapper.mutable_geometry()->add_calib()->CopyFrom(model.getProto(config.camera_id()));
 	r.socket->send(wrapper);
 
 	drawModel(r, thresholded, linePixels, model);

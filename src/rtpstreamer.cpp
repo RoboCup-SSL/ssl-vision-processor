@@ -15,6 +15,9 @@
  */
 #include "rtpstreamer.h"
 #include "log.h"
+#include "config.h"
+#include <mutex>
+#include <string>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -24,8 +27,14 @@ extern "C" {
 #include <libavutil/opt.h>
 }
 
+RTPStreamer rtpStreamer; // TODO false, "rtp://224.5.23.100:10100"
 
-RTPStreamer::RTPStreamer(bool active, std::string uri, int framerate): active(active), uri(std::move(uri)), framerate(framerate), frametime_us(1000000 / framerate) {
+void update_stream_config(const SSL_VPConfigStream* stream_config) {
+
+}
+
+
+RTPStreamer::RTPStreamer(): frametime_us(1000000 / framerate) {
 	encoder = std::thread(&RTPStreamer::encoderRun, this);
 }
 
@@ -41,9 +50,16 @@ RTPStreamer::~RTPStreamer() {
 	freeResources();
 }
 
+void RTPStreamer::updateConfig(const SSL_VPConfigStream& stream_config) {
+	config.mutable_stream()->MergeFrom(stream_config);
+
+	std::unique_lock<std::mutex> lock(configMutex);
+	pendingConfig.CopyFrom(config.stream());
+}
+
 //Adopted from CC BY-SA 4.0 https://stackoverflow.com/a/61988145 Dmitrii Zabotlin
 void RTPStreamer::sendFrame(std::shared_ptr<RawImage> image) {
-	if(!active)
+	if(!pendingConfig.active()) // Mutex not needed as update only happens on the same thread
 		return;
 
 	std::unique_lock<std::mutex> lock(queueMutex);
@@ -164,10 +180,17 @@ void RTPStreamer::encoderRun() {
 			queue = nullptr;
 		}
 
-		if(image->width != width || image->height != height) {
+		std::string cfgUri;
+		{
+			std::unique_lock<std::mutex> lock(configMutex);
+			cfgUri = "rtp://" + pendingConfig.stream_ip() + ":" + std::to_string(pendingConfig.stream_port());
+		}
+
+		if(uri != cfgUri || image->width != width || image->height != height) {
 			freeResources();
 			width = image->width;
 			height = image->height;
+			uri = cfgUri;
 		}
 
 		allocResources();

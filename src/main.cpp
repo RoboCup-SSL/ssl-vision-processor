@@ -14,6 +14,7 @@
      limitations under the License.
  */
 #include <csignal>
+#include "driver/cameradriver.h"
 #include "log.h"
 #include <opencv2/bgsegm.hpp>
 #include <yaml-cpp/yaml.h>
@@ -30,6 +31,15 @@
 #include "blobs/kdtree.h"
 #include "blobs/colorupdate.h"
 #include <opencv2/video/background_segm.hpp>
+
+/* Maximum amount of blobs processed per frame. */
+#define MAX_BLOBS 2000
+
+/* Expect robots to move at least this many mm between frames. */
+#define MIN_BOT_TRACKING_RADIUS 20.0f
+
+/* Maximum expected robot acceleration between frames in mm/s². */
+#define MAX_BOT_ACCELERATION 6500.0f
 
 struct __attribute__ ((packed)) CLMatch {
 	float x, y;
@@ -94,7 +104,7 @@ void generateRadiusSearchTrackedBotHypotheses(const Resources& r, std::list<std:
 			//prevent runtime escalation due to excessive timeDelta when FPS drop below 20 FPS or times are not synced
 			timeDelta = std::max(std::min(timeDelta, 0.05f), 0.0f);
 			//Double acceleration due to velocity determination from two frame difference
-			float blobSearchRadius = (float)r.maxBotAcceleration * timeDelta * timeDelta + (float)r.minTrackingRadius;
+			float blobSearchRadius = MAX_BOT_ACCELERATION * timeDelta * timeDelta + MIN_BOT_TRACKING_RADIUS;
 
 			float bestBotScore = 0.0f;
 			std::unique_ptr<BotHypothesis> bestBot = nullptr;
@@ -172,7 +182,7 @@ static inline bool closerThanCamEdgeDistance(const Resources& r, const Eigen::Ve
 
 	// Don't filter if border is outside field -> cannot be a partial robot
 	bool borderInsideField = borderPos.x() >= -halfFieldLength && borderPos.x() <= halfFieldLength && borderPos.y() >= -halfFieldWidth && borderPos.y() <= halfFieldWidth;
-	return borderInsideField && (borderPos - pos).squaredNorm() < r.minCamEdgeDistance*r.minCamEdgeDistance;
+	return borderInsideField && (borderPos - pos).squaredNorm() < config.thresholds().min_cam_edge_distance()*config.thresholds().min_cam_edge_distance();
 }
 
 void filterBallsAtCamEdge(const Resources& r, std::list<std::unique_ptr<BallHypothesis>>& balls) {
@@ -252,12 +262,14 @@ void sig_stop(int sig_num) {
 int main(int argc, char* argv[]) {
 	init_config(argc > 1 ? argv[1] : "config.yml");
 	Resources r(argc > 1 ? argv[1] : "config.yml");
+	init_camera();
+	update_camera_config(&config.camera());
 	cl::Kernel blobList = r.openCl->compile(kernel_blobList_cl);
 
 	uint32_t frameId = 0;
 	double lastConfigSendTime = 0.0;
 	double lastDebugSaveTime = 0.0;
-	CLArray matchArray(sizeof(CLMatch) * r.maxBlobs);
+	CLArray matchArray(sizeof(CLMatch) * MAX_BLOBS);
 	CLArray counter(sizeof(cl_int)*3);
 
 	signal(SIGTERM, sig_stop);
@@ -265,11 +277,12 @@ int main(int argc, char* argv[]) {
 	while(noSigterm) {
 		frameId++;
 		r.reloadConfigIfChanged();
-		std::shared_ptr<RawImage> img = r.camera->readImage();
+		apply_received_config(r);
+		std::shared_ptr<RawImage> img = camera->readImage();
 		if(img == nullptr)
 			break;
 
-		double startTime = r.camera->getTime();
+		double startTime = camera->getTime();
 		double realStartTime = getRealTime(); // Just for realtime performance measurements
 
 		r.socket->geometryCheck();
@@ -289,7 +302,7 @@ int main(int argc, char* argv[]) {
 				counterMap[1] = 0;
 				counterMap[2] = 0;
 			}
-			r.openCl->await(blobList, cl::EnqueueArgs(cl::NDRange(r.perspective->reprojectedFieldSize[0], r.perspective->reprojectedFieldSize[1])), flat->image, blobCenter->image, matchArray.buffer, counter.buffer, (float)r.minCircularity, (float)0.0f, (int)floorf(r.perspective->minBlobRadius / r.perspective->fieldScale), r.maxBlobs);
+			r.openCl->await(blobList, cl::EnqueueArgs(cl::NDRange(r.perspective->reprojectedFieldSize[0], r.perspective->reprojectedFieldSize[1])), flat->image, blobCenter->image, matchArray.buffer, counter.buffer, config.thresholds().circularity(), (float)0.0f, (int)floorf(r.perspective->minBlobRadius / r.perspective->fieldScale), MAX_BLOBS);
 
 			if(r.debugImages && frameId == 1) {
 				flat->save(".flat." + std::to_string(frameId) + ".png");
@@ -301,7 +314,7 @@ int main(int argc, char* argv[]) {
 			{
 				CLMap<int> counterMap = counter.read<int>();
 				CLMap<CLMatch> matchMap = matchArray.read<CLMatch>();
-				const int matchAmount = std::min(r.maxBlobs, counterMap[0]);
+				const int matchAmount = std::min(MAX_BLOBS, counterMap[0]);
 				matches.reserve(matchAmount);
 
 				for(int i = 0; i < matchAmount; i++) {
@@ -315,8 +328,8 @@ int main(int argc, char* argv[]) {
 					});
 				}
 
-				if(counterMap[0] > r.maxBlobs)
-					WARN("max blob amount reached: " << counterMap[0] << "/" << r.maxBlobs);
+				if(counterMap[0] > MAX_BLOBS)
+					WARN("max blob amount reached: " << counterMap[0] << "/" << MAX_BLOBS);
 			}
 
 			std::list<std::unique_ptr<BotHypothesis>> botHypotheses;
@@ -329,7 +342,7 @@ int main(int argc, char* argv[]) {
 
 				generateRadiusSearchTrackedBotHypotheses(r, botHypotheses, matches, blobs, startTime);
 				generateAngleSortedBotHypotheses(r, botHypotheses, matches, blobs);
-				filterHypothesesScore(botHypotheses, r.minConfidence);
+				filterHypothesesScore(botHypotheses, config.thresholds().min_confidence());
 				filterClippingBotBotHypotheses(r, botHypotheses);
 				generateNonclippingBallHypotheses(r, botHypotheses, matches, ballHypotheses);
 			}
@@ -340,9 +353,9 @@ int main(int argc, char* argv[]) {
 			for (auto& ball : ballHypotheses)
 				ball->recalcPostColorCalib(r);
 
-			filterHypothesesScore(ballHypotheses, r.minConfidence);
+			filterHypothesesScore(ballHypotheses, config.thresholds().min_confidence());
 			filterBallsAtCamEdge(r, ballHypotheses);
-			filterStddevScore(ballHypotheses, (float)r.minScore);
+			filterStddevScore(ballHypotheses, config.thresholds().score());
 
 			SSL_WrapperPacket wrapper;
 			wrapper.set_source(SSL_SOURCE_VISION_PROCESSOR);
@@ -351,7 +364,7 @@ int main(int argc, char* argv[]) {
 			detection->set_t_capture(startTime);
 			if(img->timestamp != 0)
 				detection->set_t_capture_camera(img->timestamp);
-			detection->set_camera_id(r.camId);
+			detection->set_camera_id(config.camera_id());
 
 			for (const auto& bot : botHypotheses)
 				bot->addToDetectionFrame(r, detection);
@@ -368,36 +381,32 @@ int main(int argc, char* argv[]) {
 			VP_LOG("time " << processingTime * 1000.0 << " ms " << matches.size() << " blobs " << detection->balls().size() << " balls " << (detection->robots_yellow_size() + detection->robots_blue_size()) << " bots");
 			r.openCl->printRuntimes();
 #else
-			detection->set_t_sent(r.camera->getTime());
+			detection->set_t_sent(camera->getTime());
 #endif
 			r.socket->send(wrapper);
 			r.socket->updateTime();
 			r.openCl->clearEvents();
 
-			if(processingTime > r.camera->expectedFrametime())
+			if(processingTime > camera->expectedFrametime())
 				VP_LOG("frame time overrun: " << processingTime * 1000.0 << " ms " << matches.size() << " blobs " << detection->balls().size() << " balls " << (detection->robots_yellow_size() + detection->robots_blue_size()) << " bots");
 
-			if(r.rawFeed) {
-				r.streamQuad(channels);
-			} else {
-				switch(((long)(startTime/20.0) % 4)) {
-					case 0:
-						r.streamQuad(channels);
-						break;
-					case 1:
-						r.streamImage(*flat);
-						break;
-					case 2:
-						r.streamImage(*gradDot);
-						break;
-					case 3:
-						r.streamImage(*blobCenter);
-						break;
-				}
+			switch(config.stream().type()) {
+				case RAW:
+					r.streamQuad(channels);
+					break;
+				case REPROJ_FALSE_COLOR:
+					r.streamImage(*flat);
+					break;
+				case REPROJ_GRADIENT_DOT:
+					r.streamImage(*gradDot);
+					break;
+				case REPROJ_BLOB_SCORE:
+					r.streamImage(*blobCenter);
+					break;
 			}
 
 			if(r.debugStreamIntervalMs > 0 && (realStartTime - lastDebugSaveTime) * 1000.0 >= r.debugStreamIntervalMs) {
-				const std::string prefix = "img/" + std::to_string(r.camId) + ".";
+				const std::string prefix = "img/" + std::to_string(config.camera_id()) + ".";
 				r.snapshotWriter->offer(r.quad2rgba(channels), prefix + "raw.jpg");
 				r.snapshotWriter->offer(flat, prefix + "flat.jpg");
 				r.snapshotWriter->offer(gradDot, prefix + "gradient.jpg");
@@ -409,7 +418,7 @@ int main(int argc, char* argv[]) {
 			geometryCalibration(r, *rgba);
 
 			if(r.debugStreamIntervalMs > 0 && (realStartTime - lastDebugSaveTime) * 1000.0 >= r.debugStreamIntervalMs) {
-				r.snapshotWriter->offer(rgba, "img/" + std::to_string(r.camId) + ".raw.jpg");
+				r.snapshotWriter->offer(rgba, "img/" + std::to_string(config.camera_id()) + ".raw.jpg");
 				lastDebugSaveTime = realStartTime;
 			}
 		} else {
@@ -417,7 +426,7 @@ int main(int argc, char* argv[]) {
 
 			bool periodicSave = r.debugStreamIntervalMs > 0 && (realStartTime - lastDebugSaveTime) * 1000.0 >= r.debugStreamIntervalMs;
 			if(frameId == 100 || periodicSave) {  // Wait for automatic gain, exposure and white balance adjustments
-				r.snapshotWriter->offer(r.quad2rgba(channels), "img/" + std::to_string(r.camId) + ".raw.jpg");
+				r.snapshotWriter->offer(r.quad2rgba(channels), "img/" + std::to_string(config.camera_id()) + ".raw.jpg");
 				lastDebugSaveTime = realStartTime;
 				if(frameId == 100)
 					VP_LOG("Saved sample image");

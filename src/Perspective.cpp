@@ -17,6 +17,7 @@
 #include "pattern.h"
 #include "proto/vision/ssl_vision_wrapper.pb.h"
 #include "log.h"
+#include "config.h"
 
 #include <cmath>
 
@@ -39,16 +40,16 @@ void Perspective::geometryCheck(const int width, const int height, const double 
 
 	bool calibFound = false;
 	for(const SSL_GeometryCameraCalibration& calib : socket->getGeometry().calib()) {
-		if(calib.camera_id() == camId) {
+		if(calib.camera_id() == config.camera_id()) {
 			calibFound = true;
 			model = CameraModel(calib);
 			if(!calib.has_derived_camera_world_tx() || !calib.has_derived_camera_world_ty() || !calib.has_derived_camera_world_tz()) {
-				socket->send(model.getProto(camId));
+				socket->send(model.getProto(config.camera_id()));
 				SSL_WrapperPacket wrapper;
 				wrapper.set_source(SSL_SOURCE_VISION_PROCESSOR);
 				wrapper.mutable_geometry()->CopyFrom(socket->getGeometry());
 				wrapper.mutable_geometry()->clear_calib();
-				wrapper.mutable_geometry()->add_calib()->CopyFrom(model.getProto(camId));
+				wrapper.mutable_geometry()->add_calib()->CopyFrom(model.getProto(config.camera_id()));
 				socket->send(wrapper);
 			}
 			break;
@@ -105,8 +106,8 @@ void Perspective::geometryCheck(const int width, const int height, const double 
 	}
 
 	// clamp to field boundaries
-	const float halfLength = (float)field.field_length()/2.0f + goalBoundaryWidth(field) + geometryTolerance;
-	const float halfWidth = (float)field.field_width()/2.0f + (float)field.boundary_width() + geometryTolerance;
+	const float halfLength = (float)field.field_length()/2.0f + goalBoundaryWidth(field) + config.thresholds().geometry_tolerance();
+	const float halfWidth = (float)field.field_width()/2.0f + (float)field.boundary_width() + config.thresholds().geometry_tolerance();
 	visibleFieldExtent[0] = std::max(visibleFieldExtent[0], -halfLength);
 	visibleFieldExtent[1] = std::min(visibleFieldExtent[1], halfLength);
 	visibleFieldExtent[2] = std::max(visibleFieldExtent[2], -halfWidth);

@@ -25,7 +25,7 @@
 
 class SpinnakerDriver : public CameraDriver {
 public:
-	explicit SpinnakerDriver(const CameraConfig& config);
+	explicit SpinnakerDriver(const std::string& device, uint32_t hardwareId);
 	~SpinnakerDriver() override;
 
 	std::shared_ptr<RawImage> readImage() override;
@@ -50,10 +50,10 @@ public:
 	float getGamma() override;
 	void setGamma(float gamma) override;
 
-	WhiteBalanceType getWhiteBalanceType() override;
+	SSL_VPConfigCameraWBType getWhiteBalanceType() override;
 	float getWhiteBalanceBlue() override;
 	float getWhiteBalanceRed() override;
-	void setWhiteBalance(WhiteBalanceType type, float blue, float red) override;
+	void setWhiteBalance(SSL_VPConfigCameraWBType type, float blue, float red) override;
 
 private:
 	void loadDefaultUserSet();
@@ -67,7 +67,7 @@ private:
 
 	const PixelFormat* pixelFormat = &PixelFormat::RGGB8;
 	// Last requested auto profile, reported back on cameras without BalanceWhiteAutoProfile
-	WhiteBalanceType whiteBalanceType = WhiteBalanceType_AutoOutdoor;
+	SSL_VPConfigCameraWBType whiteBalanceType = OUTDOOR;
 
 	// Cached so the frame loop doesn't do a register read (a network round trip on GigE) every frame
 	bool autoExposure = false;

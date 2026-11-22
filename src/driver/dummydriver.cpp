@@ -1,8 +1,7 @@
 #include "dummydriver.h"
-#include "driver/cameradriver.h"
 #include "opencl.h"
 
-DummyDriver::DummyDriver(const CameraConfig& config): image(std::make_shared<RawImage>(&PixelFormat::BGR8, 640, 480, "dummy")) {}
+DummyDriver::DummyDriver(): image(std::make_shared<RawImage>(&PixelFormat::BGR8, 640, 480, "dummy")) {}
 
 std::shared_ptr<RawImage> DummyDriver::readImage() {
     return image;
@@ -44,8 +43,8 @@ float DummyDriver::getGamma() {
 
 void DummyDriver::setGamma(float gamma) {}
 
-WhiteBalanceType DummyDriver::getWhiteBalanceType() {
-    return WhiteBalanceType::WhiteBalanceType_AutoOutdoor;
+SSL_VPConfigCameraWBType DummyDriver::getWhiteBalanceType() {
+    return OUTDOOR;
 }
 
 float DummyDriver::getWhiteBalanceBlue() {
@@ -56,4 +55,4 @@ float DummyDriver::getWhiteBalanceRed() {
     return 1.0f;
 }
 
-void DummyDriver::setWhiteBalance(WhiteBalanceType type, float blue, float red) {}
+void DummyDriver::setWhiteBalance(SSL_VPConfigCameraWBType type, float blue, float red) {}
