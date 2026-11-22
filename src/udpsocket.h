@@ -68,7 +68,7 @@ struct TrackingState {
 /** Socket handling vision messages. */
 class VisionSocket: public UDPSocket {
 public:
-	VisionSocket(const std::string &ip, uint16_t port, int camId, float defaultBotHeight): UDPSocket(ip, port), camId(camId), defaultBotHeight(defaultBotHeight) {}
+	VisionSocket(const std::string &ip, uint16_t port, float defaultBotHeight): UDPSocket(ip, port), camId(camId), defaultBotHeight(defaultBotHeight) {}
 
 	/** Check if a new geometry update has been received and update geometry and geometryVersion accordingly. */
 	void geometryCheck();
@@ -91,7 +91,7 @@ private:
 	void timeSynchronization(const SSL_DetectionFrame& detection);
 
 	/** Camera id of this socket. */
-	const int camId;
+	int camId = 0;
 	/** Default bot height to be used if the bot height is missing from received detection frames. */
 	const float defaultBotHeight;
 

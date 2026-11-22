@@ -41,12 +41,7 @@ public:
 
 	void reloadConfigIfChanged();
 
-	int camId;
-
 	float resamplingFactor;
-
-	float referenceForce;
-	float historyForce;
 
 	int cameraAmount;
 	double cameraHeight; // Just for calibration, do not use elsewhere (0.0 as special value for automatic calibration)
@@ -60,13 +55,11 @@ public:
 	std::string groundTruth;
 	bool debugImages;
 	int debugStreamIntervalMs;
-	bool rawFeed;
 
 	std::shared_ptr<GCSocket> gcSocket;
 	std::shared_ptr<VisionSocket> socket;
 	std::shared_ptr<Perspective> perspective;
 	std::shared_ptr<OpenCL> openCl;
-	std::shared_ptr<RTPStreamer> rtpStreamer;
 	std::shared_ptr<SnapshotWriter> snapshotWriter;
 
 	cl::Kernel raw2quadKernel;

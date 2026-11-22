@@ -75,11 +75,6 @@ Resources::Resources(const std::string& configPath) : configPath(configPath) {
 
 	openCl = std::make_shared<OpenCL>();
 
-	camId = config["cam_id"].as<int>(0);
-	if (camId < 0 || camId > 7) {
-		FATAL("Invalid camera ID, must be >= 0 and <= 7: " << camId);
-	}
-
 	applyTunables(config);
 
 	YAML::Node geometry = getOptional(config["geometry"]);
@@ -98,12 +93,10 @@ Resources::Resources(const std::string& configPath) : configPath(configPath) {
 
 	YAML::Node network = getOptional(config["network"]);
 	gcSocket = std::make_shared<GCSocket>(network["gc_ip"].as<std::string>("224.5.23.1"), network["gc_port"].as<int>(10003), YAML::LoadFile(config["bot_heights_file"].as<std::string>("robot-heights.yml")).as<std::map<std::string, double>>());
-	socket = std::make_shared<VisionSocket>(network["vision_ip"].as<std::string>("224.5.23.2"), network["vision_port"].as<int>(10006), camId, gcSocket->defaultBotHeight);
-	perspective = std::make_shared<Perspective>(socket, camId);
+	socket = std::make_shared<VisionSocket>(network["vision_ip"].as<std::string>("224.5.23.2"), network["vision_port"].as<int>(10006), gcSocket->defaultBotHeight);
+	perspective = std::make_shared<Perspective>(socket);
 
 	YAML::Node stream = getOptional(config["stream"]);
-	rtpStreamer = std::make_shared<RTPStreamer>(stream["active"].as<bool>(true), "rtp://" + stream["ip_base_prefix"].as<std::string>("224.5.23.") + std::to_string(stream["ip_base_end"].as<int>(100) + camId) + ":" + std::to_string(stream["port"].as<int>(10100)));
-	rawFeed = stream["raw_feed"].as<bool>(false);
 	snapshotWriter = std::make_shared<SnapshotWriter>();
 
 	raw2quadKernel = openCl->compile(kernel_raw2quad_cl, camera->format().kernelOptions);
@@ -154,7 +147,7 @@ void Resources::rgba2blobCenter(const std::shared_ptr<CLImage>* channels, std::s
 void Resources::streamQuad(std::shared_ptr<CLImage>* channels) {
 	std::shared_ptr<RawImage> nv12 = openCl->acquireNV12(channels[0]->width, channels[0]->height);
 	openCl->await(quad2nv12, cl::EnqueueArgs(cl::NDRange(channels[0]->width, channels[0]->height)), channels[0]->image, channels[1]->image, channels[2]->image, channels[3]->image, nv12->buffer);
-	rtpStreamer->sendFrame(nv12);
+	rtpStreamer.sendFrame(nv12);
 }
 
 void Resources::streamImage(CLImage &img) {
@@ -170,7 +163,7 @@ void Resources::streamImage(CLImage &img) {
 
 	std::shared_ptr<RawImage> nv12 = openCl->acquireNV12(img.width, img.height);
 	openCl->await(kernel, cl::EnqueueArgs(cl::NDRange(img.width, img.height)), img.image, nv12->buffer);
-	rtpStreamer->sendFrame(nv12);
+	rtpStreamer.sendFrame(nv12);
 }
 
 void Resources::applyTunables(const YAML::Node& config) {

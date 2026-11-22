@@ -364,7 +364,7 @@ int main(int argc, char* argv[]) {
 			detection->set_t_capture(startTime);
 			if(img->timestamp != 0)
 				detection->set_t_capture_camera(img->timestamp);
-			detection->set_camera_id(r.camId);
+			detection->set_camera_id(config.camera_id());
 
 			for (const auto& bot : botHypotheses)
 				bot->addToDetectionFrame(r, detection);
@@ -390,27 +390,23 @@ int main(int argc, char* argv[]) {
 			if(processingTime > camera->expectedFrametime())
 				VP_LOG("frame time overrun: " << processingTime * 1000.0 << " ms " << matches.size() << " blobs " << detection->balls().size() << " balls " << (detection->robots_yellow_size() + detection->robots_blue_size()) << " bots");
 
-			if(r.rawFeed) {
-				r.streamQuad(channels);
-			} else {
-				switch(((long)(startTime/20.0) % 4)) {
-					case 0:
-						r.streamQuad(channels);
-						break;
-					case 1:
-						r.streamImage(*flat);
-						break;
-					case 2:
-						r.streamImage(*gradDot);
-						break;
-					case 3:
-						r.streamImage(*blobCenter);
-						break;
-				}
+			switch(config.stream().type()) {
+				case RAW:
+					r.streamQuad(channels);
+					break;
+				case REPROJ_FALSE_COLOR:
+					r.streamImage(*flat);
+					break;
+				case REPROJ_GRADIENT_DOT:
+					r.streamImage(*gradDot);
+					break;
+				case REPROJ_BLOB_SCORE:
+					r.streamImage(*blobCenter);
+					break;
 			}
 
 			if(r.debugStreamIntervalMs > 0 && (realStartTime - lastDebugSaveTime) * 1000.0 >= r.debugStreamIntervalMs) {
-				const std::string prefix = "img/" + std::to_string(r.camId) + ".";
+				const std::string prefix = "img/" + std::to_string(config.camera_id()) + ".";
 				r.snapshotWriter->offer(r.quad2rgba(channels), prefix + "raw.jpg");
 				r.snapshotWriter->offer(flat, prefix + "flat.jpg");
 				r.snapshotWriter->offer(gradDot, prefix + "gradient.jpg");
@@ -422,7 +418,7 @@ int main(int argc, char* argv[]) {
 			geometryCalibration(r, *rgba);
 
 			if(r.debugStreamIntervalMs > 0 && (realStartTime - lastDebugSaveTime) * 1000.0 >= r.debugStreamIntervalMs) {
-				r.snapshotWriter->offer(rgba, "img/" + std::to_string(r.camId) + ".raw.jpg");
+				r.snapshotWriter->offer(rgba, "img/" + std::to_string(config.camera_id()) + ".raw.jpg");
 				lastDebugSaveTime = realStartTime;
 			}
 		} else {
@@ -430,7 +426,7 @@ int main(int argc, char* argv[]) {
 
 			bool periodicSave = r.debugStreamIntervalMs > 0 && (realStartTime - lastDebugSaveTime) * 1000.0 >= r.debugStreamIntervalMs;
 			if(frameId == 100 || periodicSave) {  // Wait for automatic gain, exposure and white balance adjustments
-				r.snapshotWriter->offer(r.quad2rgba(channels), "img/" + std::to_string(r.camId) + ".raw.jpg");
+				r.snapshotWriter->offer(r.quad2rgba(channels), "img/" + std::to_string(config.camera_id()) + ".raw.jpg");
 				lastDebugSaveTime = realStartTime;
 				if(frameId == 100)
 					VP_LOG("Saved sample image");

@@ -128,6 +128,7 @@ void VisionSocket::geometryCheck() {
 		geometryVersion++;
 		VP_LOG("New geometry received");
 	}
+	camId = config.camera_id();
 	geometryMutex.unlock();
 }
 

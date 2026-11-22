@@ -109,7 +109,9 @@ void init_config(const std::string& configPath) {
 void apply_received_config(Resources& r) {
     SSL_VPConfig received = r.socket->getReceivedConfig();
 
-    //TODO camera_id
+    if(received.has_camera_id())
+        config.set_camera_id(received.camera_id());
+
     //TODO robot heights
     update_camera_config(&received.camera());
     //TODO geometry
@@ -117,7 +119,7 @@ void apply_received_config(Resources& r) {
     config.mutable_color()->MergeFrom(received.color());
     apply_color_update();
     //TODO network
-    //TODO stream
+    rtpStreamer.updateConfig(received.stream());
     //TODO wait for geometry
 }
 
