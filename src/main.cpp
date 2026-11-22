@@ -32,6 +32,15 @@
 #include "blobs/colorupdate.h"
 #include <opencv2/video/background_segm.hpp>
 
+/* Maximum amount of blobs processed per frame. */
+#define MAX_BLOBS 2000
+
+/* Expect robots to move at least this many mm between frames. */
+#define MIN_BOT_TRACKING_RADIUS 20.0f
+
+/* Maximum expected robot acceleration between frames in mm/s². */
+#define MAX_BOT_ACCELERATION 6500.0f
+
 struct __attribute__ ((packed)) CLMatch {
 	float x, y;
 	RGB color;
@@ -95,7 +104,7 @@ void generateRadiusSearchTrackedBotHypotheses(const Resources& r, std::list<std:
 			//prevent runtime escalation due to excessive timeDelta when FPS drop below 20 FPS or times are not synced
 			timeDelta = std::max(std::min(timeDelta, 0.05f), 0.0f);
 			//Double acceleration due to velocity determination from two frame difference
-			float blobSearchRadius = (float)r.maxBotAcceleration * timeDelta * timeDelta + (float)r.minTrackingRadius;
+			float blobSearchRadius = MAX_BOT_ACCELERATION * timeDelta * timeDelta + MIN_BOT_TRACKING_RADIUS;
 
 			float bestBotScore = 0.0f;
 			std::unique_ptr<BotHypothesis> bestBot = nullptr;
@@ -173,7 +182,7 @@ static inline bool closerThanCamEdgeDistance(const Resources& r, const Eigen::Ve
 
 	// Don't filter if border is outside field -> cannot be a partial robot
 	bool borderInsideField = borderPos.x() >= -halfFieldLength && borderPos.x() <= halfFieldLength && borderPos.y() >= -halfFieldWidth && borderPos.y() <= halfFieldWidth;
-	return borderInsideField && (borderPos - pos).squaredNorm() < r.minCamEdgeDistance*r.minCamEdgeDistance;
+	return borderInsideField && (borderPos - pos).squaredNorm() < config.thresholds().min_cam_edge_distance()*config.thresholds().min_cam_edge_distance();
 }
 
 void filterBallsAtCamEdge(const Resources& r, std::list<std::unique_ptr<BallHypothesis>>& balls) {
@@ -260,7 +269,7 @@ int main(int argc, char* argv[]) {
 	uint32_t frameId = 0;
 	double lastConfigSendTime = 0.0;
 	double lastDebugSaveTime = 0.0;
-	CLArray matchArray(sizeof(CLMatch) * r.maxBlobs);
+	CLArray matchArray(sizeof(CLMatch) * MAX_BLOBS);
 	CLArray counter(sizeof(cl_int)*3);
 
 	signal(SIGTERM, sig_stop);
@@ -293,7 +302,7 @@ int main(int argc, char* argv[]) {
 				counterMap[1] = 0;
 				counterMap[2] = 0;
 			}
-			r.openCl->await(blobList, cl::EnqueueArgs(cl::NDRange(r.perspective->reprojectedFieldSize[0], r.perspective->reprojectedFieldSize[1])), flat->image, blobCenter->image, matchArray.buffer, counter.buffer, (float)r.minCircularity, (float)0.0f, (int)floorf(r.perspective->minBlobRadius / r.perspective->fieldScale), r.maxBlobs);
+			r.openCl->await(blobList, cl::EnqueueArgs(cl::NDRange(r.perspective->reprojectedFieldSize[0], r.perspective->reprojectedFieldSize[1])), flat->image, blobCenter->image, matchArray.buffer, counter.buffer, config.thresholds().circularity(), (float)0.0f, (int)floorf(r.perspective->minBlobRadius / r.perspective->fieldScale), MAX_BLOBS);
 
 			if(r.debugImages && frameId == 1) {
 				flat->save(".flat." + std::to_string(frameId) + ".png");
@@ -305,7 +314,7 @@ int main(int argc, char* argv[]) {
 			{
 				CLMap<int> counterMap = counter.read<int>();
 				CLMap<CLMatch> matchMap = matchArray.read<CLMatch>();
-				const int matchAmount = std::min(r.maxBlobs, counterMap[0]);
+				const int matchAmount = std::min(MAX_BLOBS, counterMap[0]);
 				matches.reserve(matchAmount);
 
 				for(int i = 0; i < matchAmount; i++) {
@@ -319,8 +328,8 @@ int main(int argc, char* argv[]) {
 					});
 				}
 
-				if(counterMap[0] > r.maxBlobs)
-					WARN("max blob amount reached: " << counterMap[0] << "/" << r.maxBlobs);
+				if(counterMap[0] > MAX_BLOBS)
+					WARN("max blob amount reached: " << counterMap[0] << "/" << MAX_BLOBS);
 			}
 
 			std::list<std::unique_ptr<BotHypothesis>> botHypotheses;
@@ -333,7 +342,7 @@ int main(int argc, char* argv[]) {
 
 				generateRadiusSearchTrackedBotHypotheses(r, botHypotheses, matches, blobs, startTime);
 				generateAngleSortedBotHypotheses(r, botHypotheses, matches, blobs);
-				filterHypothesesScore(botHypotheses, r.minConfidence);
+				filterHypothesesScore(botHypotheses, config.thresholds().min_confidence());
 				filterClippingBotBotHypotheses(r, botHypotheses);
 				generateNonclippingBallHypotheses(r, botHypotheses, matches, ballHypotheses);
 			}
@@ -344,9 +353,9 @@ int main(int argc, char* argv[]) {
 			for (auto& ball : ballHypotheses)
 				ball->recalcPostColorCalib(r);
 
-			filterHypothesesScore(ballHypotheses, r.minConfidence);
+			filterHypothesesScore(ballHypotheses, config.thresholds().min_confidence());
 			filterBallsAtCamEdge(r, ballHypotheses);
-			filterStddevScore(ballHypotheses, (float)r.minScore);
+			filterStddevScore(ballHypotheses, config.thresholds().score());
 
 			SSL_WrapperPacket wrapper;
 			wrapper.set_source(SSL_SOURCE_VISION_PROCESSOR);

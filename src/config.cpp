@@ -10,17 +10,28 @@ static YAML::Node getOptional(const YAML::Node& node) {
 	return node.IsDefined() ? node : YAML::Node();
 }
 
-static void set_color(VPColor* color, const YAML::Node& node, int r, int g, int b) {
-    color->mutable_reference()->set_red(node[0].as<int>(r));
-    color->mutable_reference()->set_green(node[1].as<int>(g));
-    color->mutable_reference()->set_blue(node[2].as<int>(b));
+static void set_color(VPColor* color, int r, int g, int b) {
+    color->mutable_reference()->set_red(r);
+    color->mutable_reference()->set_green(g);
+    color->mutable_reference()->set_blue(b);
     color->mutable_live()->CopyFrom(color->reference());
+}
+
+static void set_color(VPColor* color, const YAML::Node& node, int r, int g, int b) {
+    set_color(color, node[0].as<int>(r), node[1].as<int>(g), node[2].as<int>(b));
 }
 
 void init_config(const std::string& configPath) {
 	char host[256];
 	gethostname(host, 256);
     config.set_instance(host);
+
+    set_color(config.mutable_color()->mutable_orange(), 192, 128, 64);
+    set_color(config.mutable_color()->mutable_field(), 128, 128, 128);
+    set_color(config.mutable_color()->mutable_yellow(), 255, 128, 0);
+    set_color(config.mutable_color()->mutable_blue(), 0, 128, 255);
+    set_color(config.mutable_color()->mutable_green(), 0, 255, 128);
+    set_color(config.mutable_color()->mutable_pink(), 255, 0, 128);
 
     // Interim copy from config file until network config is fully operational
     YAML::Node yaml = YAML::LoadFile(configPath);
@@ -90,10 +101,51 @@ void init_config(const std::string& configPath) {
     config.mutable_stream()->set_active(getOptional(yaml["stream"])["active"].as<bool>(true));
     config.mutable_stream()->set_stream_ip(getOptional(yaml["stream"])["ip_base_prefix"].as<std::string>("224.5.23.") + std::to_string(getOptional(yaml["stream"])["ip_base_end"].as<int>(100) + config.camera_id()));
     config.mutable_stream()->set_stream_port(getOptional(yaml["stream"])["port"].as<int>(10100));
+
+    liveFieldLineColor = eigen_from_color(config.color().field().live());
+    apply_color_update();
 }
 
 void apply_received_config(Resources& r) {
     SSL_VPConfig received = r.socket->getReceivedConfig();
 
+    //TODO camera_id
+    //TODO robot heights
     update_camera_config(&received.camera());
+    //TODO geometry
+    config.mutable_thresholds()->MergeFrom(received.thresholds());
+    config.mutable_color()->MergeFrom(received.color());
+    apply_color_update();
+    //TODO network
+    //TODO stream
+    //TODO wait for geometry
+}
+
+Eigen::Vector3i liveOrange;
+Eigen::Vector3i liveField;
+Eigen::Vector3i liveYellow;
+Eigen::Vector3i liveBlue;
+Eigen::Vector3i liveGreen;
+Eigen::Vector3i livePink;
+Eigen::Vector3i liveFieldLineColor;
+
+Color color_from_eigen(const Eigen::Vector3i& eigen) {
+    Color color;
+    color.set_red(eigen[0]);
+    color.set_green(eigen[1]);
+    color.set_blue(eigen[2]);
+    return color;
+}
+
+Eigen::Vector3i eigen_from_color(const Color& color) {
+    return Eigen::Vector3i(color.red(), color.green(), color.blue());
+}
+
+void apply_color_update() {
+    liveOrange = eigen_from_color(config.color().orange().live());
+    liveField = eigen_from_color(config.color().orange().live());
+    liveYellow = eigen_from_color(config.color().orange().live());
+    liveBlue = eigen_from_color(config.color().orange().live());
+    liveGreen = eigen_from_color(config.color().orange().live());
+    livePink = eigen_from_color(config.color().orange().live());
 }

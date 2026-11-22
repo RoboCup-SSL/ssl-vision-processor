@@ -67,7 +67,7 @@ static YAML::Node getOptional(const YAML::Node& node) {
 	return node.IsDefined() ? node : YAML::Node();
 }
 
-Resources::Resources(const std::string& configPath) : fieldReference(), configPath(configPath) {
+Resources::Resources(const std::string& configPath) : configPath(configPath) {
 	YAML::Node config = YAML::LoadFile(configPath);
 	struct stat st{};
 	if(stat(configPath.c_str(), &st) == 0)
@@ -80,18 +80,7 @@ Resources::Resources(const std::string& configPath) : fieldReference(), configPa
 		FATAL("Invalid camera ID, must be >= 0 and <= 7: " << camId);
 	}
 
-	maxBlobs = getOptional(config["thresholds"])["blobs"].as<int>(2000);
-	geometryTolerance = getOptional(config["thresholds"])["geometry_tolerance"].as<float>(10.0f);
-
 	applyTunables(config);
-
-	orange = orangeReference;
-	field = fieldReference;
-	yellow = yellowReference;
-	blue = blueReference;
-	green = greenReference;
-	pink = pinkReference;
-	fieldLineColor = fieldReference;
 
 	YAML::Node geometry = getOptional(config["geometry"]);
 	cameraAmount = geometry["camera_amount"].as<int>(1);
@@ -110,7 +99,7 @@ Resources::Resources(const std::string& configPath) : fieldReference(), configPa
 	YAML::Node network = getOptional(config["network"]);
 	gcSocket = std::make_shared<GCSocket>(network["gc_ip"].as<std::string>("224.5.23.1"), network["gc_port"].as<int>(10003), YAML::LoadFile(config["bot_heights_file"].as<std::string>("robot-heights.yml")).as<std::map<std::string, double>>());
 	socket = std::make_shared<VisionSocket>(network["vision_ip"].as<std::string>("224.5.23.2"), network["vision_port"].as<int>(10006), camId, gcSocket->defaultBotHeight);
-	perspective = std::make_shared<Perspective>(socket, camId, geometryTolerance);
+	perspective = std::make_shared<Perspective>(socket, camId);
 
 	YAML::Node stream = getOptional(config["stream"]);
 	rtpStreamer = std::make_shared<RTPStreamer>(stream["active"].as<bool>(true), "rtp://" + stream["ip_base_prefix"].as<std::string>("224.5.23.") + std::to_string(stream["ip_base_end"].as<int>(100) + camId) + ":" + std::to_string(stream["port"].as<int>(10100)));
@@ -186,26 +175,7 @@ void Resources::streamImage(CLImage &img) {
 
 void Resources::applyTunables(const YAML::Node& config) {
 	YAML::Node thresholds = getOptional(config["thresholds"]);
-	minCircularity = thresholds["circularity"].as<double>(15.0);
-	minScore = thresholds["score"].as<double>(5.0);
-	minConfidence = thresholds["min_confidence"].as<float>(0.2f);
-	minCamEdgeDistance = thresholds["min_cam_edge_distance"].as<double>(170.0);
 	resamplingFactor = thresholds["resampling_factor"].as<float>(1.0f);
-	clippingTolerance = thresholds["clipping_tolerance"].as<float>(10.0f);
-
-	YAML::Node tracking = getOptional(config["tracking"]);
-	minTrackingRadius = tracking["min_tracking_radius"].as<double>(20.0);
-	maxBotAcceleration = 1000 * tracking["max_bot_acceleration"].as<double>(6.5);
-
-	YAML::Node color = getOptional(config["color"]);
-	referenceForce = color["reference_force"].as<float>(0.1f);
-	historyForce = color["history_force"].as<float>(0.7f);
-	orangeReference = color["orange"].as<Eigen::Vector3i>(Eigen::Vector3i{192, 128, 64});
-	fieldReference = color["field"].as<Eigen::Vector3i>(Eigen::Vector3i{128, 128, 128});
-	yellowReference = color["yellow"].as<Eigen::Vector3i>(Eigen::Vector3i{255, 128, 0});
-	blueReference = color["blue"].as<Eigen::Vector3i>(Eigen::Vector3i{0, 128, 255});
-	greenReference = color["green"].as<Eigen::Vector3i>(Eigen::Vector3i{0, 255, 128});
-	pinkReference = color["pink"].as<Eigen::Vector3i>(Eigen::Vector3i{255, 0, 128});
 
 	YAML::Node debug = getOptional(config["debug"]);
 	debugImages = debug["debug_images"].as<bool>(false);

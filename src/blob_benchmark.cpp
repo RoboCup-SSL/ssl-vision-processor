@@ -17,6 +17,7 @@
 #include <yaml-cpp/yaml.h>
 #include "Resources.h"
 #include "driver/cameradriver.h"
+#include "config.h"
 #include "GroundTruth.h"
 #include "pattern.h"
 #include "cl_kernels.h"
@@ -152,7 +153,7 @@ int main(int argc, char* argv[]) {
 		r.rgba2blobCenter(channels, flat, gradDot, blobCenter);
 
 		//std::shared_ptr<CLImage> score = r.openCl->acquire(&PixelFormat::F32, r.perspective->reprojectedFieldSize[0], r.perspective->reprojectedFieldSize[1], img->name);
-		//OpenCL::await(scoreKernel, cl::EnqueueArgs(cl::NDRange(r.perspective->reprojectedFieldSize[0], r.perspective->reprojectedFieldSize[1])), flat->image, blobCenter->image, score->image, (float)r.minCircularity, (int)floor(r.minBlobRadius/r.perspective->fieldScale));
+		//OpenCL::await(scoreKernel, cl::EnqueueArgs(cl::NDRange(r.perspective->reprojectedFieldSize[0], r.perspective->reprojectedFieldSize[1])), flat->image, blobCenter->image, score->image, config.thresholds().circularity(), (int)floor(r.minBlobRadius/r.perspective->fieldScale));
 
 		processingTime += getRealTime() - startTime;
 		startTime = getRealTime();

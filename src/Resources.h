@@ -43,33 +43,10 @@ public:
 
 	int camId;
 
-	double minTrackingRadius;
-	double maxBotAcceleration; // mm/s²
-
-	double minCircularity;
-	double minScore;
-	double minCamEdgeDistance;
-	int maxBlobs;
-	float minConfidence;
 	float resamplingFactor;
-	float clippingTolerance;
-	float geometryTolerance;
 
 	float referenceForce;
 	float historyForce;
-	Eigen::Vector3i orangeReference;
-	Eigen::Vector3i fieldReference;
-	Eigen::Vector3i yellowReference;
-	Eigen::Vector3i blueReference;
-	Eigen::Vector3i greenReference;
-	Eigen::Vector3i pinkReference;
-	Eigen::Vector3i orange;
-	Eigen::Vector3i field;
-	Eigen::Vector3i yellow;
-	Eigen::Vector3i blue;
-	Eigen::Vector3i green;
-	Eigen::Vector3i pink;
-	Eigen::Vector3i fieldLineColor = fieldReference;
 
 	int cameraAmount;
 	double cameraHeight; // Just for calibration, do not use elsewhere (0.0 as special value for automatic calibration)
