@@ -65,7 +65,7 @@ got=$(run "$work/version" -version)
 [ "$got" = "ssl-vision-processor-gui $version" ] || fail "-version printed: $got"
 [ -z "$(ls -A "$work/version")" ] || fail "-version created files"
 
-(run "$work/readme" -readme) | grep -q '^# vision_processor GUI' || fail "-readme didn't print the user guide"
+(run "$work/readme" -readme) | grep -q '^# SSL Vision Processor GUI' || fail "-readme didn't print the user guide"
 [ -z "$(ls -A "$work/readme")" ] || fail "-readme created files"
 
 port=$((20000 + RANDOM % 20000))
@@ -138,6 +138,16 @@ grep -q '^ *config_path: cam0.yml$' "$config/vision.yml" || fail "camera 0 has n
 grep -qF "bot_heights_file: $config/robot-heights.yml" "$config/cam0.yml" ||
 	fail "cam0.yml doesn't name the height table by its full path"
 grep -qF "$fakebin/vision_processor" "$work/local.log" || fail "startup didn't print which vision_processor it runs"
+
+# A new config has no camera selected: nothing runs until a driver is chosen.
+curl -sf "http://127.0.0.1:$port/api/processes" | grep -q '"state":"no_camera"' ||
+	fail "a new config's camera isn't waiting for a driver"
+[ ! -e "$state/run/cam0/args" ] || fail "vision_processor ran with no camera selected"
+
+etag=$(curl -sfI -X GET "http://127.0.0.1:$port/api/config" | tr -d '\r' | sed -n 's/^[Ee][Tt]ag: //p')
+curl -sf -o /dev/null -X PATCH -H "If-Match: $etag" -H 'Content-Type: application/merge-patch+json' \
+	-d '{"defaults":{"camera":{"driver":"OPENCV"}}}' "http://127.0.0.1:$port/api/config" ||
+	fail "choosing a driver was refused"
 
 for _ in $(seq 1 100); do
 	[ -e "$state/run/cam0/args" ] && [ -e "$state/img/cam0/0.raw.jpg" ] && break
