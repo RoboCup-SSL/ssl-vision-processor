@@ -328,7 +328,7 @@ orientation) and `seed.goalSideMarker` (which corner marker was picked). Other c
 are. `teams` and `competitionField` are read by the host's alerts, and `tracker` by its tracker socket. Each `Change` in `config.state` has both `path`
 (vision.yml's spelling, `field.field_width`) and `jsonPath` (the JSON document's, `field.fieldWidth`); in both,
 `cameras[N]` is the camera with camera_id N, not a list index. `section` is the GUI page the change belongs to. Protobuf messages appear in two spellings: `/api/geometry` and
-`wrapper_packet.out` use canonical protojson (`pixelImageWidth`), while the document's `models` and
+`geometry.state` use canonical protojson (`pixelImageWidth`), while the document's `models` and
 `calibration.camera` keep proto field names (`pixel_image_width`), matching how they're stored in vision.yml.
 
 "Host-local" endpoints describe the machine running the host, and only describe a camera when its
@@ -357,10 +357,10 @@ UI, can administer the host.
 
 ```json
 // client -> server
-{ "action": "subscribe",   "topic": "wrapper_packet.out" }
-{ "action": "unsubscribe", "topic": "wrapper_packet.out" }
+{ "action": "subscribe",   "topic": "geometry.state" }
+{ "action": "unsubscribe", "topic": "geometry.state" }
 // server -> client
-{ "topic": "wrapper_packet.out", "data": { /* protojson */ } }
+{ "topic": "geometry.state", "data": { /* protojson */ } }
 { "error": "unknown_topic", "message": "...", "topic": "wrapper_pakcet.out" }
 ```
 
@@ -368,7 +368,7 @@ UI, can administer the host.
 A message the server can't act on is answered with an error (`bad_request`, `unknown_topic`, `unknown_action`)
 and the connection stays open.
 
-`wrapper_packet.out` carries the current `SSL_WrapperPacket` as canonical protojson, published once per second.
+`geometry.state` carries the current `SSL_WrapperPacket` as canonical protojson, published once per second.
 `config.state` carries `config.Store`'s state: the revision, unsaved changes, any change made to the file on disk,
 and per camera calibration status. It is published on every change and once per second, since live calibration
 status comes from the network rather than the store.
@@ -377,12 +377,12 @@ status comes from the network rather than the store.
 second and on every config change.
 `processes.state` carries the vision_processors the host runs (`-runCameras`), on every state change and once per
 second; an empty list without `-runCameras`.
-`live_field.frames` carries the latest detection frame from each camera (by camera_id and sender) and the latest
+`live-field.state` carries the latest detection frame from each camera (by camera_id and sender) and the latest
 tracked frame from each autoref (by the uuid it sends), as canonical protojson inside a small envelope with each
 source's rate and receive time and the host's clock (`at`), so a client can tell a source's age without trusting the
 senders' clocks. Detections are in mm, tracked frames in m. A source silent for a second is listed without a frame,
 and dropped after 30 s. It is published at up to 60 Hz, only while someone subscribes and something new arrived (and
-once a second otherwise); `GET /api/live_field` returns the same snapshot.
+once a second otherwise); `GET /api/live-field` returns the same snapshot.
 `alerts.state` carries every problem the host can see (`internal/alerts`), on the same schedule: a stable `id`,
 a `code`, a `severity` (`error`, `warning`, `caution`), an optional `cameraId`, the facts behind it as `params`,
 and a plain English `message`. The host decides which alerts exist and how serious they are; a client words and

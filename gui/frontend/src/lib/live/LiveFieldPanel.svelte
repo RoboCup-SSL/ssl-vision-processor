@@ -41,13 +41,13 @@
   let packet = $state.raw<SSL_WrapperPacketJson | null>(null);
 
   $effect(() =>
-    topic<LiveFieldSnapshot>("live_field.frames").subscribe((s) => {
+    topic<LiveFieldSnapshot>("live-field.state").subscribe((s) => {
       if (s) snapshot = s;
     }),
   );
 
   $effect(() =>
-    topic<SSL_WrapperPacketJson>("wrapper_packet.out").subscribe((p) => {
+    topic<SSL_WrapperPacketJson>("geometry.state").subscribe((p) => {
       if (p) packet = p;
     }),
   );

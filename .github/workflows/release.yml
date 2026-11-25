@@ -1,7 +1,9 @@
 name: Release
 
-# Pushing a v* tag publishes that version of the GUI host: the static binary,
-# its tarball, the .deb packages and SHA256SUMS, as a GitHub Release.
+# Pushing a v* tag builds that version of the GUI host: the static binary, its
+# tarball, the .deb packages and SHA256SUMS, as a draft GitHub Release. Only
+# maintainers see a draft: install it, then publish it by hand. A tag with a
+# suffix (v2.0.0-alpha.1, -rc.1) is marked as a pre-release.
 on:
   push:
     tags: ["v*"]
@@ -23,6 +25,16 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@v23
       - uses: DeterminateSystems/magic-nix-cache-action@v15
 
+      - name: Enable loopback multicast
+        run: sudo scripts/lo-multicast.sh on
+
+      # Everything CI checks, on the tagged commit itself: a tag can point at
+      # one CI never ran on.
+      - name: Check
+        run: |
+          google-chrome --version # make check skips the browser tests without it
+          nix develop --command bash -c 'cd gui && make check'
+
       - name: Build and check
         run: nix develop --command bash -c 'cd gui && make release-check VERSION="$GITHUB_REF_NAME"'
 
@@ -36,9 +48,11 @@ jobs:
           cp gui/bin/deb/*.deb gui/bin/release/
           cd gui/bin/release && sha256sum *.tar.gz *-bin *.deb > SHA256SUMS
 
-      - name: Publish
+      - name: Draft the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --generate-notes \
+          prerelease=()
+          case "$GITHUB_REF_NAME" in *-*) prerelease=(--prerelease) ;; esac
+          gh release create "$GITHUB_REF_NAME" --draft "${prerelease[@]}" --verify-tag --generate-notes \
             gui/bin/release/*.tar.gz gui/bin/release/*-bin gui/bin/release/*.deb gui/bin/release/SHA256SUMS

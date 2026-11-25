@@ -15,6 +15,7 @@ export const app = {
   // Headers over the tab bar's two groups, and their short forms, inline
   // before the tabs, for when the headers don't fit (layout/TabBar.svelte).
   tabGroups: {
+    label: "Pages",
     global: "Global Configs",
     perCamera: (camera: number | undefined): string =>
       camera === undefined
@@ -55,7 +56,6 @@ export const app = {
   sidebar: {
     instancesHelp:
       "One row per camera role, not per machine -- a host running all 4 cameras of a quad setup appears here 4 times. From vision.yml's cameras list.",
-    noCameras: "Per-instance (no cameras yet)",
     // The status dot of a vision_processor the host runs itself.
     process: {
       running: "vision_processor running",

@@ -27,17 +27,19 @@ Owner per finding: **Will** (Go/Svelte) or **Claude** (build/CI/packaging/docs i
 
 ## Status
 
-Updated 2026-11-25. **Open** 32 · **Partial** 4 · **Done** 33 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
+Updated 2026-11-25. **Open** 28 · **Partial** 4 · **Done** 37 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
 
 **Next up** (MVP gate order; see the end of this file):
-All blockers are fixed. T5-4, T2-8 and T2-9 are awaiting commit; with T5-4 the lab path (T5-2, T5-3, T5-4) is done.
+All blockers are fixed. T3-3, T5-6, T8-1 and T1-2 are awaiting commit.
+1. API freeze: T3-1 with T4-6, then T3-2 (Will approved `openapi-fetch`).
+2. T1-3, T6-1, T6-5, T4-3.
 
 **Needs the lab PoE machine:** T2-10.
 
 | ID | Sev | Owner | Item | Status |
 |---|---|---|---|---|
 | T1-1 | blocker | Claude (Will commits) | 18 MB binary tracked in git | done |
-| T1-2 | major | Claude | release tag not gated on `make check` / e2e | open |
+| T1-2 | major | Claude | release tag not gated on `make check` / e2e | done |
 | T1-3 | major | Claude + Will | package description promises a VP package that doesn't exist | open |
 | T1-4 | minor | Claude | tarball and `-bin` amd64 only (absorbs L-3) | open |
 | T1-5 | minor | Claude | stale toolchain and dependencies | partial |
@@ -59,7 +61,7 @@ All blockers are fixed. T5-4, T2-8 and T2-9 are awaiting commit; with T5-4 the l
 | T2-10 | major | Will + Claude | console warnings while vision/GC use the PoE camera NICs | open (needs lab machine) |
 | T3-1 | major | Will | WS topic contract in three places | open |
 | T3-2 | major | Will | generated `paths` unused | open |
-| T3-3 | major | Will | naming pass before freezing API 1.0 | open |
+| T3-3 | major | Will | naming pass before freezing API 1.0 | done |
 | T3-4 | minor | Will | response-spec test coverage | done |
 | T3-5 | nit | Will | OpenAPI tag descriptions | done |
 | T4-1 | blocker | Will | "Temporary debug utilities" on every page | done |
@@ -75,7 +77,7 @@ All blockers are fixed. T5-4, T2-8 and T2-9 are awaiting commit; with T5-4 the l
 | T5-3 | major | Will | SPINNAKER default driver | done |
 | T5-4 | major | Will | 4 warnings on a fresh install | done |
 | T5-5 | major | Will | accessibility (labels, contrast) | v2.1 |
-| T5-6 | major | Will | two navigation systems | open |
+| T5-6 | major | Will | two navigation systems | done |
 | T5-7 | minor | Will | first-run wording | open |
 | T5-8 | minor | Will | broken image in corner picker | done |
 | T5-9 | minor | Will | Camera page edits undeliverable settings | open |
@@ -96,7 +98,7 @@ All blockers are fixed. T5-4, T2-8 and T2-9 are awaiting commit; with T5-4 the l
 | T7-6 | nit | Claude | coverage for binary-only paths | done |
 | T7-7 | nit | Will | `time.Sleep` in Go tests | done |
 | T7-8 | minor | Will | `yuvInGamut` rounding tolerance | done |
-| T8-1 | major | Will | four product names | open |
+| T8-1 | major | Will | four product names | done |
 | T8-2 | minor | Will + Claude | page names | open |
 | T8-3 | minor | Will | identifier naming across layers | open |
 | T8-4 | minor | Will | text centralization | open |
@@ -173,6 +175,8 @@ Fix: `git rm --cached gui/ssl-vision-processor-gui`. Before `v2.0-alpha` merges 
 **T1-2 | major | Claude | `.github/workflows/release.yml`**
 A `v*` tag publishes a public GitHub Release after only `release-check` and `deb-check`. `make check` and the e2e suite never run against the tagged commit; CI runs on master pushes and PRs, but a tag can point anywhere. `gh release create` also publishes immediately, with no draft.
 Fix: run `make check` (including e2e) in the release job before building, or gate it on the CI workflow for that SHA. Create the release as `--draft` and publish by hand after a smoke install. Mark `-rc`/`-alpha` tags `--prerelease`.
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* the release workflow runs `make check` on the tagged commit (failing without Chrome, so the browser tests can't be skipped), then drafts the release for Will to publish by hand. Tags with a suffix are pre-releases. Not run: it needs a tag push.
 
 **T1-3 | major | Claude + Will | `gui/packaging/nfpm.yaml:26`, release notes, `gui/README.md`**
 The package description says "The camera processing itself, vision_processor, is packaged separately", but no vision_processor package exists yet (the CV deb is planned). A new user who installs the `.deb` from the first release has a GUI with nothing to talk to, and nothing on the release page says how to get vision_processor. The `v*` tag also reads as a release of the whole repo while it ships only the GUI.
@@ -266,13 +270,13 @@ The staticcheck hits from Phase 0: deprecated `tint.NewHandler` → `tint.NewTex
 Senders are told apart by IP and port. vision_processor's streamer reopens its socket, on a new port, whenever the streamed view changes size, and it cycles views. For 3 s both ports count, so one vision_processor is reported as "several senders claim the same thing". 393 such warnings in Will's log (2026-11-07/08), every one with both senders on the same machine.
 Fix: for video, a new port (and RTP SSRC) from the same IP replaces the old one once the old one stops; a conflict needs both to keep sending, interleaved.
 
-*Done 2026-11-25 (Claude, at Will's request; uncommitted):* the video watch has `Restarts`: a sender that stopped within 100 ms of another starting on its IP is the same program. Two that keep sending are still a conflict, on one machine or two.
+*Done 2026-11-25 (Claude, at Will's request; committed `b32e24b`):* the video watch has `Restarts`: a sender that stopped within 100 ms of another starting on its IP is the same program. Two that keep sending are still a conflict, on one machine or two.
 
 **T2-9 | major | Will | `internal/video/assembler.go`, `internal/multicast/socket.go`**
 The video socket joins its group on every used interface, so a stream that reaches the machine on two of them arrives twice from the same IP and port. The assembler reads a repeated sequence number as packet loss: with every packet doubled, a synthetic 60-frame stream yields no frames. Nothing warns about it. The double delivery was reproduced in a namespace with a local sender, only with `accept_local=1` and loose or no rp_filter: with the default `accept_local=0` the kernel drops a machine's own packets coming back in. A sender on another machine reaching both interfaces is untested. Not known to be what Will sees in the lab (T2-10).
 Fix: drop packets already seen (same SSRC, recent sequence number), and alert when one sender's packets arrive on several interfaces (needs the arrival interface from IP_PKTINFO).
 
-*Done 2026-11-25 (Claude, at Will's request; uncommitted):* the assembler ignores packets at or up to 1024 behind the newest. Every endpoint (vision, game controller, tracker, video) notes the interface each counted packet arrives on; a sender on several at once is logged once, listed in `Status.duplicates`, and raises `duplicate_packets` (warning, one per interface set, with a how-to). Checked in namespaces: a sender on another machine, with the host's static and link-local interfaces on one switch, was doubled and caught with `rp_filter=2`; with `rp_filter=1` the kernel dropped the copies.
+*Done 2026-11-25 (Claude, at Will's request; committed `b32e24b`):* the assembler ignores packets at or up to 1024 behind the newest. Every endpoint (vision, game controller, tracker, video) notes the interface each counted packet arrives on; a sender on several at once is logged once, listed in `Status.duplicates`, and raises `duplicate_packets` (warning, one per interface set, with a how-to). Checked in namespaces: a sender on another machine, with the host's static and link-local interfaces on one switch, was doubled and caught with `rp_filter=2`; with `rp_filter=1` the kernel dropped the copies.
 
 **T2-10 | major | Will + Claude | interface selection; cause unknown, needs the lab machine**
 Reported by Will 2026-11-25: on a lab machine with a field network NIC and a dual-port PoE NIC for FLIR cameras, the console prints warnings. They stopped when he unticked the PoE interfaces for the vision/GC network on the Network page. Not video related, though video may be affected too. The PoE ports are always static or link-local, on another subnet than the field network. The warning text isn't recorded and nothing has been reproduced.
@@ -303,6 +307,8 @@ Fix: `openapi-fetch` (same author as `openapi-typescript`, ~6 kB, no runtime sch
 - operationIds: `getConfig`/`getAlerts` vs bare nouns (`network`, `instances`, `load`, `system`). The snapshot route and both WebSockets have none, so generated clients and Redoc anchors fall back to unstable names.
 
 Fix: pick one convention (kebab-case paths, plural collections, `{id}`, `verbNoun` operationIds, `<noun>.state` topics), apply it before the release, and consider `0.x` for the spec version until after the first event.
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* `/api/live-field`, `/api/capture-devices`, `/api/snapshots/{id}/{view}`; topics `live-field.state` and `geometry.state`; verbNoun operationIds on every route, the WebSockets included; `ErrorBody`; spec version 0.1.0. No aliases. `TestNamesFollowTheRules` keeps new names to the rules.
 
 **T3-4 | minor | Will | `cmd/ssl-vision-processor-gui/responses_test.go:17-33`**
 `TestResponsesMatchTheSpec` checks a hand-kept list of 16 GET routes. A new GET route is silently unchecked, and `/api/geometry`, every write route's 200 body and the error envelope are never validated. `conforms` checks nullability, enums and required fields only.
@@ -396,7 +402,7 @@ Fix: an `Error` alert per camera when `crashes ≥ 2` (or state `waiting` after 
 Every new camera defaults to the **Spinnaker (FLIR)** driver (the schema's `camera.driver` default `SPINNAKER`, vision_processor's own fallback). The planned CV package is FOSS-only (OpenCV/V4L, DC1394) and `-runCameras` targets student labs with webcams, so a new lab user's first `-runCameras` start crash-loops on a driver they don't have, and (T5-2) nothing says so. No C++ change is needed: the host owns the bootstrapped `vision.yml`.
 Fix: write `defaults.camera.driver: OPENCV` in a new config, or better, a wizard step "What cameras?" (webcam / FLIR / FireWire / mvIMPACT) that sets it and offers the `/api/camera/devices` picker.
 
-*Done 2026-11-25 (Claude, at Will's request; committed `34b48f2`):* not OPENCV. A new config writes `defaults.camera.driver: DUMMY`, the protocol's "no camera (initial state)" (proto `fdd7988`), so nobody gets a wrong driver. A file without a driver still means SPINNAKER. With `-runCameras` a DUMMY camera is held, not started (state `no_camera`; its restart route answers 409 `no_camera`), starts when a driver is chosen, and never counts as a device conflict. New alert `camera_not_selected` (warning, error on a competition field), except for a camera the host writes no config for that is already sending. The Camera page shows "No camera selected" and hides device, resolution and tuning until one is chosen; sidebar, video placeholder and checklist say so too. Today's vision_processor exits on DUMMY (`openCamera` has no case), so a camera run by hand still needs a driver first. Once upstream PR #61 lands, the hold can go. The wizard step stays a possible later feature.
+*Done 2026-11-25 (Claude, at Will's request; committed `34b48f2`):* not OPENCV. A new config writes `defaults.camera.driver: DUMMY`, the protocol's "no camera (initial state)" (proto `fdd7988`), so nobody gets a wrong driver. A file without a driver still means SPINNAKER. With `-runCameras` a DUMMY camera is held, not started (state `no_camera`; its restart route answers 409 `no_camera`), starts when a driver is chosen, and never counts as a device conflict. New alert `camera_not_selected` (warning, error on a competition field), except for a camera the host writes no config for that is already sending. The Camera page shows "No camera selected" and hides device, resolution and tuning until one is chosen; sidebar, video placeholder and checklist say so too. Today's vision_processor exits on DUMMY (`openCamera` has no case), so a camera run by hand still needs a driver first. Once upstream PR #61 lands, the hold can go. The wizard step stays a possible later feature. *2026-11-25:* it broke `make release-check` (a new config no longer starts a camera), and so CI's release build, unnoticed because `make check` doesn't run it; fixed with the API rename batch.
 
 **T5-4 | major | Will | alert severities on a fresh install**
 Before the user has done anything, a first run shows **4 warnings and 1 caution**: `first_run_not_publishing`, `socket_silent`, `team_default_height` ×2, `loopback_multicast_off`. In a lab without a game controller, the two height warnings never go away. Users learn to ignore the warning count on day one, and that is exactly the count that should matter before a match.
@@ -405,7 +411,7 @@ Fix:
 - `socket_silent` on the vision group should be info/caution until a vision_processor has ever been heard.
 - Check the loopback caution's wording. "vision_processor on this machine can't be heard here" is only true when no other interface carries the multicast; on a machine with a NIC, the local VP is normally heard via `IP_MULTICAST_LOOP` on that interface.
 
-*Done 2026-11-25 (Claude, at Will's request; uncommitted):* vision silent is a caution until something is heard, except on a competition field or while a vision_processor this host runs is running. The default-height alert is a caution only with nothing set and no game controller heard (still an error on a competition field; a lab can clear it with a height per color). Loopback multicast off is hidden while a network is in use and a warning otherwise. The checklist's Teams step stays to do on that height caution. Automatic interface selection falls back to loopback when nothing else is usable and its multicast is on. The how-to was incomplete: a plain sender like vision_processor also needs a multicast route (`ip route add 224.0.0.0/4 dev lo src 127.0.0.1`), or its sends fail with ENETUNREACH. Checked in a network namespace.
+*Done 2026-11-25 (Claude, at Will's request; committed `b32e24b`):* vision silent is a caution until something is heard, except on a competition field or while a vision_processor this host runs is running. The default-height alert is a caution only with nothing set and no game controller heard (still an error on a competition field; a lab can clear it with a height per color). Loopback multicast off is hidden while a network is in use and a warning otherwise. The checklist's Teams step stays to do on that height caution. Automatic interface selection falls back to loopback when nothing else is usable and its multicast is on. The how-to was incomplete: a plain sender like vision_processor also needs a multicast route (`ip route add 224.0.0.0/4 dev lo src 127.0.0.1`), or its sends fail with ENETUNREACH. Checked in a network namespace.
 
 **T5-5 | major | Will | accessibility (axe, every page)**
 - **Critical `label`:** unlabeled form controls on Camera (3), Geometry (4) and Color (1), in light and dark, at every width.
@@ -420,6 +426,8 @@ Fix: label the controls (likely the slider/number pairs; each needs `aria-label`
 **T5-6 | major | Will | `layout/Shell.svelte`, `layout/TabBar.svelte`**
 There are two navigation systems with different contents. The sidebar lists Live Field, Teams, Network, Dimensions and Layout, then Camera, Geometry, Color, Stream and Debug. The top tab bar repeats them under "GLOBAL CONFIGS" and "PER-CAMERA CONFIGS - FIELD CAM #0", but has no Stream, Debug, Alerts or Advanced. A new user can't tell which is primary, or why some pages appear in only one.
 Fix: pick one. Keep the sidebar (it scales to several cameras) and drop the tab bar, or keep the tabs only on narrow screens as a replacement for the sidebar.
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* Will's choice: the tab bar is the navigation. The sidebar keeps Alerts and the camera list, unchanged; `ConfigNav.svelte` (the page links) is gone and Stream is now a tab. The sidebar's free space is for camera summaries later (Future features).
 
 **T5-7 | minor | Will | first-run wording**
 - The wizard's Finish step still says "Applying… doesn't save -- use Save in the settings menu (or Ctrl+S)", although Apply immediately opens the save dialog.
@@ -576,6 +584,8 @@ Fix: treat an overflow under ~3 as in gamut (or compare against the rounded deco
 The product has four names. The browser title and header say **"SSL Vision Processor"**, which reads as if this page *is* the vision processor. The README, man page, package description and systemd unit say **"vision_processor GUI"** (11 uses), with "vision-processor GUI", "vision processor GUI" and the log's "Init VP GUI" mixed in. The binary and package are `ssl-vision-processor-gui`. First-time users meet all of these in their first ten minutes.
 Fix: pick one display name (for example "SSL Vision Processor GUI") for the title, header, README H1, man page NAME, package description, unit `Description=` and startup log. Keep `vision_processor` in code font only for the C++ binary.
 
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* "SSL Vision Processor GUI" everywhere it's displayed: title, header, About, README, man page, package, units, account description, API docs, startup log, config file header. `vision_processor` is only the C++ program. Binary, package, folder and account names are unchanged.
+
 **T8-2 | minor | Will + Claude | page names**
 The same pages have different names in the sidebar ("Camera", "Layout", "Dimensions"), page headings ("Camera settings", "Field dimensions"), README ("Camera Settings page", "Camera Layout page") and the frontend README ("Field Dimensions", "Camera Layout"). Headings use sentence case and the README uses title case.
 Fix: one name per page from `lib/text`, used by the nav, the heading and the docs. Pick a case convention.
@@ -682,6 +692,7 @@ These came up during the review. They're out of scope for the MVP and not findin
   - `debug_images` writes `img/.flat.1.png`, `.gradDot.1.png` and `.blob.1.png` once per start. The names have no camera prefix, so the snapshot listing skips them. Worth exposing once vision_processor names them `img/<cam>.…` (a C++ change).
   - `ground_truth` is for the benchmarks only. If it's ever exposed, it's a file name and must go through `config.ValidName`.
 - **Debug images over the network** (from T4-1, Will: needed long term). The Color views (`flat`, `blob`) and Geometry views (`pixels`, `lines`, `pixels.corner`, `pixels.refined`) are read from the host's own `img/`, so they only work for cameras on the same machine (gui/CLAUDE.md "Snapshots for remote instances"). Getting them from a vision_processor on another machine is a protocol change. `SnapshotViews.svelte` only needs a new source once that exists.
+- **Cameras at a glance in the sidebar** (from T5-6, Will). Summary data on each camera in the list.
 - **Per-camera overrides on the Advanced page.** Today the page only names the cameras that override a shared value. It could show and reset each override.
 - **Tidy-up after T5-1:** `CONFIG_FIELDS`, `ConfigCategory.fields` and `yamlKey` have nothing left that reads them.
 

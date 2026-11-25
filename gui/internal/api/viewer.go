@@ -19,7 +19,7 @@ const viewerPage = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>vision_processor GUI host API</title>
+<title>SSL Vision Processor GUI API</title>
 <style>body { margin: 0; }</style>
 </head>
 <body>

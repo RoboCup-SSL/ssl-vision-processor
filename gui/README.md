@@ -1,4 +1,4 @@
-# vision_processor GUI
+# SSL Vision Processor GUI
 
 A browser interface for setting up and running [vision_processor](https://github.com/RoboCup-SSL/ssl-vision-processor#readme), the SSL's shared vision system.
 It holds your field geometry and camera settings, locks in camera calibrations, shows live video and the live

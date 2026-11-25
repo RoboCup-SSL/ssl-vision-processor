@@ -1,4 +1,4 @@
-# The vision_processor GUI as a system service. Whether it's enabled, and the
+# The SSL Vision Processor GUI as a system service. Whether it's enabled, and the
 # address in /etc/default/ssl-vision-processor-gui, are the package's setup
 # questions: sudo dpkg-reconfigure ssl-vision-processor-gui. Extra options go
 # in that file's ARGS.
@@ -10,7 +10,7 @@
 # runs as its own service.
 
 [Unit]
-Description=vision_processor GUI (RoboCup SSL)
+Description=SSL Vision Processor GUI (RoboCup SSL)
 Documentation=file:///usr/share/doc/ssl-vision-processor-gui/README.md
 Wants=network-online.target
 After=network-online.target

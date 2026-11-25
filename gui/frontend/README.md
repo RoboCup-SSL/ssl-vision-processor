@@ -1,15 +1,16 @@
 # vision-processor-gui-frontend
 
-Browser UI for the vision-processor GUI. Svelte 5, TypeScript, and Vite. See
+Browser UI for the SSL Vision Processor GUI. Svelte 5, TypeScript, and Vite. See
 [`gui/DEVELOPMENT.md`](../DEVELOPMENT.md) for building it as part of the Go host, and
 [`gui/ARCHITECTURE.md`](../ARCHITECTURE.md) for how the whole system fits
 together. This document covers the frontend's own layout and scripts.
 
-The UI is organized as a two column shell: the camera list and page nav on
-the left, the selected page on the right. A tab bar above the page repeats the
-pages used most: the shared Live Field, Teams, Network, Dimensions, Layout and
-Advanced, and the selected camera's Camera, Geometry and Color. Alerts and
-Stream are in the sidebar only. The settings pages edit the host's
+The UI is organized as a two column shell: the alert counts and the camera
+list on the left, the selected page on the right. The tab bar above the page
+holds every page but Alerts: the shared Live Field, Teams, Network, Dimensions,
+Layout and Advanced (expert users only), and the selected camera's Camera,
+Geometry, Color and Stream. Picking a camera on the left changes which one the
+per-camera tabs edit. The settings pages edit the host's
 `vision.yml` working copy, which applies live; Save in the settings menu
 writes it to disk, and a tab shows an asterisk while it has unsaved changes.
 Dimensions edits the shared field. Geometry holds the selected camera's
@@ -44,12 +45,12 @@ Node 22 (`.nvmrc`); the nix dev shell provides it.
 
 - `src/lib/layout/` holds the shell: `Shell.svelte` (a Flowbite Navbar with
   the status badges and gear menu, over a Sidebar and the main column),
-  `InstanceList.svelte` and `ConfigNav.svelte` (the sidebar's groups),
+  `InstanceList.svelte` (the sidebar's cameras),
   `TabBar.svelte`, and `MainContent.svelte`, which switches panels on
   `nav.selectedCategoryId`. `nav.svelte.ts` and `configCategories.ts` hold the
   shared navigation state and the category list itself.
 - Navigation follows the URL hash, `#<camera>/<page>` (e.g. `#0/geometry`):
-  sidebar items, tabs, and the header badges are links, so back/forward and
+  the cameras, tabs, and header badges are links, so back/forward and
   bookmarks work. The tab bar is links styled with Flowbite's tab theme rather
   than its Tabs component, which can't leave every tab unselected on a page
   that isn't a tab.
@@ -58,7 +59,7 @@ Node 22 (`.nvmrc`); the nix dev shell provides it.
   holds what the host derives from it (the field markings) and the rulebook
   presets.
 - `src/lib/live/` is the Live Field page. `LiveFieldPanel.svelte` subscribes
-  to `live_field.frames` and `wrapper_packet.out`; `FieldCanvas.svelte` draws
+  to `live-field.state` and `geometry.state`; `FieldCanvas.svelte` draws
   on two canvases, the field (redrawn on resize or a geometry change) and
   what's on it (at most once per animation frame). `model.ts` reduces
   detection and tracked frames to one shape in mm, `sources.ts` lists and
@@ -94,18 +95,18 @@ The WS wire format (`gui/internal/hub`):
 
 ```jsonc
 // client -> server
-{ "action": "subscribe",   "topic": "wrapper_packet.out" }
-{ "action": "unsubscribe", "topic": "wrapper_packet.out" }
+{ "action": "subscribe",   "topic": "geometry.state" }
+{ "action": "unsubscribe", "topic": "geometry.state" }
 // server -> client
-{ "topic": "wrapper_packet.out", "data": { ... } }
+{ "topic": "geometry.state", "data": { ... } }
 ```
 
-`wrapper_packet.out` carries the current `SSL_WrapperPacket` as
+`geometry.state` carries the current `SSL_WrapperPacket` as
 canonical protojson, republished once per second.
 
 Snapshot endpoints are plain HTTP: `GET /api/snapshots` returns the
 list of available `{cameraId, view}` entries as JSON;
-`GET /api/snapshot/<cameraId>/<view>` returns the actual `image/jpeg` or
+`GET /api/snapshots/<id>/<view>` returns the actual `image/jpeg` or
 `image/png` (or 404 if missing).
 
 ## Scripts

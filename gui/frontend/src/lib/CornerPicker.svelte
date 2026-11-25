@@ -341,7 +341,7 @@
   >
     {#if hasFrame}
       <img
-        src={`/api/snapshot/${String(cameraId)}/${view}?t=${String(cacheBuster)}`}
+        src={`/api/snapshots/${String(cameraId)}/${view}?t=${String(cacheBuster)}`}
         alt={`cam ${String(cameraId)} calibration input`}
         onload={(e: Event) => {
           handleImageLoad(e.currentTarget as HTMLImageElement);

@@ -163,12 +163,12 @@ function writeBlock(cameraId: number, block: Block): void {
   }
 }
 
-// A capture device on the host, from GET /api/camera/devices.
+// A capture device on the host, from GET /api/capture-devices.
 export type { VideoDevice } from "./apiTypes";
 
 export async function loadVideoDevices(): Promise<VideoDevice[]> {
   try {
-    const response = await fetch("/api/camera/devices");
+    const response = await fetch("/api/capture-devices");
 
     return response.ok ? ((await response.json()) as VideoDevice[]) : [];
   } catch {

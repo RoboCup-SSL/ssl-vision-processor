@@ -42,7 +42,7 @@
   });
 
   const src = (view: string): string =>
-    `/api/snapshot/${String(cameraId)}/${view}?t=${String(stamp)}`;
+    `/api/snapshots/${String(cameraId)}/${view}?t=${String(stamp)}`;
 </script>
 
 <SettingsCard {title}>

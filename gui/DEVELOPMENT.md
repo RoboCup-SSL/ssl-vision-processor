@@ -156,8 +156,9 @@ vision_processor's views unless its `stream.raw_feed` is set.
 
 ## Releasing
 
-Pushing a `v*` tag runs `.github/workflows/release.yml`: it builds, runs `make release-check`, and publishes a GitHub
-Release with the binary, tarball, and `SHA256SUMS`. To try the same build locally, run `make release-check`.
+Pushing a `v*` tag runs `.github/workflows/release.yml`: it runs `make check` and `make release-check` on
+that commit, checks the packages, and drafts a GitHub Release with the binary, tarball, packages, and `SHA256SUMS`.
+Install the draft, then publish it by hand on GitHub. A tag with a suffix (`-alpha.1`, `-rc.1`) is a pre-release. To try the same build locally, run `make release-check`.
 
 The release must be built with `CGO_ENABLED=0`, which `make release` sets. A default build under nix links glibc
 through a `/nix/store` interpreter that doesn't exist on other machines. `make release-check` fails on a dynamic binary.

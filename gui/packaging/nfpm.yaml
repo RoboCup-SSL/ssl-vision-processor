@@ -18,7 +18,8 @@ maintainer: "@MAINTAINER@"
 homepage: https://github.com/RoboCup-SSL/ssl-vision-processor
 license: Apache-2.0
 description: |-
-  Browser interface for the RoboCup SSL vision_processor
+  SSL Vision Processor GUI
+  Browser interface for the RoboCup SSL vision_processor.
   Sets up and runs the league's shared vision system: field geometry, camera
   settings, locked calibrations, live video and the live field. It publishes
   the field geometry to the rest of the league's software.

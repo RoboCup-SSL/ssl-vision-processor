@@ -28,7 +28,7 @@ import (
 // than µs.
 const Version = 2
 
-const fileHeader = `# vision-processor-gui configuration. Edit freely: the GUI watches this file
+const fileHeader = `# SSL Vision Processor GUI configuration. Edit freely: the GUI watches this file
 # and asks before applying or overwriting changes made here. Comments are not
 # preserved when the GUI saves.
 `

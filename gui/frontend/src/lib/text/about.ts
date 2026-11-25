@@ -4,7 +4,7 @@
 // `backticks` show as code.
 
 export const about = {
-  title: "About SSL Vision Processor",
+  title: "About SSL Vision Processor GUI",
   repo: "ssl-vision-processor",
   proto: "ssl-protocol-defs (protocol submodule)",
   detached: "detached",
