@@ -181,6 +181,58 @@ describe("edits", () => {
     expect(config.revision).toBe(3);
   });
 
+  it("go back to the host's document once refused", async () => {
+    reply("PUT", "/api/config", {
+      status: 400,
+      body: { error: "invalid", message: "too small" },
+    });
+    const { config } = await loaded();
+
+    docOf(config).field.fieldLength = 1;
+    await settle(300);
+
+    expect(docOf(config).field.fieldLength).toBe(9000);
+    expect(config.error).toBe("too small");
+    await settle(1000);
+    expect(sent("PUT", "/api/config")).toHaveLength(1);
+  });
+
+  it("aren't taken back from a field still being typed in", async () => {
+    reply(
+      "PUT",
+      "/api/config",
+      { status: 400, body: { error: "invalid", message: "too small" } },
+      { status: 200, body: { revision: 4 } },
+      { status: 400, body: { error: "invalid", message: "too small" } },
+    );
+    const { config } = await loaded();
+    const input = document.body.appendChild(document.createElement("input"));
+    input.focus();
+
+    docOf(config).field.fieldLength = 9;
+    await settle(300);
+    expect(docOf(config).field.fieldLength).toBe(9);
+
+    // Typed on to a value the host takes: leaving keeps it.
+    docOf(config).field.fieldLength = 9100;
+    await settle(300);
+    input.blur();
+    await settle();
+    expect(docOf(config).field.fieldLength).toBe(9100);
+    expect(config.error).toBeNull();
+
+    // Left on a refused one: back to the host's.
+    input.focus();
+    docOf(config).field.fieldLength = 9;
+    await settle(300);
+    expect(docOf(config).field.fieldLength).toBe(9);
+    input.blur();
+    await settle();
+    expect(docOf(config).field.fieldLength).toBe(9000);
+
+    input.remove();
+  });
+
   it("take the host's document when another tab edited first", async () => {
     reply("PUT", "/api/config", {
       status: 409,

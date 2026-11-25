@@ -107,11 +107,18 @@ test("an edit applies live and shows as unsaved", async ({ page }) => {
 test("a rejected edit shows the host's reason", async ({ page }) => {
   await page.goto("/#0/field_dimensions");
 
-  await page.getByRole("spinbutton", { name: "Field width" }).fill("0");
+  const width = page.getByRole("spinbutton", { name: "Field width" });
+  const before = await width.inputValue();
+  await width.fill("0");
 
   await expect(page.getByRole("alert")).toContainText(
     "field_width: must be greater than 0",
   );
+
+  // Kept while it's being typed in, then back to what the host has.
+  await expect(width).toHaveValue("0");
+  await width.blur();
+  await expect(width).toHaveValue(before);
 });
 
 test("unlocking a calibration goes through the API", async ({ page }) => {

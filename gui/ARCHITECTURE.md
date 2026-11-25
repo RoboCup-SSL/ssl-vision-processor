@@ -10,15 +10,16 @@ over multicast, and serves the frontend, a JSON API, and a WebSocket for live up
 
 ## System overview
 
-A venue runs one or more vision_processor instances, one per camera. Each instance shares a filesystem with the
-gui host (debug images in `img/`, the instance's generated `config.yml`) and exchanges SSL vision protocol messages
-with it over the same multicast group the rest of the league uses.
+A venue runs one or more vision_processor instances, one per camera, on the gui host's machine or others. Each
+exchanges SSL vision protocol messages with the host over the same multicast group the rest of the league uses. One
+on the host's own machine also shares files with it: debug images in `img/`, and its generated `config.yml`.
 
 ```mermaid
 graph LR
-    subgraph Venue Host
+    VP1["vision_processor cam 1"]
+
+    subgraph Host machine
         VP0["vision_processor cam 0"]
-        VP1["vision_processor cam 1"]
         FS[("shared filesystem\nimg/, config.yml")]
     end
 
@@ -26,9 +27,9 @@ graph LR
     MC(("multicast\n224.5.23.2:10006"))
     Browser["Browser UI"]
 
-    VP0 -->|"detections"| MC
-    VP1 -->|"detections"| MC
-    MC -->|"calibration"| GUI
+    VP0 -->|"detections, calibration,\nannounce"| MC
+    VP1 -->|"detections, calibration,\nannounce"| MC
+    MC --> GUI
     GUI -->|"field template,\nmerged wrapper packet"| MC
     MC -->|"field template"| VP0
     MC -->|"field template"| VP1
@@ -38,15 +39,16 @@ graph LR
     GUI --> Browser
 ```
 
-The gui host does not talk to a vision_processor instance directly. Both sides only ever speak to the multicast
+The gui host does not talk to a vision_processor instance directly (with `-runCameras` it starts them, and hands
+each its config file). Both sides only ever speak to the multicast
 group, the same way any other league consumer would. This keeps the host interchangeable with the legacy
 `geom_publisher.py` service from the vision_processor's point of view. The browser talks to the gui host over
 HTTP and a WebSocket instead, covered under HTTP API and WebSocket protocol below.
 
 ## Process layout
 
-`ssl-vision-processor-gui` is one process with seven concurrent responsibilities, wired together in
-`cmd/ssl-vision-processor-gui/main.go`.
+`ssl-vision-processor-gui` is one process running these concurrently, wired together in
+`cmd/ssl-vision-processor-gui/main.go`. It claims its port first and starts nothing else if that fails.
 
 ```mermaid
 graph TD
@@ -57,6 +59,8 @@ graph TD
     tracker["autoref tracker multicast\ngoroutine"]
     publish["geometry publish loop\ngoroutine, 1Hz"]
     watch["vision.yml watcher\ngoroutine, 1Hz"]
+    house["housekeeping loop\ngoroutine, 1Hz"]
+    procs["supervisor, -runCameras only\ngoroutine"]
     live["live field publish loop\ngoroutine, 60Hz while watched"]
 
     main --> http
@@ -66,15 +70,22 @@ graph TD
     main --> publish
     main --> watch
     main --> live
+    main --> house
+    main --> procs
     vision -- "Absorb(calib)" --> Geometry
     publish -- "Encoded()" --> Geometry
     http -- "reads/writes" --> Store
     watch -- "checkDisk()" --> Store
     Store -- "ApplyConfig / SetLocked" --> Geometry
-    Store -- "SetAddress" --> vision
-    Store -- "SetAddress" --> gc
-    Store -- "SetAddress" --> tracker
+    house -- "addresses, interfaces" --> vision
+    house -- "addresses, interfaces" --> gc
+    house -- "addresses, interfaces" --> tracker
+    Store -- "Sync" --> procs
 ```
+
+The housekeeping loop follows the network and the machine (interfaces, suspends, the height table) and publishes
+status to browsers. It has its own clock so that a slow step can't delay publishing geometry. An edit to an address
+applies at once; the loop is what catches everything else.
 
 The goroutines share one `*config.Store` and one `*geometry.Geometry`, each guarded by its own mutex. The store
 pushes into the geometry, never the other way around. Shutdown is graceful: an `os.Interrupt`/`SIGTERM` cancels a
@@ -92,6 +103,10 @@ before returning.
 | `internal/multicast`                         | The vision, game controller, autoref tracker, and video sockets: interface selection, reopening on changes, retrying while unhealthy, suspend detection. |
 | `internal/api`                               | Typed route registration and the OpenAPI 3.1 spec reflected from the handlers' own types and doc comments.                                               |
 | `internal/hub`                               | In-process topic pub/sub and the `/ws` WebSocket handler.                                                                                                |
+| `internal/httpjson`                          | The JSON error body and its codes.                                                                                                                       |
+| `internal/origins`                           | Which browser pages and host names may use the API.                                                                                                      |
+| `internal/alerts`                            | Every problem the host can see: which, how serious, and the facts behind each.                                                                           |
+| `internal/discovery`                         | vision_processor instances, from their announces.                                                                                                        |
 | `internal/livefield`                         | The latest detection frame per camera and tracked frame per autoref, for the Live Field page.                                                            |
 | `internal/detections`                        | Which camera_ids the vision socket hears, from which address, at what rate. Feeds the Camera Layout page.                                                |
 | `internal/referee`                           | The current match's teams, from the game controller, and their robot heights from `bot_heights_file`.                                                    |
@@ -134,12 +149,30 @@ another host's mistake) would otherwise stop that camera until someone unlocked 
 The host drops its own looped-back packets by sender address: every send socket records its local address
 (`multicast.IsOwn`), which is exactly what its echoes arrive from. Everything else is compared by IP and port,
 so two programs on one machine are told apart. `internal/peers` watches who sends each camera's calibration,
-detections and video, the game controller's referee messages, and field geometry, which only this host should
+detections and video, each instance name, the game controller's referee messages, and field geometry, which only this host should
 publish once a second. A second sender is logged once when it appears (`several senders claim the same thing`,
 with each sender's IP, port, hostname from reverse DNS, and whether it's this machine) and again when it's gone,
-and served as a `sender_conflict` alert on `network.state`/`GET /api/network`: an error for calibration and
-field geometry, a warning for the game controller and video, and an error for every kind on a competition field. Two vision_processors on one
+and served as a `sender_conflict` alert on `network.state`/`GET /api/network`: an error for calibration,
+field geometry and instance names, a warning for the game controller and video, and an error for every kind on a competition field. Two vision_processors on one
 machine both send from the vision port, so they share an address and can't be told apart this way.
+
+A vision_processor's video streamer opens a new port whenever the streamed view changes size, so for video a sender
+that stops as another begins on its IP is the same program; two that keep sending are a conflict.
+
+Every endpoint also notes which interface each packet arrives on. One sender heard on several at once (two
+interfaces on one network) is logged once and raises a `duplicate_packets` alert, one per set of interfaces.
+
+The teams come from one game controller, the first heard, until it's silent for 3 s (`referee.Source`). Others still
+count towards the conflict alert.
+
+## Discovery
+
+vision_processor announces itself on the vision group about once a second, as an `SSL_WrapperPacket` with `config`
+set. `internal/discovery` keeps the latest per `SSL_VPConfig.instance`: live while heard within 3 s, forgotten after
+30 s. `GET /api/instances` and `instances.state` serve them; no page shows them yet. Two senders of one instance name
+are a `sender_conflict`. Packets are told apart by `config` being present, not by `source`: the host's own geometry
+packets have the same `source`. vision_processor builds its announce once, at startup, and sends it between frames, so
+one whose camera blocks doesn't announce, and a reloaded config isn't reflected.
 
 ## Configuration: vision.yml
 
@@ -270,7 +303,7 @@ when the problem changes. The host also notices a suspend: each second it compar
 counting while suspended, with `CLOCK_MONOTONIC`, which doesn't. Neither jumps for NTP or clock changes, so a gap
 means the machine slept, and every socket is reopened.
 
-The Camera Settings tab edits each camera's `camera:` block, shown with vision_processor's own fallbacks applied
+The Camera page edits each camera's `camera:` block, shown with vision_processor's own fallbacks applied
 (`src/driver/cameradriver.cpp`; an unset driver means SPINNAKER; a new config says DUMMY, the protocol's "no camera"). Controls follow the driver: an index for
 SPINNAKER, MVIMPACT and DC1394, plus a serial number for SPINNAKER, a path for OPENCV, gamma hidden for
 MVIMPACT, and the OUTDOOR and INDOOR auto white balance profiles only for SPINNAKER. The serial and the path are
@@ -299,7 +332,8 @@ None of the spec's inputs or outputs are committed; `make` builds them. `interna
 Go doc comments (`go generate`, from the source), `gui/openapi.json` comes from the host itself (`-openapi <path>`,
 which writes the spec and exits), the frontend's API types (`frontend/src/lib/generated/api.ts`) from that by
 openapi-typescript, and the viewer (`internal/api/viewer/`) is Redoc's bundle fetched at a pinned version and checked
-against its SHA-256. The frontend imports its API types from `frontend/src/lib/apiTypes.ts`, never a hand copy.
+against its SHA-256. The frontend imports its API types from `frontend/src/lib/apiTypes.ts`, never a hand copy,
+and calls the API through `frontend/src/lib/api.ts`, a client typed by the same file.
 
 A handler takes one input struct and returns one output. Input fields tagged `path:`, `query:` or `header:` are
 parameters, and a field tagged `body:"<content types>"` is the body; an input with only JSON fields is itself the
@@ -314,7 +348,8 @@ frontend, with a fallback to `index.html` for client side routes.
 
 Every error is JSON, `{"error": code, "message": text, "issues": [...]}` (`internal/httpjson`). Clients branch
 on `error`: `bad_request`, `invalid` (with one `issues` entry per problem), `not_found`, `stale`,
-`disk_changed`, `no_live_calibration`, `precondition`, `unsupported_media`, `cross_origin`, `internal`.
+`disk_changed`, `no_live_calibration`, `device_conflict`, `no_camera`, `precondition`, `unsupported_media`,
+`cross_origin`, `unknown_host`, `internal`.
 Request bodies must be `Content-Type: application/json` (PATCH also takes `application/merge-patch+json`), and
 unknown keys are rejected, so a misspelled key fails instead of silently resetting the value it named.
 
@@ -405,7 +440,7 @@ burst of packets.
 
 Packets are reassembled into frames (RFC 6184 single units, STAP-A, FU-A; there is no SDP, so payload type and
 packetization mode 1 are assumed). After a lost packet, frames are dropped until the next keyframe, since the ones
-in between can't decode. A new SSRC means the encoder restarted, which it does whenever the streamed view changes
+in between can't decode. Packets at or behind the newest are ignored: copies, or too late. A new SSRC means the encoder restarted, which it does whenever the streamed view changes
 size; the parameter sets that come with the next keyframe start a new init segment. Frames are muxed as fragmented
 MP4, one per segment, timed by arrival rather than the encoder's nominal 30 fps.
 
@@ -424,8 +459,7 @@ regenerates them as an ordinary build prerequisite. See `gui/DEVELOPMENT.md` for
 
 ## Not yet built
 
-- **Discovery.** Parsing `SSL_VPConfig` announces off multicast into an instance table. The C++ side does not
-  emit these yet.
+- **Discovery page.** Showing the announced instances, and comparing each one's config with what it should be.
 - **Host owned config push.** Diffing an instance's announced config against a desired one and pushing the
   difference, rather than regenerating a local `config.yml` as the host does today. This also needs a way to ask
   a running instance to recalibrate.

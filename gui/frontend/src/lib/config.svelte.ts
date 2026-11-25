@@ -205,11 +205,28 @@ async function putDoc(json: string): Promise<boolean> {
     return true;
   }
 
-  // Refused (T4-3: the form keeps the refused value until the next edit).
+  // Refused: the host still has its own version.
   lastSynced = json;
   config.error = errorMessage(answer.error, answer.response);
+  dropRefused(json);
 
   return true;
+}
+
+// Goes back to the host's document after it refused json, so the form shows
+// what's in use. Not while a field is being typed in (a number often passes
+// through a refused value): then once it's left. A later edit is sent as
+// usual, and its own answer decides.
+function dropRefused(json: string): void {
+  const restore = (): void => {
+    if (JSON.stringify(config.doc) === json) void loadConfig();
+  };
+
+  if (document.activeElement?.matches("input, textarea")) {
+    document.addEventListener("focusout", restore, { once: true });
+  } else {
+    restore();
+  }
 }
 
 $effect.root(() => {

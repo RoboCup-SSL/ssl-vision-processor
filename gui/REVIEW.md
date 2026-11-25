@@ -27,11 +27,12 @@ Owner per finding: **Will** (Go/Svelte) or **Claude** (build/CI/packaging/docs i
 
 ## Status
 
-Updated 2026-11-25. **Open** 25 · **Partial** 4 · **Done** 40 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
+Updated 2026-11-25. **Open** 21 · **Partial** 4 · **Done** 44 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
 
 **Next up** (MVP gate order; see the end of this file):
-All blockers are fixed. T3-2 is awaiting commit; with it the API freeze (T3-1, T3-2, T3-3) is done.
-1. T1-3, T6-1, T6-5, T4-3.
+All blockers are fixed. T1-3, T6-1, T6-5 and T4-3 are awaiting commit; the API freeze is done.
+1. T1-5: decide on `flake.lock`.
+2. T7-1, T7-2, T7-4: tests (can trail the tag).
 
 **Needs the lab PoE machine:** T2-10.
 
@@ -39,7 +40,7 @@ All blockers are fixed. T3-2 is awaiting commit; with it the API freeze (T3-1, T
 |---|---|---|---|---|
 | T1-1 | blocker | Claude (Will commits) | 18 MB binary tracked in git | done |
 | T1-2 | major | Claude | release tag not gated on `make check` / e2e | done |
-| T1-3 | major | Claude + Will | package description promises a VP package that doesn't exist | open |
+| T1-3 | major | Claude + Will | package description promises a VP package that doesn't exist | done |
 | T1-4 | minor | Claude | tarball and `-bin` amd64 only (absorbs L-3) | open |
 | T1-5 | minor | Claude | stale toolchain and dependencies | partial |
 | T1-6 | minor | Claude | CI skips the `v2.0-alpha` branch | open |
@@ -65,7 +66,7 @@ All blockers are fixed. T3-2 is awaiting commit; with it the API freeze (T3-1, T
 | T3-5 | nit | Will | OpenAPI tag descriptions | done |
 | T4-1 | blocker | Will | "Temporary debug utilities" on every page | done |
 | T4-2 | major | Will | edits lost while host unreachable | done |
-| T4-3 | minor | Will | rejected value stays in the form | open |
+| T4-3 | minor | Will | rejected value stays in the form | done |
 | T4-4 | minor | Will | no stale-frontend detection | done |
 | T4-5 | minor | Will | large components | open |
 | T4-6 | minor | Will | bus still on `svelte/store` | done |
@@ -82,11 +83,11 @@ All blockers are fixed. T3-2 is awaiting commit; with it the API freeze (T3-1, T
 | T5-9 | minor | Will | Camera page edits undeliverable settings | open |
 | T5-10 | — | — | phone widths | dropped |
 | T5-11 | nit | Will | Gamma toggle label | done |
-| T6-1 | major | Claude (Will reviews) | `ARCHITECTURE.md` drift | open |
+| T6-1 | major | Claude (Will reviews) | `ARCHITECTURE.md` drift | done |
 | T6-2 | minor | Claude (Will decides) | `CLAUDE.md` vs `ARCHITECTURE.md` split | open |
 | T6-3 | minor | Claude | frontend README describes old tabs | done |
 | T6-4 | minor | Claude | README relative links break when shipped | done |
-| T6-5 | major | Claude + Will | quick start stops at first save | open |
+| T6-5 | major | Claude + Will | quick start stops at first save | done |
 | T6-6 | minor | Claude | root README pointers | done |
 | T6-7 | nit | Claude | README details | partial |
 | T7-1 | major | Will | no component tests | open |
@@ -180,6 +181,8 @@ Fix: run `make check` (including e2e) in the release job before building, or gat
 **T1-3 | major | Claude + Will | `gui/packaging/nfpm.yaml:26`, release notes, `gui/README.md`**
 The package description says "The camera processing itself, vision_processor, is packaged separately", but no vision_processor package exists yet (the CV deb is planned). A new user who installs the `.deb` from the first release has a GUI with nothing to talk to, and nothing on the release page says how to get vision_processor. The `v*` tag also reads as a release of the whole repo while it ships only the GUI.
 Fix: until the CV deb ships, change the description to "build vision_processor from source: see <link>". Give the GitHub Release a body template (`--notes-file`) saying what's included and pointing at the vision_processor build steps. Decide whether GUI releases get their own tag prefix once the CV deb exists.
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* the package description says to build vision_processor from source. `packaging/release-notes.md` heads the generated release notes with the same and what each file is. Open question for later: a separate tag prefix once the vision_processor package exists.
 
 **T1-4 | minor | Claude | `gui/Makefile:63-75`**
 The tarball and `-bin` are built only for the host's `GOARCH` (amd64 in CI), while the debs are amd64 and arm64. arm64 users (Pi, Jetson) get the deb but no standalone binary, though `gui/README.md` presents the standalone binary as the first install path.
@@ -299,7 +302,7 @@ Fix: one topic registry in Go (name → payload type → equivalent route) that 
 The frontend uses only `components["schemas"]` from the generated file, never `paths`. There are 30 hand-written `/api/...` URL strings and 12 `response.json()` results cast to a type, so a wrong path, method, query parameter or body shape still type-checks, which is exactly the drift the generated types exist to catch.
 Fix: `openapi-fetch` (same author as `openapi-typescript`, ~6 kB, no runtime schema) typed against `paths`. It makes `client.GET("/api/config/cameras/{id}/effective", {params: {path: {id}}})` checked end to end and removes most casts. `requestJSON`/`errorMessage` can stay as its error middleware.
 
-*Done 2026-11-25 (Claude, at Will's request; uncommitted):* every call goes through `api.ts`'s `openapi-fetch` client, typed by the generated `paths`; `unwrap` throws the host's message, `apiPath` fills in the image and WebSocket URLs. `requestJSON` and the unused `withLoadingState` are gone. Two casts remain, both where the GUI's generic view of `defaults` and `config` meets the spec's typed one (`getConfig`, `putDoc`), plus the league messages. New `api.test.ts`.
+*Done 2026-11-25 (Claude, at Will's request; committed `e6802c2`):* every call goes through `api.ts`'s `openapi-fetch` client, typed by the generated `paths`; `unwrap` throws the host's message, `apiPath` fills in the image and WebSocket URLs. `requestJSON` and the unused `withLoadingState` are gone. Two casts remain, both where the GUI's generic view of `defaults` and `config` meets the spec's typed one (`getConfig`, `putDoc`), plus the league messages. New `api.test.ts`.
 
 **T3-3 | major | Will | public route and topic names; `docs.go:19`**
 `specVersion` is `1.0.0`, and its comment promises that changing or removing anything means `/api/v2`. Once the API ships in a release with docs at `/api/docs`, other teams will script against these names; it's cheap to rename now and costly later. Current inconsistencies:
@@ -352,6 +355,8 @@ Fix: set `lastSynced` only after a 2xx. On a network error, set `config.error` (
 **T4-3 | minor | Will | `config.svelte.ts:170`**
 After a 400 (validation), the rejected value stays in the local document while the host keeps the old one, and `lastSynced` now equals the rejected JSON, so nothing reconciles them until the next edit or a reload. The banner shows the reason, but the form shows a value the host isn't using. The "a rejected edit shows the host's reason" e2e test checks the banner, not the field.
 Fix: on 400, keep the message and restore the host's document. Better, map `issues` to the field (FormRow already has message slots) so the user sees which value was refused.
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* a refused edit goes back to the host's document; while a field is focused, once it's left, so typing through a refused value isn't interrupted. Two unit tests, and the e2e test now checks the field.
 
 **T4-4 | minor | Will | `frontend/src/lib/wrapper-bus.ts`, `config.svelte.ts`**
 No stale-frontend detection. After a `.deb` upgrade restarts the service, every open browser keeps the old bundle and talks to the new API. Mismatched shapes then surface as odd errors, not as "reload".
@@ -473,6 +478,8 @@ Overall: `gui/README.md` is a genuinely good user guide: quick start, package qu
 
 Fix: correct both. Then decide which document is canonical for humans (below).
 
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* checked the whole file against the code, not only the two cases: added Discovery, the housekeeping loop and supervisor, the missing packages and error codes, video restarts, duplicate packets and the followed game controller; corrected the shared-filesystem claim, page names and "Not yet built". The canonical-document decision is T6-2.
+
 **T6-2 | minor | Claude (Will decides) | `gui/CLAUDE.md` (384 lines) vs `gui/ARCHITECTURE.md` (429)**
 The design rationale is split between an agent-facing file and the human architecture doc, and some of it exists only in `CLAUDE.md`: the drop-stale hub channels, why `WriteTimeout` must not be set, `Pdeathsig` and process groups, the sslnet rationale. Human contributors don't read `CLAUDE.md`, and two copies are how T6-1 happened.
 Fix: make `ARCHITECTURE.md` the single home for decisions and gotchas, and slim `CLAUDE.md` to commands, rules and links into it.
@@ -494,6 +501,8 @@ Fix:
 - Add a quick-start step 5, "Connect cameras", that branches to "one webcam on this machine" (`-runCameras`) or "cameras on other machines", with the vision_processor build link.
 - Drop the OPENCV caveat once T5-3 lands.
 - Add troubleshooting rows: "vision_processor keeps restarting" (Camera page output, driver, `/dev/video*` busy) and "no video in Firefox/Chromium".
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* quick start step 5 branches to a local camera or other machines, with the build link. New troubleshooting rows: no camera selected, vision_processor keeps exiting, nothing heard, no video, duplicate packets. Page names match the tabs.
 
 **T6-6 | minor | Claude | root `README.md:19-20`**
 - It sends readers who want to "work on it" to `gui/CLAUDE.md` for the `buf` setup; that's `DEVELOPMENT.md`'s job.

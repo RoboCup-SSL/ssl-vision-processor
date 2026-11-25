@@ -44,6 +44,17 @@ These steps are for 64-bit Linux, tested on Ubuntu 24.04.
 4. Save when the wizard asks. **The GUI publishes nothing on the network until this first save**, so you can try
    it on a live network without disturbing anyone. Until then, an alert reminds you that it isn't publishing.
 
+5. Connect your cameras. The GUI doesn't include vision_processor, which does the camera processing, so first
+   build it from source: see the [main README](https://github.com/RoboCup-SSL/ssl-vision-processor#readme). Then:
+
+   - **A webcam or other camera on this machine:** stop the GUI and start it again with `-runCameras`, which runs
+     vision_processor for you. Then choose the camera's driver on the Camera page. See
+     [Running a webcam with the GUI](#running-a-webcam-with-the-gui).
+   - **Cameras on other machines:** start vision_processor there. The Layout page shows each one it hears, once
+     they're on the same network and vision address. See [Cameras](#cameras).
+
+   The Setup Checklist at the top of the page covers the rest: the image, calibration, colors and teams.
+
 The program stops when you close the terminal or press Ctrl+C, and picks up where it left off the next time you
 run it. To have it start with the machine, [install the package](#installing-the-package).
 
@@ -263,8 +274,8 @@ There are two ways to run the cameras:
    camera 0 has no camera selected, so it isn't started yet. Choose OPENCV as its driver on the Camera page and it
    starts on the first webcam (`/dev/video0`).
 
-3. Camera Settings shows each vision_processor's state, its last lines of output, and a Restart button. Choosing the
-   number of cameras on the Camera Layout page adds or removes cameras to match, each with its own config file.
+3. The Camera page shows each vision_processor's state, its last lines of output, and a Restart button. Choosing the
+   number of cameras on the Layout page adds or removes cameras to match, each with its own config file.
 
 Each camera needs its own capture device. If two cameras name the same one, only the lower camera ID starts, and
 an alert says which. The GUI doesn't know about a vision_processor started some other way: if one already has the
@@ -277,16 +288,21 @@ files stay apart. Its snapshots go to its own folder in the image folder, `img/c
 
 Check the GUI's Alerts page first; most alerts have a how-to. The printed log file has the details.
 
-| Problem                                      | Likely cause and fix                                                                                                                                                                |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `can't open the GUI on …` and it exits        | Something else is using the port, often another copy of the GUI. Stop it, or use another `-address`.                                                                                |
-| `no default config folder, set -configDir`   | `HOME` isn't set, as in some service environments. Set `-configDir`, `-logFile`, and `-imgDir`.                                                                                     |
-| Page doesn't load from another machine       | It allows this machine only: check the address it printed, or the service's [setting](#installing-the-package). Then the firewall, if it's on; see [Network setup](#network-setup). |
-| "This host doesn't answer to..."             | You're using a name the GUI doesn't know. Add it with `-allowHost`.                                                                                                                 |
-| Nothing is published                         | First run: save once. Then check the Alerts page.                                                                                                                                   |
-| Your old settings seem to be gone            | The GUI no longer reads `vision.yml` from the current folder. Pass `-configDir .` from that folder.                                                                                 |
-| `config_path: ... want a file name`          | `vision.yml` names a full path. Move the file to the config folder and use only its name.                                                                                           |
-| `-runCameras needs vision_processor on PATH` | Build vision_processor and add its folder to `PATH`; see [Cameras](#cameras).                                                                                                       |
+| Problem                                      | Likely cause and fix                                                                                                                                                                                                    |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `can't open the GUI on …` and it exits       | Something else is using the port, often another copy of the GUI. Stop it, or use another `-address`.                                                                                                                    |
+| `no default config folder, set -configDir`   | `HOME` isn't set, as in some service environments. Set `-configDir`, `-logFile`, and `-imgDir`.                                                                                                                         |
+| Page doesn't load from another machine       | It allows this machine only: check the address it printed, or the service's [setting](#installing-the-package). Then the firewall, if it's on; see [Network setup](#network-setup).                                     |
+| "This host doesn't answer to..."             | You're using a name the GUI doesn't know. Add it with `-allowHost`.                                                                                                                                                     |
+| Nothing is published                         | First run: save once. Then check the Alerts page.                                                                                                                                                                       |
+| Your old settings seem to be gone            | The GUI no longer reads `vision.yml` from the current folder. Pass `-configDir .` from that folder.                                                                                                                     |
+| `config_path: ... want a file name`          | `vision.yml` names a full path. Move the file to the config folder and use only its name.                                                                                                                               |
+| `-runCameras needs vision_processor on PATH` | Build vision_processor and add its folder to `PATH`; see [Cameras](#cameras).                                                                                                                                           |
+| "No camera selected"                         | A new configuration doesn't guess your camera. Choose its driver on the Camera page.                                                                                                                                    |
+| vision_processor keeps exiting               | Read its last output, on the Camera page. Usually the wrong driver, a device that's missing or already open in another program, or a driver the build doesn't include. A webcam needs OPENCV and its `/dev/video` path. |
+| Nothing heard from a camera                  | Check its vision_processor is running, on the same vision address, and on a network this machine uses; see [Network setup](#network-setup). The Alerts page says which sockets are silent.                              |
+| No video in Chromium or Firefox              | They need the system's H.264 libraries; Google Chrome includes its own. See [Browser](#browser).                                                                                                                        |
+| "The same packets arrive on..."              | Two of this machine's interfaces reach the same network. Leave only the field network's on, on the Network page.                                                                                                        |
 
 ## Upgrading
 

@@ -24,8 +24,10 @@ description: |-
   settings, locked calibrations, live video and the live field. It publishes
   the field geometry to the rest of the league's software.
   .
-  The setup questions decide whether it runs as a system service. The camera
-  processing itself, vision_processor, is packaged separately.
+  The setup questions decide whether it runs as a system service.
+  .
+  It doesn't include vision_processor, which does the camera processing: build
+  that from source, see the homepage.
 
 depends:
   - systemd
