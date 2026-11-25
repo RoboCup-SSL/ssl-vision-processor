@@ -13,7 +13,6 @@
   import { links } from "../text/links";
   import { competitionField, setCompetitionField } from "../teams.svelte";
   import { alarmLevel } from "../alerts/alerts";
-  import ConfigNav from "./ConfigNav.svelte";
   import MainContent from "./MainContent.svelte";
   import { untrack } from "svelte";
   import { CogOutline } from "flowbite-svelte-icons";
@@ -215,7 +214,7 @@
       >
         <NavBrand>
           <h1 class="text-lg font-semibold whitespace-nowrap">
-            SSL Vision Processor
+            SSL Vision Processor GUI
           </h1>
         </NavBrand>
         <NetworkStatus {sockets} collapsed={socketsCollapsed} />
@@ -406,7 +405,6 @@
   >
     <AlertSummary />
     <InstanceList />
-    <ConfigNav />
   </Sidebar>
 
   <main>

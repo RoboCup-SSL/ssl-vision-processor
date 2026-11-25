@@ -1,4 +1,4 @@
-// The left sidebar's lower nav list, one entry per config.yml top-level
+// Every page, one entry per config.yml top-level
 // section (see config.yml / config-camtest.yml at the repo root) plus one
 // for the shared field geometry. Each category's settings and their
 // config.yml comments are in text/configFields.ts.
@@ -21,8 +21,6 @@ export interface ConfigCategory {
   scope: ConfigScope;
   /** The config.yml top-level key this maps to, or null for the shared field geometry. */
   yamlKey: string | null;
-  /** False for pages reached some other way (Alerts, from its own sidebar block). */
-  inNav?: boolean;
   /** Shown only with "Expert user" on in the settings menu. */
   expert?: boolean;
   fields: ConfigField[];
@@ -35,7 +33,6 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
     scope: "shared",
     yamlKey: null,
     fields: [],
-    inNav: false,
   },
   {
     id: "live_field",
@@ -113,18 +110,8 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
   },
 ];
 
-// The main column's own horizontal tab bar: quick access to the categories
-// used constantly while working on one camera, separate from the sidebar's
-// full list of all nine. Start small and add to this as more categories earn
-// a spot -- it's deliberately a subset, not a duplicate of CONFIG_CATEGORIES.
-export const TAB_CATEGORY_IDS = [
-  "live_field",
-  "team_assignment",
-  "network",
-  "field_dimensions",
-  "layout",
-  "advanced",
-  "camera",
-  "geometry",
-  "color",
-];
+// The tab bar's pages, in order: all but Alerts, which has its own sidebar
+// block.
+export const TAB_CATEGORY_IDS = CONFIG_CATEGORIES.map((c) => c.id).filter(
+  (id) => id !== "alerts",
+);

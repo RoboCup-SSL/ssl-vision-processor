@@ -15,10 +15,8 @@
   import { untrack } from "svelte";
   import { app } from "../text/app";
 
-  // Same source data as the sidebar (CONFIG_CATEGORIES), just a curated
-  // subset in a fixed order -- both follow nav.selectedCategoryId, so picking
-  // a tab here and picking the matching entry in the sidebar do the exact
-  // same thing and stay in sync automatically.
+  // Every page except Alerts (reached from the sidebar), for the camera
+  // picked in the sidebar.
   let tabs = $derived(
     TAB_CATEGORY_IDS.map((id) =>
       CONFIG_CATEGORIES.find((c) => c.id === id),
@@ -47,8 +45,7 @@
   });
 
   // Flowbite's Tabs component keeps exactly one tab selected and ignores
-  // pages that aren't tabs (Stream, Debug, ... from the sidebar), so it
-  // can't follow nav. These are plain links styled with its own "underline"
+  // pages that aren't tabs (Alerts), so it can't follow nav. These are plain links styled with its own "underline"
   // theme instead: they look like Flowbite Tabs, and none is selected on a
   // page that isn't a tab.
   const theme = tabsTheme({ tabStyle: "underline" });
@@ -108,7 +105,7 @@
     untrack(fit);
   });
 
-  // Keeps the selected tab in view, picked here or from the sidebar. By hand
+  // Keeps the selected tab in view, picked here or by a link. By hand
   // rather than scrollIntoView, which would also scroll the page to the bar.
   const REVEAL_MARGIN = 32;
 
@@ -134,7 +131,8 @@
 
 <!-- The bottom line is an inset shadow on the scroller rather than a border
      the tabs overlap (Flowbite's -mb-px), which the scroller would clip. -->
-<div
+<nav
+  aria-label={app.tabGroups.label}
   bind:this={scroller}
   onscroll={updateFades}
   class={[
@@ -198,7 +196,7 @@
       </ul>
     </div>
   {/each}
-</div>
+</nav>
 
 <style>
   .tab-scroller {

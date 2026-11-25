@@ -74,7 +74,7 @@ test("every page renders", async ({ page }) => {
 
   for (const hash of PAGES) {
     // Same-document navigation: only the hash changes, as when clicking
-    // through the sidebar.
+    // through the tabs.
     await page.goto(`/#${hash}`);
     await expect(page).toHaveURL(new RegExp(`#${hash}$`));
     await expect(
@@ -95,7 +95,7 @@ test("an edit applies live and shows as unsaved", async ({ page }) => {
   expect((await put).status()).toBe(200);
 
   await expect(
-    page.getByRole("link", { name: "Dimensions*" }).first(),
+    page.getByRole("tab", { name: "Dimensions*" }).first(),
   ).toBeVisible();
 
   const geometry = (await (await page.request.get("/api/geometry")).json()) as {
@@ -236,7 +236,7 @@ test("saving writes the file and clears the unsaved marker", async ({
     await page.getByRole("button", { name: "Save 1 change" }).click();
 
     await expect(
-      page.getByRole("link", { name: "Dimensions", exact: true }).first(),
+      page.getByRole("tab", { name: "Dimensions", exact: true }).first(),
     ).toBeVisible();
     expect(readFileSync(path, "utf8")).toContain("field_width: 6100");
   });
@@ -271,7 +271,7 @@ test("debug snapshots reach the page", async ({ page }) => {
 
   // The corner picker's calibration input.
   const picker = page
-    .locator('img[src*="/api/snapshot/0/geomcalib_input"]')
+    .locator('img[src*="/api/snapshots/0/geomcalib_input"]')
     .first();
   await expect(picker).toBeVisible();
   expect(
@@ -357,7 +357,7 @@ test("the settings menu opens the API reference", async ({ page, context }) => {
   await docs.waitForLoadState();
   expect(docs.url()).toMatch(/\/api\/docs$/);
   await expect(
-    docs.getByText("vision_processor GUI host").first(),
+    docs.getByText("SSL Vision Processor GUI").first(),
   ).toBeVisible();
   await docs.close();
 });

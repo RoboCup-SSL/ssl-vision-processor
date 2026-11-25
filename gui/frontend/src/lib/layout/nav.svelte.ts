@@ -30,7 +30,7 @@ export const nav = $state<{
 
 // The URL hash mirrors nav, so pages are links: "#0/geometry" is camera 0's
 // Geometry page, "#0/network" the shared Network page with camera 0 selected
-// in the sidebar. Sidebar items, tabs, and the header badges are all links
+// in the sidebar. The sidebar's cameras, the tabs, and the header badges are all links
 // to these, so the browser records each move and back/forward work. The sync
 // below only corrects the URL (first load, a camera that no longer exists),
 // with replaceState so it adds no history entries.
@@ -114,7 +114,7 @@ export function selectedCategory(): ConfigCategory {
 }
 
 // Category id -> the section of unsaved changes that marks it dirty (an
-// asterisk in the tab bar and sidebar). Shared categories count changes for
+// asterisk in the tab bar). Shared categories count changes for
 // any camera; per-camera ones only the selected camera's.
 const CATEGORY_SECTIONS: Record<string, Section> = {
   field_dimensions: "field_dimensions",
