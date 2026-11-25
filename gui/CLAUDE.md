@@ -102,12 +102,12 @@ buf.gen.yaml   generates both internal/{vision,gamecontroller} and
   8 KB receive buffer. It also leaks the socket when `JoinGroup` fails, and
   races `Stop` against its own reconnect. Re-evaluate once ssl-go-tools PR
   #29 (`UdpServer`) is released, if it also has a settable receive buffer and
-  a health accessor (REVIEW.md U-1, U-2); `pkg/sourcefilter` is fine to use.
+  a health accessor (REVIEW.md U-1, U-2); ssl-go-tools is GPL-3.0 and
+  this repo is Apache-2.0: don't import or copy from it without settling that.
 - **`google.golang.org/protobuf` + `protojson`**, never `encoding/json` on a
   generated message (see Gotchas).
-- **Svelte 5 runes only**, no stores added beyond what predates this work
-  (`wrapper-bus.ts` still uses `svelte/store`'s `readable` -- not yet migrated,
-  not a blocker).
+- **Svelte 5 runes only**, no stores. WebSocket topics come from
+  `bus.svelte.ts` (`topicState`, `onTopic`), typed by the host's list.
 - **flowbite-svelte for every UI element**, with the theme tokens in
   `frontend/src/app.css` for color. New UI uses a Flowbite component where one
   exists (Button, Input, Select, Toggle, Range, Alert, Helper, Toast, Card,
@@ -324,6 +324,11 @@ end to end: the Go host published a field template, `vision_processor`
 calibrated against a real skewed webcam view, and the calibration came back
 and was absorbed with no wire-format surprises between C++ and Go protobuf.
 Not automated -- there is no CI hardware to run it on.
+
+WebSocket topics are listed once, in `cmd/.../topics.go`: add one there with
+`newTopic` and publish it through it. The hub, `/api/topics`, the API reference
+and the frontend's `TopicMap` (the spec's `Topics` schema) follow;
+`TestEveryTopicMatchesItsSchema` has to see it published.
 
 Routes go through `api.Route` (typed input and output) or `api.Raw`, never
 `mux.Handle`, so the spec stays complete. A handler's doc comment is its API

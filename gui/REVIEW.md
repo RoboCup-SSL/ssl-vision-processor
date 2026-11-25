@@ -27,11 +27,11 @@ Owner per finding: **Will** (Go/Svelte) or **Claude** (build/CI/packaging/docs i
 
 ## Status
 
-Updated 2026-11-25. **Open** 28 · **Partial** 4 · **Done** 37 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
+Updated 2026-11-25. **Open** 26 · **Partial** 4 · **Done** 39 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
 
 **Next up** (MVP gate order; see the end of this file):
-All blockers are fixed. T3-3, T5-6, T8-1 and T1-2 are awaiting commit.
-1. API freeze: T3-1 with T4-6, then T3-2 (Will approved `openapi-fetch`).
+All blockers are fixed. T3-1 and T4-6 are awaiting commit.
+1. API freeze: T3-2 (Will approved `openapi-fetch`).
 2. T1-3, T6-1, T6-5, T4-3.
 
 **Needs the lab PoE machine:** T2-10.
@@ -59,7 +59,7 @@ All blockers are fixed. T3-3, T5-6, T8-1 and T1-2 are awaiting commit.
 | T2-8 | major | Will | one vision_processor's video restarts are reported as two senders | done |
 | T2-9 | major | Will | duplicate video packets (several interfaces) break the picture, no warning | done |
 | T2-10 | major | Will + Claude | console warnings while vision/GC use the PoE camera NICs | open (needs lab machine) |
-| T3-1 | major | Will | WS topic contract in three places | open |
+| T3-1 | major | Will | WS topic contract in three places | done |
 | T3-2 | major | Will | generated `paths` unused | open |
 | T3-3 | major | Will | naming pass before freezing API 1.0 | done |
 | T3-4 | minor | Will | response-spec test coverage | done |
@@ -69,7 +69,7 @@ All blockers are fixed. T3-3, T5-6, T8-1 and T1-2 are awaiting commit.
 | T4-3 | minor | Will | rejected value stays in the form | open |
 | T4-4 | minor | Will | no stale-frontend detection | done |
 | T4-5 | minor | Will | large components | open |
-| T4-6 | minor | Will | bus still on `svelte/store` | open |
+| T4-6 | minor | Will | bus still on `svelte/store` | done |
 | T4-7 | nit | Will | hex colours | partial |
 | T4-8 | nit | Claude | Flowbite `@source` CSS bloat | dropped |
 | T5-1 | blocker | Will | placeholder Debug page | done |
@@ -176,7 +176,7 @@ Fix: `git rm --cached gui/ssl-vision-processor-gui`. Before `v2.0-alpha` merges 
 A `v*` tag publishes a public GitHub Release after only `release-check` and `deb-check`. `make check` and the e2e suite never run against the tagged commit; CI runs on master pushes and PRs, but a tag can point anywhere. `gh release create` also publishes immediately, with no draft.
 Fix: run `make check` (including e2e) in the release job before building, or gate it on the CI workflow for that SHA. Create the release as `--draft` and publish by hand after a smoke install. Mark `-rc`/`-alpha` tags `--prerelease`.
 
-*Done 2026-11-25 (Claude, at Will's request; uncommitted):* the release workflow runs `make check` on the tagged commit (failing without Chrome, so the browser tests can't be skipped), then drafts the release for Will to publish by hand. Tags with a suffix are pre-releases. Not run: it needs a tag push.
+*Done 2026-11-25 (Claude, at Will's request; committed):* the release workflow runs `make check` on the tagged commit (failing without Chrome, so the browser tests can't be skipped), then drafts the release for Will to publish by hand. Tags with a suffix are pre-releases. Not run: it needs a tag push.
 
 **T1-3 | major | Claude + Will | `gui/packaging/nfpm.yaml:26`, release notes, `gui/README.md`**
 The package description says "The camera processing itself, vision_processor, is packaged separately", but no vision_processor package exists yet (the CV deb is planned). A new user who installs the `.deb` from the first release has a GUI with nothing to talk to, and nothing on the release page says how to get vision_processor. The `v*` tag also reads as a release of the whole repo while it ships only the GUI.
@@ -294,6 +294,8 @@ Overall: the REST half is well disciplined. Every route goes through `api.Route`
 The WS topic contract is hand-maintained in three places and has already drifted. The spec's topic table lists 5 topics; the host serves 7 (`instances.state` at `main.go:790` and `live_field.frames` are missing). Topic names are string literals on both sides. Each frontend subscriber asserts its own payload type (`topic<ConfigState>("config.state")`), so a wrong name or type compiles.
 Fix: one topic registry in Go (name → payload type → equivalent route) that drives `/api/topics`, the spec's topic table (or an `x-topics` extension with schema refs), and a test that every hub topic is registered. Generate a TS `TopicMap` from it so `topic("config.state")` infers its type and an unknown name fails to compile.
 
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* `cmd/.../topics.go` is the only topic list: typed `newTopic[T]` values that publish themselves. The hub, `/api/topics`, the reference's table and the spec's `Topics` schema (name → data, from the GET route each topic mirrors) come from it, and the frontend's `TopicMap` from that schema, so an unknown topic or a wrong payload doesn't compile. All 7 topics are documented. `TestEveryTopicMatchesItsSchema` publishes each and checks it against its schema.
+
 **T3-2 | major | Will | `frontend/src/lib/*.svelte.ts`, `api.ts`**
 The frontend uses only `components["schemas"]` from the generated file, never `paths`. There are 30 hand-written `/api/...` URL strings and 12 `response.json()` results cast to a type, so a wrong path, method, query parameter or body shape still type-checks, which is exactly the drift the generated types exist to catch.
 Fix: `openapi-fetch` (same author as `openapi-typescript`, ~6 kB, no runtime schema) typed against `paths`. It makes `client.GET("/api/config/cameras/{id}/effective", {params: {path: {id}}})` checked end to end and removes most casts. `requestJSON`/`errorMessage` can stay as its error middleware.
@@ -308,7 +310,7 @@ Fix: `openapi-fetch` (same author as `openapi-typescript`, ~6 kB, no runtime sch
 
 Fix: pick one convention (kebab-case paths, plural collections, `{id}`, `verbNoun` operationIds, `<noun>.state` topics), apply it before the release, and consider `0.x` for the spec version until after the first event.
 
-*Done 2026-11-25 (Claude, at Will's request; uncommitted):* `/api/live-field`, `/api/capture-devices`, `/api/snapshots/{id}/{view}`; topics `live-field.state` and `geometry.state`; verbNoun operationIds on every route, the WebSockets included; `ErrorBody`; spec version 0.1.0. No aliases. `TestNamesFollowTheRules` keeps new names to the rules.
+*Done 2026-11-25 (Claude, at Will's request; committed):* `/api/live-field`, `/api/capture-devices`, `/api/snapshots/{id}/{view}`; topics `live-field.state` and `geometry.state`; verbNoun operationIds on every route, the WebSockets included; `ErrorBody`; spec version 0.1.0. No aliases. `TestNamesFollowTheRules` keeps new names to the rules.
 
 **T3-4 | minor | Will | `cmd/ssl-vision-processor-gui/responses_test.go:17-33`**
 `TestResponsesMatchTheSpec` checks a hand-kept list of 16 GET routes. A new GET route is silently unchecked, and `/api/geometry`, every write route's 200 body and the error envelope are never validated. `conforms` checks nullability, enums and required fields only.
@@ -363,6 +365,8 @@ Fix: pull the coordinate and colour math into `.ts` modules (which also closes m
 **T4-6 | minor | Will | `wrapper-bus.ts:141`, `App.svelte:18-43`**
 The bus is the last `svelte/store` user (`readable`). Consumers wrap it in `$effect` plus a manual `subscribe`, and App.svelte needs a 10-line comment explaining why a `$store` reference wouldn't have gated the subscription.
 Fix: a runes-native `topicState(name)` built on `createSubscriber` (svelte/reactivity), which subscribes while something reads it. Do it together with T3-1's typed `TopicMap`.
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* `bus.svelte.ts` replaces `wrapper-bus.ts`: `connection.state`, `onTopic(name, fn)` for state modules, `topicState(name).current` (`createSubscriber`) for components. No `svelte/store` left.
 
 **T4-7 | nit | Will | hex colours**
 `App.svelte:151-165` hand-styles a warning box in hex, against the token rule (it goes away with T4-1). In canvas/SVG drawing, where hex is allowed, the field green `#0a5c2e` is repeated in three files (`FieldSketch`, `WizardFieldPreview`, `WizardDimensionsPreview`) and the danger stroke `#b00020` in `WeightTriangle`.
@@ -427,7 +431,7 @@ Fix: label the controls (likely the slider/number pairs; each needs `aria-label`
 There are two navigation systems with different contents. The sidebar lists Live Field, Teams, Network, Dimensions and Layout, then Camera, Geometry, Color, Stream and Debug. The top tab bar repeats them under "GLOBAL CONFIGS" and "PER-CAMERA CONFIGS - FIELD CAM #0", but has no Stream, Debug, Alerts or Advanced. A new user can't tell which is primary, or why some pages appear in only one.
 Fix: pick one. Keep the sidebar (it scales to several cameras) and drop the tab bar, or keep the tabs only on narrow screens as a replacement for the sidebar.
 
-*Done 2026-11-25 (Claude, at Will's request; uncommitted):* Will's choice: the tab bar is the navigation. The sidebar keeps Alerts and the camera list, unchanged; `ConfigNav.svelte` (the page links) is gone and Stream is now a tab. The sidebar's free space is for camera summaries later (Future features).
+*Done 2026-11-25 (Claude, at Will's request; committed):* Will's choice: the tab bar is the navigation. The sidebar keeps Alerts and the camera list, unchanged; `ConfigNav.svelte` (the page links) is gone and Stream is now a tab. The sidebar's free space is for camera summaries later (Future features).
 
 **T5-7 | minor | Will | first-run wording**
 - The wizard's Finish step still says "Applying… doesn't save -- use Save in the settings menu (or Ctrl+S)", although Apply immediately opens the save dialog.
@@ -584,7 +588,7 @@ Fix: treat an overflow under ~3 as in gamut (or compare against the rounded deco
 The product has four names. The browser title and header say **"SSL Vision Processor"**, which reads as if this page *is* the vision processor. The README, man page, package description and systemd unit say **"vision_processor GUI"** (11 uses), with "vision-processor GUI", "vision processor GUI" and the log's "Init VP GUI" mixed in. The binary and package are `ssl-vision-processor-gui`. First-time users meet all of these in their first ten minutes.
 Fix: pick one display name (for example "SSL Vision Processor GUI") for the title, header, README H1, man page NAME, package description, unit `Description=` and startup log. Keep `vision_processor` in code font only for the C++ binary.
 
-*Done 2026-11-25 (Claude, at Will's request; uncommitted):* "SSL Vision Processor GUI" everywhere it's displayed: title, header, About, README, man page, package, units, account description, API docs, startup log, config file header. `vision_processor` is only the C++ program. Binary, package, folder and account names are unchanged.
+*Done 2026-11-25 (Claude, at Will's request; committed):* "SSL Vision Processor GUI" everywhere it's displayed: title, header, About, README, man page, package, units, account description, API docs, startup log, config file header. `vision_processor` is only the C++ program. Binary, package, folder and account names are unchanged.
 
 **T8-2 | minor | Will + Claude | page names**
 The same pages have different names in the sidebar ("Camera", "Layout", "Dimensions"), page headings ("Camera settings", "Field dimensions"), README ("Camera Settings page", "Camera Layout page") and the frontend README ("Field Dimensions", "Camera Layout"). Headings use sentence case and the README uses title case.

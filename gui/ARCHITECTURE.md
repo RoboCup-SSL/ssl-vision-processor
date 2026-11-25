@@ -361,10 +361,11 @@ UI, can administer the host.
 { "action": "unsubscribe", "topic": "geometry.state" }
 // server -> client
 { "topic": "geometry.state", "data": { /* protojson */ } }
-{ "error": "unknown_topic", "message": "...", "topic": "wrapper_pakcet.out" }
+{ "error": "unknown_topic", "message": "...", "topic": "geomtry.state" }
 ```
 
-`GET /api/topics` lists the topics. A new subscriber gets the topic's latest value at once, then every later one.
+`GET /api/topics` lists the topics, from the one list in `cmd/ssl-vision-processor-gui/topics.go`, which also drives
+the API reference's table and the frontend's types (the spec's `Topics` schema). A new subscriber gets the topic's latest value at once, then every later one.
 A message the server can't act on is answered with an error (`bad_request`, `unknown_topic`, `unknown_action`)
 and the connection stays open.
 
@@ -383,6 +384,8 @@ source's rate and receive time and the host's clock (`at`), so a client can tell
 senders' clocks. Detections are in mm, tracked frames in m. A source silent for a second is listed without a frame,
 and dropped after 30 s. It is published at up to 60 Hz, only while someone subscribes and something new arrived (and
 once a second otherwise); `GET /api/live-field` returns the same snapshot.
+`instances.state` carries every vision_processor heard announcing itself (`internal/discovery`), once per second and
+on every config change; the same as `GET /api/instances`.
 `alerts.state` carries every problem the host can see (`internal/alerts`), on the same schedule: a stable `id`,
 a `code`, a `severity` (`error`, `warning`, `caution`), an optional `cameraId`, the facts behind it as `params`,
 and a plain English `message`. The host decides which alerts exist and how serious they are; a client words and

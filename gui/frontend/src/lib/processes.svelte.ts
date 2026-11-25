@@ -1,7 +1,7 @@
 // The vision_processors the host runs itself (started with -runCameras), from the
 // processes.state topic. Empty when the host runs none: then each one is
 // started and restarted by hand.
-import { topic } from "./wrapper-bus";
+import { onTopic } from "./bus.svelte";
 import { requestJSON } from "./api";
 import type { ProcessStatus } from "./apiTypes";
 
@@ -11,8 +11,8 @@ export const processes = $state<{ list: ProcessStatus[] }>({ list: [] });
 
 $effect.root(() => {
   $effect(() => {
-    return topic<ProcessStatus[]>("processes.state").subscribe((list) => {
-      if (list) processes.list = list;
+    return onTopic("processes.state", (list) => {
+      processes.list = list;
     });
   });
 });

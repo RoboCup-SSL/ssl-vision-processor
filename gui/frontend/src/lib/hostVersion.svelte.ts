@@ -1,9 +1,10 @@
 // Notices the host being upgraded under an open page: the bundle comes from
 // the host's own binary, so the version it reported when this page connected
 // is the bundle's. A different one after a reconnect means the page is stale.
+import { untrack } from "svelte";
 import { requestJSON } from "./api";
 import type { HealthResponse } from "./apiTypes";
-import { connectionState } from "./wrapper-bus";
+import { connection } from "./bus.svelte";
 
 export const hostVersion = $state<{
   // The version this page was loaded from.
@@ -33,8 +34,6 @@ export async function checkHostVersion(): Promise<void> {
 
 $effect.root(() => {
   $effect(() => {
-    return connectionState.subscribe((state) => {
-      if (state === "open") void checkHostVersion();
-    });
+    if (connection.state === "open") void untrack(checkHostVersion);
   });
 });

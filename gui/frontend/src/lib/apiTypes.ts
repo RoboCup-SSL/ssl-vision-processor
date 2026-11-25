@@ -3,6 +3,7 @@
 // than writing a copy of a Go type: the generated file follows the Go code,
 // and CI fails when it's out of date.
 import type { components } from "./generated/api";
+import type { SSL_WrapperPacketJson } from "../proto/vision/ssl_vision_wrapper_pb";
 
 type Schemas = components["schemas"];
 
@@ -73,3 +74,10 @@ export type LogLevel = LogRecord["level"];
 export type BuildInfo = Schemas["BuildinfoInfo"];
 export type GitState = Schemas["BuildinfoGit"];
 export type HealthResponse = Schemas["HealthResponse"];
+
+// The WebSocket topics and their data, from the host's topic list. geometry's
+// is a league message, typed by its protobuf definition.
+export type TopicMap = Omit<Schemas["Topics"], "geometry.state"> & {
+  "geometry.state": SSL_WrapperPacketJson;
+};
+export type Topic = keyof TopicMap;

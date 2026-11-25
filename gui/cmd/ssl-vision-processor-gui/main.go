@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -221,7 +220,7 @@ func run() int {
 			// store changes.
 			publishConfigState(wsHub, store)
 			publishStatus(wsHub, status)
-			publishJSON(wsHub, processesStateTopic, h.procs.Statuses())
+			processesTopic.publish(wsHub, h.procs.Statuses())
 		})
 	})
 	runBackground(&wg, "config file watcher", func() error { return store.Watch(ctx, configWatchInterval) })
@@ -371,7 +370,7 @@ func newHost(path string, opts hostOptions) (*host, error) {
 	sockets.apply(store)
 	match.SetHeightsFile(botHeightsFile(store))
 
-	wsHub := hub.New(wrapperPacketTopic, configStateTopic, networkStateTopic, alertsStateTopic, processesStateTopic, liveFieldTopic, instancesStateTopic)
+	wsHub := newHub()
 	status := &hostStatus{store: store, sockets: sockets, match: match, live: live, instances: instances}
 	policy.SetStrict(competitionField(store))
 
@@ -384,7 +383,7 @@ func newHost(path string, opts hostOptions) (*host, error) {
 			RunDir:    opts.runDir,
 			ImgDir:    opts.imgDir,
 			OnChange: func() {
-				publishJSON(wsHub, processesStateTopic, procs.Statuses())
+				processesTopic.publish(wsHub, procs.Statuses())
 				// A camera held for a device conflict is an alert.
 				publishStatus(wsHub, status)
 			},
@@ -610,18 +609,8 @@ func flagSet(name string) bool {
 	return set
 }
 
-// configStateTopic carries config.Store's State to the frontend.
-const configStateTopic = "config.state"
-
 func publishConfigState(wsHub *hub.Hub, store *config.Store) {
-	data, err := json.Marshal(store.State())
-	if err != nil {
-		slog.Error("marshalling config state", "err", err)
-
-		return
-	}
-
-	wsHub.Publish(configStateTopic, data)
+	configTopic.publish(wsHub, store.State())
 }
 
 // networkSockets is the host's multicast groups.
@@ -806,35 +795,12 @@ func ufwEnabled(path string) bool {
 	return false
 }
 
-// networkStateTopic carries NetworkState, and alertsStateTopic every
-// current alert.
-const (
-	networkStateTopic = "network.state"
-	alertsStateTopic  = "alerts.state"
-	// processesStateTopic carries the supervised vision_processors
-	// (-runCameras).
-	processesStateTopic = "processes.state"
-	// instancesStateTopic carries every vision_processor heard announcing.
-	instancesStateTopic = "instances.state"
-)
-
 // publishStatus publishes the network state and the alerts, which depend on
 // it and on the store, and the vision_processors announcing.
 func publishStatus(wsHub *hub.Hub, status StatusSource) {
-	publishJSON(wsHub, networkStateTopic, status.Network())
-	publishJSON(wsHub, alertsStateTopic, status.Alerts())
-	publishJSON(wsHub, instancesStateTopic, status.Instances())
-}
-
-func publishJSON(wsHub *hub.Hub, topic string, v any) {
-	data, err := json.Marshal(v)
-	if err != nil {
-		slog.Error("marshalling websocket topic", "topic", topic, "err", err)
-
-		return
-	}
-
-	wsHub.Publish(topic, data)
+	networkTopic.publish(wsHub, status.Network())
+	alertsTopic.publish(wsHub, status.Alerts())
+	instancesTopic.publish(wsHub, status.Instances())
 }
 
 // hostNetwork is doc's network block. The store only holds validated
@@ -856,10 +822,6 @@ func withSend(opts multicast.Options) multicast.Options {
 	return opts
 }
 
-// wrapperPacketTopic is the hub topic name the frontend already subscribes to
-// (see gui/frontend/src/App.svelte).
-const wrapperPacketTopic = "geometry.state"
-
 // sendGeometry publishes the geometry on the vision group, unless this is a
 // first run: a host somebody is only trying out has no business telling a real
 // network what the field looks like.
@@ -880,7 +842,7 @@ func publishGeometryToHub(wsHub *hub.Hub, geom *geometry.Geometry) {
 		return
 	}
 
-	wsHub.Publish(wrapperPacketTopic, data)
+	geometryTopic.publish(wsHub, data)
 }
 
 // listenUI binds the GUI's port. Its error is a whole sentence for the log,

@@ -9,15 +9,13 @@
     Select,
     Toggle,
   } from "flowbite-svelte";
-  import type { SSL_WrapperPacketJson } from "../../proto/vision/ssl_vision_wrapper_pb";
   import StatusAlert from "../StatusAlert.svelte";
   import SettingsCard from "../SettingsCard.svelte";
   import RichText from "../RichText.svelte";
-  import { topic } from "../wrapper-bus";
+  import { topicState } from "../bus.svelte";
   import { network } from "../network.svelte";
   import { teamName } from "../teams.svelte";
   import { categoryHref } from "../layout/nav.svelte";
-  import type { LiveFieldSnapshot } from "../apiTypes";
   import { liveField as text } from "../text/liveField";
   import FieldCanvas from "./FieldCanvas.svelte";
   import { tint, type DrawnLayer } from "./draw";
@@ -35,22 +33,11 @@
     toggleCamera,
   } from "./liveView.svelte";
 
-  // Raw, not deeply reactive: a new snapshot replaces the old one up to 60
-  // times a second, and nothing edits it.
-  let snapshot = $state.raw<LiveFieldSnapshot | null>(null);
-  let packet = $state.raw<SSL_WrapperPacketJson | null>(null);
+  const live = topicState("live-field.state");
+  const geometry = topicState("geometry.state");
 
-  $effect(() =>
-    topic<LiveFieldSnapshot>("live-field.state").subscribe((s) => {
-      if (s) snapshot = s;
-    }),
-  );
-
-  $effect(() =>
-    topic<SSL_WrapperPacketJson>("geometry.state").subscribe((p) => {
-      if (p) packet = p;
-    }),
-  );
+  let snapshot = $derived(live.current);
+  let packet = $derived(geometry.current);
 
   let field = $derived(packet?.geometry?.field);
   let sources = $derived(sourcesOf(snapshot));

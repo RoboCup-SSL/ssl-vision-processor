@@ -14,7 +14,7 @@ import type {
   ConfigState,
   Section,
 } from "./apiTypes";
-import { topic } from "./wrapper-bus";
+import { onTopic } from "./bus.svelte";
 import { refreshFieldMarkings } from "./geometry.svelte";
 
 import { app } from "./text/app";
@@ -216,9 +216,7 @@ $effect.root(() => {
   // unless our own edit is mid-flight and about to report that revision, or
   // waiting to be retried (a reload would drop it).
   $effect(() => {
-    return topic<ConfigState>("config.state").subscribe((state) => {
-      if (!state) return;
-
+    return onTopic("config.state", (state) => {
       config.state = state;
 
       if (

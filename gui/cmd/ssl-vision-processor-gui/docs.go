@@ -31,13 +31,6 @@ sockets hear. Every error is JSON, ` + "`{\"error\": code, \"message\": text, \"
 once. A message the host can't act on is answered with an error and the connection stays open. Each topic's data
 is the body of a REST endpoint documented here:
 
-| Topic | Same as |
-| --- | --- |
-| ` + "`config.state`" + ` | ` + "`state`" + ` in GET /api/config |
-| ` + "`network.state`" + ` | GET /api/network |
-| ` + "`alerts.state`" + ` | GET /api/alerts |
-| ` + "`processes.state`" + ` | GET /api/processes |
-| ` + "`geometry.state`" + ` | GET /api/geometry |
 `
 
 // openapiSpec is the host's OpenAPI spec as JSON. It depends only on the
@@ -53,7 +46,7 @@ func openapiSpec() ([]byte, error) {
 
 // newAPI is the host's typed route registry and spec.
 func newAPI(mux *http.ServeMux) *api.API {
-	a := api.New(mux, api.Info{Title: "SSL Vision Processor GUI", Version: specVersion, Description: specIntro, Tags: specTags},
+	a := api.New(mux, api.Info{Title: "SSL Vision Processor GUI", Version: specVersion, Description: specIntro + api.TopicTable(registeredTopics), Tags: specTags},
 		func(w http.ResponseWriter, err error) { respondConfigErr(w, err, "handling request") })
 
 	a.SchemaFor(reflect.TypeFor[config.Settings](), settingsSchema())

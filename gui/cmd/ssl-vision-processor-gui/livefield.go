@@ -2,18 +2,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/hub"
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/livefield"
 )
-
-// liveFieldTopic carries livefield.Snapshot: every camera's latest detection
-// frame and every autoref's latest tracked frame.
-const liveFieldTopic = "live-field.state"
 
 // Detections arrive at 60 to 75 Hz per camera; publishing faster than a
 // browser draws gains nothing.
@@ -40,7 +34,7 @@ func publishLiveField(ctx context.Context, wsHub *hub.Hub, live *livefield.Feed)
 		case <-ctx.Done():
 			return nil
 		case now := <-ticker.C:
-			if !wsHub.Watched(liveFieldTopic) {
+			if !wsHub.Watched(liveFieldTopic.name) {
 				continue
 			}
 
@@ -49,14 +43,7 @@ func publishLiveField(ctx context.Context, wsHub *hub.Hub, live *livefield.Feed)
 				continue
 			}
 
-			data, err := json.Marshal(live.Snapshot(now))
-			if err != nil {
-				slog.Error("marshalling live field", "err", err)
-
-				continue
-			}
-
-			wsHub.Publish(liveFieldTopic, data)
+			liveFieldTopic.publish(wsHub, live.Snapshot(now))
 			version, published = v, now
 		}
 	}

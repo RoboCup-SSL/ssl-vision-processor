@@ -1,9 +1,9 @@
 // Unit test setup: no host to talk to, so the WebSocket client is replaced
-// by topics that never publish.
-import { readable } from "svelte/store";
+// by a closed connection whose topics never publish.
 import { vi } from "vitest";
 
-vi.mock("./lib/wrapper-bus", () => ({
-  connectionState: readable("closed"),
-  topic: () => readable(null),
+vi.mock("./lib/bus.svelte", () => ({
+  connection: { state: "closed" },
+  onTopic: () => () => undefined,
+  topicState: () => ({ current: null }),
 }));

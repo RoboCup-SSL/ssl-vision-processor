@@ -7,7 +7,6 @@
 // vision_processor's own state (its logs, its announced config) isn't in it
 // yet.
 
-import { get } from "svelte/store";
 import { requestJSON } from "../api";
 import type {
   ConfigResponse,
@@ -16,7 +15,7 @@ import type {
   SystemInfo,
 } from "../apiTypes";
 import { preferences } from "../preferences.svelte";
-import { connectionState } from "../wrapper-bus";
+import { connection } from "../bus.svelte";
 import { recentErrors } from "./errorLog";
 
 // Bumped when a field changes meaning or moves, so a reader can tell old
@@ -63,7 +62,7 @@ function frontend() {
     // Vite's dev server (npm run dev) rather than the bundle the host embeds.
     dev: import.meta.env.DEV,
     url: location.href,
-    connection: get(connectionState),
+    connection: connection.state,
     preferences: { ...preferences },
   };
 }

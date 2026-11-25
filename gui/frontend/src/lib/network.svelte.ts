@@ -6,7 +6,7 @@
 // soon as the edit lands. Socket status arrives separately, once a second, on
 // the network.state topic.
 import { config } from "./config.svelte";
-import { topic } from "./wrapper-bus";
+import { onTopic } from "./bus.svelte";
 import { fallback } from "./schema.svelte";
 import { network as text } from "./text/network";
 import type { HostInterface, NetworkState, SocketStatus } from "./apiTypes";
@@ -38,8 +38,8 @@ export const network = $state<{ state: NetworkState | null }>({
 
 $effect.root(() => {
   $effect(() => {
-    return topic<NetworkState>("network.state").subscribe((state) => {
-      if (state) network.state = state;
+    return onTopic("network.state", (state) => {
+      network.state = state;
     });
   });
 });

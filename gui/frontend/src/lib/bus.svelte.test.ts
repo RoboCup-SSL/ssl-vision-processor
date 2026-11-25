@@ -1,9 +1,9 @@
-import { get } from "svelte/store";
+import { flushSync } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // test-setup.ts mocks this module for everyone else; here it's the real one,
 // against a WebSocket stand-in the test drives by hand.
-type Bus = typeof import("./wrapper-bus");
+type Bus = typeof import("./bus.svelte");
 
 class FakeSocket {
   static readonly CONNECTING = 0;
@@ -58,15 +58,18 @@ function latest(): FakeSocket {
 
 const noop = (): void => undefined;
 
+let copies = 0;
+
 async function loadBus(): Promise<Bus> {
-  return vi.importActual<Bus>("./wrapper-bus");
+  // A new query is a fresh copy of this module alone. vi.resetModules would
+  // give it a Svelte of its own, whose signals this file's effects can't see.
+  return vi.importActual<Bus>(`./bus.svelte.ts?copy=${String(++copies)}`);
 }
 
 beforeEach(() => {
   FakeSocket.all = [];
   vi.useFakeTimers();
   vi.stubGlobal("WebSocket", FakeSocket);
-  vi.resetModules();
 });
 
 afterEach(() => {
@@ -74,7 +77,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("wrapper-bus", () => {
+describe("bus", () => {
   it("connects to /ws on the page's own host", async () => {
     await loadBus();
 
@@ -83,7 +86,7 @@ describe("wrapper-bus", () => {
 
   it("subscribes on open to topics asked for before the socket opened", async () => {
     const bus = await loadBus();
-    const unsubscribe = bus.topic("config.state").subscribe(noop);
+    const unsubscribe = bus.onTopic("config.state", noop);
 
     expect(latest().sent).toEqual([]);
     latest().open();
@@ -98,8 +101,8 @@ describe("wrapper-bus", () => {
     const bus = await loadBus();
     latest().open();
 
-    const a = bus.topic("alerts.state").subscribe(noop);
-    const b = bus.topic("alerts.state").subscribe(noop);
+    const a = bus.onTopic("alerts.state", noop);
+    const b = bus.onTopic("alerts.state", noop);
 
     expect(latest().sent).toEqual([
       { action: "subscribe", topic: "alerts.state" },
@@ -118,28 +121,30 @@ describe("wrapper-bus", () => {
     latest().open();
 
     const first: unknown[] = [];
-    const stopFirst = bus
-      .topic("network.state")
-      .subscribe((v) => first.push(v));
+    const stopFirst = bus.onTopic("network.state", (v) => first.push(v));
     latest().receive({ topic: "network.state", data: { n: 1 } });
     latest().receive({ topic: "other.state", data: "ignored" });
 
-    const late = bus.topic("network.state");
-    expect(get(late)).toEqual({ n: 1 });
-    expect(first).toEqual([null, { n: 1 }]);
+    const late: unknown[] = [];
+    const stopLate = bus.onTopic("network.state", (v) => late.push(v));
+    expect(late).toEqual([{ n: 1 }]);
+    expect(first).toEqual([{ n: 1 }]);
 
     stopFirst();
+    stopLate();
   });
 
   it("forgets a topic's value once nobody listens", async () => {
     const bus = await loadBus();
     latest().open();
 
-    const stop = bus.topic("processes.state").subscribe(noop);
+    const stop = bus.onTopic("processes.state", noop);
     latest().receive({ topic: "processes.state", data: [1] });
     stop();
 
-    expect(get(bus.topic("processes.state"))).toBeNull();
+    const seen: unknown[] = [];
+    bus.onTopic("processes.state", (v) => seen.push(v))();
+    expect(seen).toEqual([]);
   });
 
   it("ignores malformed frames, error answers and binary data", async () => {
@@ -148,7 +153,7 @@ describe("wrapper-bus", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(noop);
 
     const seen: unknown[] = [];
-    const stop = bus.topic("config.state").subscribe((v) => seen.push(v));
+    const stop = bus.onTopic("config.state", (v) => seen.push(v));
     latest().receive("{not json");
     latest().receive({
       error: "unknown_topic",
@@ -157,7 +162,7 @@ describe("wrapper-bus", () => {
     });
     latest().emit("message", { data: new ArrayBuffer(4) });
 
-    expect(seen).toEqual([null]);
+    expect(seen).toEqual([]);
     expect(warn).toHaveBeenCalledTimes(2);
 
     stop();
@@ -167,19 +172,73 @@ describe("wrapper-bus", () => {
   it("reports the connection state", async () => {
     const bus = await loadBus();
     const states: string[] = [];
-    const stop = bus.connectionState.subscribe((s) => states.push(s));
+    const stop = $effect.root(() => {
+      $effect(() => {
+        states.push(bus.connection.state);
+      });
+    });
 
+    flushSync();
     latest().open();
+    flushSync();
     latest().close();
+    flushSync();
 
     expect(states).toEqual(["connecting", "open", "closed"]);
     stop();
   });
 
+  it("topicState follows a topic while something reads it", async () => {
+    const bus = await loadBus();
+    latest().open();
+
+    const state = bus.topicState("network.state");
+    expect(state.current).toBeNull();
+    expect(latest().sent).toEqual([]);
+
+    const seen: unknown[] = [];
+    const read = () =>
+      $effect.root(() => {
+        const value = $derived(state.current);
+        $effect(() => {
+          seen.push(value);
+        });
+      });
+
+    const stop = read();
+    flushSync();
+    latest().receive({ topic: "network.state", data: { n: 1 } });
+    flushSync();
+    latest().receive({ topic: "network.state", data: { n: 2 } });
+    flushSync();
+    expect(seen).toEqual([null, { n: 1 }, { n: 2 }]);
+
+    // Another reader of the topic gets the latest at once.
+    const other = bus.topicState("network.state");
+    const stopOther = $effect.root(() => {
+      $effect(() => {
+        seen.push(other.current);
+      });
+    });
+    flushSync();
+    expect(seen.at(-1)).toEqual({ n: 2 });
+    expect(seen).toHaveLength(4);
+
+    // Nobody reads it any more: unsubscribed, and forgotten.
+    stop();
+    stopOther();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(latest().sent).toEqual([
+      { action: "subscribe", topic: "network.state" },
+      { action: "unsubscribe", topic: "network.state" },
+    ]);
+    expect(state.current).toBeNull();
+  });
+
   it("reconnects with backoff and resubscribes every topic", async () => {
     const bus = await loadBus();
-    const stopA = bus.topic("a.state").subscribe(noop);
-    const stopB = bus.topic("b.state").subscribe(noop);
+    const stopA = bus.onTopic("alerts.state", noop);
+    const stopB = bus.onTopic("network.state", noop);
     latest().open();
 
     latest().close();
@@ -192,8 +251,8 @@ describe("wrapper-bus", () => {
 
     latest().open();
     expect(latest().sent).toEqual([
-      { action: "subscribe", topic: "a.state" },
-      { action: "subscribe", topic: "b.state" },
+      { action: "subscribe", topic: "alerts.state" },
+      { action: "subscribe", topic: "network.state" },
     ]);
 
     stopA();

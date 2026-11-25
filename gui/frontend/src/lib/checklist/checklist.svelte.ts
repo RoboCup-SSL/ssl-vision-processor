@@ -15,7 +15,7 @@
 import { config, type CameraDoc } from "../config.svelte";
 import { network } from "../network.svelte";
 import { hostAlerts } from "../alerts/hostAlerts.svelte";
-import { connectionState, type ConnectionState } from "../wrapper-bus";
+import { connection, type ConnectionState } from "../bus.svelte";
 
 export type Status = "done" | "todo" | "attention" | "recheck";
 
@@ -415,9 +415,7 @@ export function restartChecklist(): void {
 
 $effect.root(() => {
   $effect(() => {
-    return connectionState.subscribe((state) => {
-      checklist.connection = state;
-    });
+    checklist.connection = connection.state;
   });
 
   // Each config file keeps its own ticks: load them when the file changes

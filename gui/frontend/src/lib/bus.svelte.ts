@@ -1,4 +1,7 @@
-import { readable, type Readable } from "svelte/store";
+// The WebSocket to the host: what it publishes, by topic (the host's
+// cmd/.../topics.go lists them), and whether it's connected.
+import { createSubscriber } from "svelte/reactivity";
+import type { Topic, TopicMap } from "./apiTypes";
 
 export type ConnectionState = "connecting" | "open" | "closed";
 
@@ -9,6 +12,11 @@ const BACKOFF_INITIAL_MS = 1_000;
 // Low, since the host is on the local network: a retry every few seconds
 // costs nothing, and the page comes back soon after a host restart.
 const BACKOFF_MAX_MS = 5_000;
+
+// The connection, reactive.
+export const connection = $state<{ state: ConnectionState }>({
+  state: "connecting",
+});
 
 interface ClientMessage {
   action: "subscribe" | "unsubscribe";
@@ -21,10 +29,8 @@ type ServerMessage =
   | { topic: string; data: unknown }
   | { error: string; message: string; topic?: string };
 
-class WrapperBus {
+class Bus {
   private socket: WebSocket | null = null;
-  private state: ConnectionState = "connecting";
-  private stateListeners = new Set<(s: ConnectionState) => void>();
   private topicListeners = new Map<string, Set<(value: unknown) => void>>();
   private latest = new Map<string, unknown>();
   private backoffMs = BACKOFF_INITIAL_MS;
@@ -34,18 +40,14 @@ class WrapperBus {
     this.connect();
   }
 
-  subscribeState(listener: (s: ConnectionState) => void): () => void {
-    listener(this.state);
-    this.stateListeners.add(listener);
-    return () => this.stateListeners.delete(listener);
-  }
-
   subscribeTopic(
     topic: string,
     listener: (value: unknown) => void,
   ): () => void {
     let listeners = this.topicListeners.get(topic);
     if (!listeners) {
+      // Not reactive: nothing renders from the listeners themselves.
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
       listeners = new Set();
       this.topicListeners.set(topic, listeners);
       this.send({ action: "subscribe", topic });
@@ -66,12 +68,12 @@ class WrapperBus {
   }
 
   private connect(): void {
-    this.setState("connecting");
+    connection.state = "connecting";
     const socket = new WebSocket(this.url);
     this.socket = socket;
 
     socket.addEventListener("open", () => {
-      this.setState("open");
+      connection.state = "open";
       this.backoffMs = BACKOFF_INITIAL_MS;
       for (const topic of this.topicListeners.keys()) {
         this.send({ action: "subscribe", topic });
@@ -83,7 +85,7 @@ class WrapperBus {
     });
 
     socket.addEventListener("close", () => {
-      this.setState("closed");
+      connection.state = "closed";
       this.socket = null;
       this.scheduleReconnect();
     });
@@ -102,11 +104,6 @@ class WrapperBus {
     }, this.backoffMs);
   }
 
-  private setState(state: ConnectionState): void {
-    this.state = state;
-    for (const listener of this.stateListeners) listener(state);
-  }
-
   private send(message: ClientMessage): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
@@ -119,11 +116,11 @@ class WrapperBus {
     try {
       parsed = JSON.parse(raw) as ServerMessage;
     } catch {
-      console.warn("wrapper-bus: malformed frame", raw);
+      console.warn("bus: malformed frame", raw);
       return;
     }
     if ("error" in parsed) {
-      console.warn("wrapper-bus: server error", parsed);
+      console.warn("bus: server error", parsed);
       return;
     }
     const listeners = this.topicListeners.get(parsed.topic);
@@ -133,15 +130,48 @@ class WrapperBus {
   }
 }
 
-const bus = new WrapperBus(DEFAULT_URL);
+const bus = new Bus(DEFAULT_URL);
 
-export const connectionState: Readable<ConnectionState> =
-  readable<ConnectionState>("connecting", (set) => bus.subscribeState(set));
-
-export function topic<T>(name: string): Readable<T | null> {
-  return readable<T | null>(null, (set) => {
-    return bus.subscribeTopic(name, (value) => {
-      set(value as T);
-    });
+// Calls fn with each message on a topic, starting with the latest one if it's
+// known, until the returned function is called.
+export function onTopic<K extends Topic>(
+  name: K,
+  fn: (data: TopicMap[K]) => void,
+): () => void {
+  return bus.subscribeTopic(name, (data) => {
+    fn(data as TopicMap[K]);
   });
+}
+
+// A topic's latest message as current, null before the first. The host sends
+// the topic only while an effect or template reads it.
+export function topicState<K extends Topic>(
+  name: K,
+): { readonly current: TopicMap[K] | null } {
+  let value: TopicMap[K] | null = null;
+
+  const track = createSubscriber((update) => {
+    // A message known already arrives within onTopic, before anyone has read
+    // the value: nothing to update.
+    let started = false;
+
+    const stop = onTopic(name, (data) => {
+      value = data;
+      if (started) update();
+    });
+    started = true;
+
+    return () => {
+      stop();
+      value = null;
+    };
+  });
+
+  return {
+    get current() {
+      track();
+
+      return value;
+    },
+  };
 }

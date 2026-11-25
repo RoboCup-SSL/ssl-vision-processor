@@ -116,6 +116,10 @@ func (s *VisionServer) addRoutes(mux *http.ServeMux, a *api.API) {
 		Errors: []string{httpjson.CodeBadRequest, httpjson.CodeNotFound},
 	}, video.HandleWebSocket(s.video, s.origins.Allowed), api.RawResponse{Status: http.StatusSwitchingProtocols, Description: "Upgraded to a WebSocket."})
 
+	if err := a.Topics(registeredTopics); err != nil {
+		panic(err)
+	}
+
 	mux.Handle("/api/", httpjson.NotFound())
 	mux.Handle("/", frontend.HandleFrontend())
 }

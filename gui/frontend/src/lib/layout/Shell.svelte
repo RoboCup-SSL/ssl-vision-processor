@@ -1,6 +1,6 @@
 <script lang="ts">
   import ConfirmModal from "../ConfirmModal.svelte";
-  import { connectionState } from "../wrapper-bus";
+  import { connection } from "../bus.svelte";
   import { preferences } from "../preferences.svelte";
   import InstanceList from "./InstanceList.svelte";
   import AlertSummary from "../alerts/AlertSummary.svelte";
@@ -220,10 +220,10 @@
         <NetworkStatus {sockets} collapsed={socketsCollapsed} />
         <Badge
           rounded
-          color={CONNECTION_COLOR[$connectionState]}
+          color={CONNECTION_COLOR[connection.state]}
           class="shrink-0 whitespace-nowrap"
         >
-          User Interface - {$connectionState.toUpperCase()} ({location.host})
+          User Interface - {connection.state.toUpperCase()} ({location.host})
         </Badge>
       </div>
 

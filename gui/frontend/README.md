@@ -79,10 +79,12 @@ Node 22 (`.nvmrc`); the nix dev shell provides it.
   `collect()` and point its actions at a page and/or a doc.
 - `src/lib/api.ts` holds the fetch helpers (`requestJSON`, `withLoadingState`)
   every panel's load and save functions are built on.
-- `src/lib/wrapper-bus.ts` is a single `WebSocket` client. It exposes
-  `connectionState` (a Svelte store) and `topic<T>(name)` (a store of the
-  latest message on that topic). A topic subscribes lazily on first reader
-  and unsubscribes when the last reader goes away. It reconnects on close
+- `src/lib/bus.svelte.ts` is a single `WebSocket` client. It exposes
+  `connection.state`, `topicState(name)` (the topic's latest message as
+  `current`, for components) and `onTopic(name, fn)` (for state modules). Both
+  are typed by the topic's name, from the host's topic list; an unknown name
+  doesn't compile. A topic subscribes with its first reader and unsubscribes
+  with its last. It reconnects on close
   with exponential backoff, from 1 second up to 30.
 - `src/lib/SnapshotViews.svelte` is the debug image card on the Color and
   Geometry pages: the views a camera has written, listed on demand (not

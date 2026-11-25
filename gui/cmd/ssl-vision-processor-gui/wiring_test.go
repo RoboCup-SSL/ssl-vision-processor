@@ -133,7 +133,7 @@ func TestAChangeReachesWebSocketSubscribers(t *testing.T) {
 	}
 	t.Cleanup(func() { conn.Close() })
 
-	for _, topic := range []string{configStateTopic, alertsStateTopic} {
+	for _, topic := range []string{configTopic.name, alertsTopic.name} {
 		if err := conn.WriteJSON(map[string]string{"action": "subscribe", "topic": topic}); err != nil {
 			t.Fatal(err)
 		}
@@ -141,7 +141,7 @@ func TestAChangeReachesWebSocketSubscribers(t *testing.T) {
 
 	// Subscriptions are handled on the server's read loop; wait for them
 	// before changing anything.
-	for _, topic := range []string{configStateTopic, alertsStateTopic} {
+	for _, topic := range []string{configTopic.name, alertsTopic.name} {
 		waitUntil(t, topic+" subscribed", func() bool { return h.hub.Watched(topic) })
 	}
 
@@ -155,12 +155,12 @@ func TestAChangeReachesWebSocketSubscribers(t *testing.T) {
 	until(t, conn, "config.state at the new revision", func(m envelope) bool {
 		var state config.State
 
-		return m.Topic == configStateTopic && json.Unmarshal(m.Data, &state) == nil && state.Revision == int64(rev)
+		return m.Topic == configTopic.name && json.Unmarshal(m.Data, &state) == nil && state.Revision == int64(rev)
 	})
 
 	until(t, conn, "alerts.state with the uncovered regions", func(m envelope) bool {
 		var list []alerts.Alert
-		if m.Topic != alertsStateTopic || json.Unmarshal(m.Data, &list) != nil {
+		if m.Topic != alertsTopic.name || json.Unmarshal(m.Data, &list) != nil {
 			return false
 		}
 
