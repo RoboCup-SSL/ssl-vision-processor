@@ -1,6 +1,6 @@
 module github.com/RoboCup-SSL/ssl-vision-processor/gui/packaging
 
-go 1.26.7
+go 1.27.3
 
 tool github.com/goreleaser/nfpm/v2/cmd/nfpm
 

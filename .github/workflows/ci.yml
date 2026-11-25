@@ -126,7 +126,7 @@ jobs:
       # Ubuntu doesn't package buf. Keep the version in step with the flake's
       # (nix develop -c buf --version) and gui/DEVELOPMENT.md.
       - name: Install buf
-        run: go install github.com/bufbuild/buf/cmd/buf@v1.72.0
+        run: go install github.com/bufbuild/buf/cmd/buf@v1.75.0
 
       - name: Enable loopback multicast
         run: sudo scripts/lo-multicast.sh on

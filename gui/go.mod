@@ -1,6 +1,6 @@
 module github.com/RoboCup-SSL/ssl-vision-processor/gui
 
-go 1.26.7
+go 1.27.3
 
 require (
 	github.com/lmittmann/tint v1.2.1

@@ -79,27 +79,27 @@ func (c FieldConfig) Validate() error {
 // with no Geometry involved).
 func fieldConfigFrom(field *vision.SSL_GeometryFieldSize, optional optionalLines) (FieldConfig, OptionalLinesConfig) {
 	return FieldConfig{
-			FieldLength:               field.GetFieldLength(),
-			FieldWidth:                field.GetFieldWidth(),
-			GoalWidth:                 field.GetGoalWidth(),
-			GoalDepth:                 field.GetGoalDepth(),
-			GoalHeight:                field.GetGoalHeight(),
-			PenaltyAreaDepth:          field.GetPenaltyAreaDepth(),
-			PenaltyAreaWidth:          field.GetPenaltyAreaWidth(),
-			GoalCenterToPenaltyMark:   field.GetGoalCenterToPenaltyMark(),
-			BoundaryWidth:             field.GetBoundaryWidth(),
-			BoundaryWidthGoalLine:     field.GetBoundaryWidthGoalLine(),
-			CenterCircleRadius:        field.GetCenterCircleRadius(),
-			LineThickness:             field.GetLineThickness(),
-			BallRadius:                field.GetBallRadius(),
-			MaxRobotRadius:            field.GetMaxRobotRadius(),
-			GoalSubstitutionAreaWidth: field.GetGoalSubstitutionAreaWidth(),
-		}, OptionalLinesConfig{
-			Goal2Goal:    optional.enabled(optional.Goal2Goal),
-			Halfway:      optional.enabled(optional.Halfway),
-			CenterCircle: optional.enabled(optional.CenterCircle),
-			Penalty:      optional.enabled(optional.Penalty),
-		}
+		FieldLength:               field.GetFieldLength(),
+		FieldWidth:                field.GetFieldWidth(),
+		GoalWidth:                 field.GetGoalWidth(),
+		GoalDepth:                 field.GetGoalDepth(),
+		GoalHeight:                field.GetGoalHeight(),
+		PenaltyAreaDepth:          field.GetPenaltyAreaDepth(),
+		PenaltyAreaWidth:          field.GetPenaltyAreaWidth(),
+		GoalCenterToPenaltyMark:   field.GetGoalCenterToPenaltyMark(),
+		BoundaryWidth:             field.GetBoundaryWidth(),
+		BoundaryWidthGoalLine:     field.GetBoundaryWidthGoalLine(),
+		CenterCircleRadius:        field.GetCenterCircleRadius(),
+		LineThickness:             field.GetLineThickness(),
+		BallRadius:                field.GetBallRadius(),
+		MaxRobotRadius:            field.GetMaxRobotRadius(),
+		GoalSubstitutionAreaWidth: field.GetGoalSubstitutionAreaWidth(),
+	}, OptionalLinesConfig{
+		Goal2Goal:    optional.enabled(optional.Goal2Goal),
+		Halfway:      optional.enabled(optional.Halfway),
+		CenterCircle: optional.enabled(optional.CenterCircle),
+		Penalty:      optional.enabled(optional.Penalty),
+	}
 }
 
 // ParseFieldFile parses a geometry YAML file (geometry-*.yml; name is only for

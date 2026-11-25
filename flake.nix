@@ -73,7 +73,7 @@
               opencv            # core imgproc imgcodecs videoio
               yaml-cpp
               # Must match the ffmpeg nixpkgs built opencv against, currently
-              # 8.1.2. The default `ffmpeg` is 9.x, which links fine but loads a
+              # 8.1.3. The default `ffmpeg` is 9.x, which links fine but loads a
               # second set of libav* sonames alongside the ones opencv's videoio
               # pulls in -- two copies of ffmpeg's global state in one process.
               ffmpeg_8          # libavformat libavcodec libavutil
