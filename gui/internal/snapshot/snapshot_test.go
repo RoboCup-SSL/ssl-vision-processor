@@ -112,7 +112,7 @@ func TestListReadsEachCameraFolder(t *testing.T) {
 
 func snapshotMux(dir string) http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("GET /api/snapshot/{camID}/{view}", HandleGet(dir))
+	mux.Handle("GET /api/snapshots/{id}/{view}", HandleGet(dir))
 
 	return mux
 }
@@ -122,7 +122,7 @@ func TestHandleGetServesTheFile(t *testing.T) {
 	writeFile(t, dir, "0.raw.jpg")
 
 	rec := httptest.NewRecorder()
-	snapshotMux(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshot/0/raw", nil))
+	snapshotMux(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshots/0/raw", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
@@ -145,7 +145,7 @@ func TestHandleGetServesTheMostRecentlyModifiedMatch(t *testing.T) {
 	writeFile(t, dir, "0.raw.png") // written just now, newer
 
 	rec := httptest.NewRecorder()
-	snapshotMux(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshot/0/raw", nil))
+	snapshotMux(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshots/0/raw", nil))
 
 	if rec.Body.String() != "0.raw.png" {
 		t.Errorf("body = %q, want the newer file", rec.Body.String())
@@ -157,7 +157,7 @@ func TestHandleGetServesADottedViewName(t *testing.T) {
 	writeFile(t, dir, "0.pixels.corner.png")
 
 	rec := httptest.NewRecorder()
-	snapshotMux(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshot/0/pixels.corner", nil))
+	snapshotMux(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshots/0/pixels.corner", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
@@ -172,7 +172,7 @@ func TestHandleGetReturns404ForNoMatch(t *testing.T) {
 	dir := t.TempDir()
 
 	rec := httptest.NewRecorder()
-	snapshotMux(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshot/9/raw", nil))
+	snapshotMux(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshots/9/raw", nil))
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
@@ -186,7 +186,7 @@ func TestHandleGetRejectsUnsafeSegments(t *testing.T) {
 	writeFile(t, dir, "0.raw.jpg")
 
 	for _, view := range []string{"*", "..", "raw/../../etc"} {
-		req := httptest.NewRequest(http.MethodGet, "/api/snapshot/0/"+view, nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/snapshots/0/"+view, nil)
 		rec := httptest.NewRecorder()
 		snapshotMux(dir).ServeHTTP(rec, req)
 
@@ -212,7 +212,7 @@ func TestHandleGetServesFromTheCameraFolder(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "cam1"), "1.raw.png") // newer, in the camera's folder
 
 	rec := httptest.NewRecorder()
-	snapshotMux(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshot/1/raw", nil))
+	snapshotMux(dir).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshots/1/raw", nil))
 
 	if rec.Body.String() != "1.raw.png" {
 		t.Errorf("body = %q, want the camera folder's newer file", rec.Body.String())

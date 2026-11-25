@@ -111,10 +111,10 @@ func addEntry(seen map[Entry]struct{}, name string) {
 var validSegment = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
 
 // HandleGet serves a camera's latest debug image for one view, e.g.
-// /api/snapshot/0/raw.
+// /api/snapshots/0/raw.
 func HandleGet(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		camID := r.PathValue("camID")
+		camID := r.PathValue("id")
 		view := r.PathValue("view")
 
 		if !validSegment.MatchString(camID) || !validSegment.MatchString(view) {

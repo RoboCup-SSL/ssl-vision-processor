@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"testing"
 )
 
@@ -81,6 +82,55 @@ func TestEveryTagIsDescribed(t *testing.T) {
 					t.Errorf("%s %s: tag %q isn't in specTags", method, path, tag)
 				}
 			}
+		}
+	}
+}
+
+// The API's naming rules, so a new route or topic keeps to them: kebab-case
+// paths, {id} for a camera, verbNoun operationIds, <noun>.state topics.
+func TestNamesFollowTheRules(t *testing.T) {
+	data, err := openapiSpec()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var spec struct {
+		Paths map[string]map[string]struct {
+			OperationID string
+		}
+	}
+	if err := json.Unmarshal(data, &spec); err != nil {
+		t.Fatal(err)
+	}
+
+	path := regexp.MustCompile(`^(/([a-z]+(-[a-z]+)*|\{[a-z]+\}))+$`)
+	id := regexp.MustCompile(`^(get|list|put|patch|lock|unlock|load|reload|save|restart|open)[A-Z][A-Za-z]*$`)
+	topic := regexp.MustCompile(`^[a-z]+(-[a-z]+)*\.state$`)
+	seen := map[string]string{}
+
+	for p, ops := range spec.Paths {
+		if !path.MatchString(p) {
+			t.Errorf("path %s isn't kebab-case", p)
+		}
+
+		for method, op := range ops {
+			at := method + " " + p
+			if !id.MatchString(op.OperationID) {
+				t.Errorf("%s: operationId %q isn't verbNoun", at, op.OperationID)
+			}
+
+			if other, ok := seen[op.OperationID]; ok {
+				t.Errorf("%s and %s share operationId %q", at, other, op.OperationID)
+			}
+
+			seen[op.OperationID] = at
+		}
+	}
+
+	h, _ := testHost(t)
+	for _, name := range h.hub.Topics() {
+		if !topic.MatchString(name) {
+			t.Errorf("topic %s isn't <noun>.state", name)
 		}
 	}
 }

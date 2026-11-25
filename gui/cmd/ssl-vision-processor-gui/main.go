@@ -39,7 +39,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-var address = flag.String("address", ":8080", "The address on which the vision processor GUI and API are served, default: :8080")
+var address = flag.String("address", ":8080", "The address on which the SSL Vision Processor GUI and API are served, default: :8080")
 
 // The vision and game controller addresses (vision.yml's defaults.network)
 // and the interfaces the host uses (host.interfaces) can change at runtime, so
@@ -121,7 +121,7 @@ func run() int {
 	}
 
 	build := buildinfo.Get()
-	slog.Info("Init VP GUI", "version", build.Version, "commit", build.Repo.Commit, "dirty", build.Repo.Dirty, "proto", build.Proto.Commit)
+	slog.Info("starting SSL Vision Processor GUI", "version", build.Version, "commit", build.Repo.Commit, "dirty", build.Repo.Dirty, "proto", build.Proto.Commit)
 	logPaths(p)
 
 	var vpCommand []string
@@ -858,7 +858,7 @@ func withSend(opts multicast.Options) multicast.Options {
 
 // wrapperPacketTopic is the hub topic name the frontend already subscribes to
 // (see gui/frontend/src/App.svelte).
-const wrapperPacketTopic = "wrapper_packet.out"
+const wrapperPacketTopic = "geometry.state"
 
 // sendGeometry publishes the geometry on the vision group, unless this is a
 // first run: a host somebody is only trying out has no business telling a real

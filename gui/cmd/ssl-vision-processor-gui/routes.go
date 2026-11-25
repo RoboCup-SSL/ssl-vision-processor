@@ -34,12 +34,12 @@ var bodyErrors = []string{httpjson.CodeBadRequest, httpjson.CodeUnsupportedMedia
 // addRoutes registers every route. Each is in the OpenAPI spec at
 // /api/openapi.json, documented from its handler's types and doc comment.
 func (s *VisionServer) addRoutes(mux *http.ServeMux, a *api.API) {
-	api.Route(a, "GET /api/health", api.Doc{Tags: tagStatus}, s.health)
-	api.Route(a, "GET /api/alerts", api.Doc{Tags: tagStatus}, s.getAlerts)
-	api.Route(a, "GET /api/network", api.Doc{Tags: tagStatus}, s.network)
-	api.Route(a, "GET /api/instances", api.Doc{Tags: tagStatus}, s.instances)
-	api.Route(a, "GET /api/system", api.Doc{Tags: tagStatus}, s.system)
-	api.Route(a, "GET /api/logs", api.Doc{Tags: tagStatus, Errors: []string{httpjson.CodeBadRequest}}, s.logs)
+	api.Route(a, "GET /api/health", api.Doc{Tags: tagStatus}, s.getHealth)
+	api.Route(a, "GET /api/alerts", api.Doc{Tags: tagStatus}, s.listAlerts)
+	api.Route(a, "GET /api/network", api.Doc{Tags: tagStatus}, s.getNetwork)
+	api.Route(a, "GET /api/instances", api.Doc{Tags: tagStatus}, s.listInstances)
+	api.Route(a, "GET /api/system", api.Doc{Tags: tagStatus}, s.getSystem)
+	api.Route(a, "GET /api/logs", api.Doc{Tags: tagStatus, Errors: []string{httpjson.CodeBadRequest}}, s.getLogs)
 
 	api.Route(a, "GET /api/schema", api.Doc{Tags: tagConfig}, s.getSchema)
 	api.Route(a, "GET /api/config", api.Doc{Tags: tagConfig}, s.getConfig)
@@ -54,7 +54,7 @@ func (s *VisionServer) addRoutes(mux *http.ServeMux, a *api.API) {
 	api.Route(a, "GET /api/config/cameras/{id}/effective", api.Doc{
 		Tags:   tagConfig,
 		Errors: []string{httpjson.CodeBadRequest, httpjson.CodeNotFound},
-	}, s.effectiveConfig)
+	}, s.getEffectiveConfig)
 	api.Route(a, "POST /api/config/cameras/{id}/calibration", api.Doc{
 		Tags:   tagConfig,
 		Errors: []string{httpjson.CodeBadRequest, httpjson.CodeNotFound, httpjson.CodeNoLiveCalibration},
@@ -63,50 +63,53 @@ func (s *VisionServer) addRoutes(mux *http.ServeMux, a *api.API) {
 		Tags:   tagConfig,
 		Errors: []string{httpjson.CodeBadRequest, httpjson.CodeNotFound},
 	}, s.unlockCalibration)
-	api.Route(a, "GET /api/config/files", api.Doc{Tags: tagConfig}, s.configFiles)
+	api.Route(a, "GET /api/config/files", api.Doc{Tags: tagConfig}, s.listConfigFiles)
 	api.Route(a, "POST /api/config/save", api.Doc{
 		Tags:   tagConfig,
 		Errors: append([]string{httpjson.CodeInvalid, httpjson.CodeStale, httpjson.CodeDiskChanged}, bodyErrors...),
-	}, s.save)
+	}, s.saveConfig)
 	api.Route(a, "POST /api/config/save-as", api.Doc{
 		Tags:   tagConfig,
 		Errors: append([]string{httpjson.CodeInvalid, httpjson.CodeStale}, bodyErrors...),
-	}, s.saveAs)
+	}, s.saveConfigAs)
 	api.Route(a, "POST /api/config/load", api.Doc{
 		Tags:   tagConfig,
 		Errors: append([]string{httpjson.CodeInvalid}, bodyErrors...),
-	}, s.load)
+	}, s.loadConfig)
 	api.Route(a, "POST /api/config/reload", api.Doc{
 		Tags:   tagConfig,
 		Errors: []string{httpjson.CodeInvalid},
-	}, s.reload)
+	}, s.reloadConfig)
 
 	api.Route(a, "GET /api/geometry", api.Doc{Tags: tagField}, s.getGeometry)
-	api.Route(a, "GET /api/geometry/presets", api.Doc{Tags: tagField}, s.fieldPresets)
-	api.Route(a, "GET /api/live_field", api.Doc{Tags: tagUpdates}, s.getLiveField)
+	api.Route(a, "GET /api/geometry/presets", api.Doc{Tags: tagField}, s.listFieldPresets)
+	api.Route(a, "GET /api/live-field", api.Doc{Tags: tagUpdates}, s.getLiveField)
 
-	api.Route(a, "GET /api/camera/devices", api.Doc{Tags: tagHost}, s.cameraDevices)
-	api.Route(a, "GET /api/processes", api.Doc{Tags: tagHost}, s.processes)
+	api.Route(a, "GET /api/capture-devices", api.Doc{Tags: tagHost}, s.listCaptureDevices)
+	api.Route(a, "GET /api/processes", api.Doc{Tags: tagHost}, s.listProcesses)
 	api.Route(a, "POST /api/processes/{id}/restart", api.Doc{
 		Tags:   tagHost,
 		Errors: []string{httpjson.CodeBadRequest, httpjson.CodeNotFound, httpjson.CodeDeviceConflict, httpjson.CodeNoCamera},
 	}, s.restartProcess)
-	api.Route(a, "GET /api/snapshots", api.Doc{Tags: tagHost}, s.snapshots)
-	api.Raw[snapshotRequest](a, "GET /api/snapshot/{camID}/{view}", api.Doc{
+	api.Route(a, "GET /api/snapshots", api.Doc{Tags: tagHost}, s.listSnapshots)
+	api.Raw[snapshotRequest](a, "GET /api/snapshots/{id}/{view}", api.Doc{
 		Tags:        tagHost,
+		ID:          "getSnapshot",
 		Summary:     "Serves a camera's latest debug image for one view",
 		Description: "The most recently written of the views GET /api/snapshots lists, as vision_processor wrote it.",
 		Errors:      []string{httpjson.CodeNotFound},
 	}, snapshot.HandleGet(s.imgDir), api.RawResponse{Status: http.StatusOK, ContentType: "image/*", Description: "The image, PNG or JPEG."})
 
-	api.Route(a, "GET /api/topics", api.Doc{Tags: tagUpdates}, s.topics)
+	api.Route(a, "GET /api/topics", api.Doc{Tags: tagUpdates}, s.listTopics)
 	api.Raw[none](a, "GET /ws", api.Doc{
 		Tags:        tagUpdates,
+		ID:          "openUpdates",
 		Summary:     "Opens the live-updates WebSocket",
 		Description: "Subscribe to topics as described in Live updates above.",
 	}, hub.HandleWebSocket(s.hub, s.origins.Allowed), api.RawResponse{Status: http.StatusSwitchingProtocols, Description: "Upgraded to a WebSocket."})
 	api.Raw[videoRequest](a, "GET /ws/video/{id}", api.Doc{
 		Tags:    tagUpdates,
+		ID:      "openVideo",
 		Summary: "Opens a camera's live video WebSocket",
 		Description: "JSON status (once a second) and format (codec and size) messages, and binary fragmented MP4 " +
 			"segments ready for a MediaSource SourceBuffer in sequence mode. A new viewer starts at the last keyframe.",
@@ -119,8 +122,8 @@ func (s *VisionServer) addRoutes(mux *http.ServeMux, a *api.API) {
 
 // snapshotRequest names a debug image.
 type snapshotRequest struct {
-	// CamID is the camera's camera_id.
-	CamID int `path:"camID"`
+	// ID is the camera's camera_id.
+	ID int `path:"id"`
 	// View is the image's view, as GET /api/snapshots lists it, e.g. raw or
 	// geomcalib_input.
 	View string `path:"view"`

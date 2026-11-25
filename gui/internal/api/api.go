@@ -74,6 +74,11 @@ func New(mux *http.ServeMux, info Info, onError func(http.ResponseWriter, error)
 				return strings.ToUpper(t.Name()[:1]) + t.Name()[1:]
 			}
 
+			// Every client sees this one, so it's named for what it is.
+			if t == reflect.TypeFor[httpjson.ErrorBody]() {
+				return "ErrorBody"
+			}
+
 			return name
 		}),
 	)
@@ -84,13 +89,13 @@ func New(mux *http.ServeMux, info Info, onError func(http.ResponseWriter, error)
 // Doc is a route's documentation. The summary is its first sentence; the
 // rest of Description follows it.
 type Doc struct {
+	// ID is the operationId: the handler's name unless set.
+	ID          string
 	Summary     string
 	Description string
 	Tags        []string
 	// Errors are the httpjson codes the route can return, besides internal.
 	Errors []string
-
-	id string
 }
 
 // withHandlerComment fills an empty Summary and Description from h's Go doc
@@ -98,7 +103,9 @@ type Doc struct {
 // summary, the rest the description.
 func (d Doc) withHandlerComment(h any) Doc {
 	name := canonical(strings.TrimSuffix(runtime.FuncForPC(reflect.ValueOf(h).Pointer()).Name(), "-fm"))
-	d.id = name[strings.LastIndex(name, ".")+1:]
+	if d.ID == "" {
+		d.ID = name[strings.LastIndex(name, ".")+1:]
+	}
 
 	summary, rest, _ := strings.Cut(comments[name], ". ")
 
@@ -257,6 +264,7 @@ func (a *API) documentRaw(method, path string, doc Doc, in input, responses []Ra
 	}
 
 	oc.SetSummary(doc.Summary)
+	oc.SetID(doc.ID)
 	oc.SetDescription(doc.Description)
 	oc.SetTags(doc.Tags...)
 
@@ -311,7 +319,7 @@ func (a *API) document(method, path string, doc Doc, in input, out reflect.Type)
 
 	oc.SetSummary(doc.Summary)
 	oc.SetDescription(doc.Description)
-	oc.SetID(doc.id)
+	oc.SetID(doc.ID)
 	oc.SetTags(doc.Tags...)
 
 	if in.params != nil {

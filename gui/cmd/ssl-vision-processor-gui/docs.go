@@ -15,9 +15,10 @@ import (
 	"github.com/swaggest/jsonschema-go"
 )
 
-// specVersion is the API's version in the spec. Fields and endpoints may be
-// added freely; changing or removing one means /api/v2.
-const specVersion = "1.0.0"
+// specVersion is the API's version in the spec. Below 1.0 names may still
+// change; from 1.0, fields and endpoints may be added freely, and changing or
+// removing one means /api/v2.
+const specVersion = "0.1.0"
 
 const specIntro = `The GUI host's control API: the shared vision.yml document, its state, and what the host's
 sockets hear. Every error is JSON, ` + "`{\"error\": code, \"message\": text, \"issues\": [...]}`" + `; clients branch on
@@ -36,7 +37,7 @@ is the body of a REST endpoint documented here:
 | ` + "`network.state`" + ` | GET /api/network |
 | ` + "`alerts.state`" + ` | GET /api/alerts |
 | ` + "`processes.state`" + ` | GET /api/processes |
-| ` + "`wrapper_packet.out`" + ` | GET /api/geometry |
+| ` + "`geometry.state`" + ` | GET /api/geometry |
 `
 
 // openapiSpec is the host's OpenAPI spec as JSON. It depends only on the
@@ -52,7 +53,7 @@ func openapiSpec() ([]byte, error) {
 
 // newAPI is the host's typed route registry and spec.
 func newAPI(mux *http.ServeMux) *api.API {
-	a := api.New(mux, api.Info{Title: "vision_processor GUI host", Version: specVersion, Description: specIntro, Tags: specTags},
+	a := api.New(mux, api.Info{Title: "SSL Vision Processor GUI", Version: specVersion, Description: specIntro, Tags: specTags},
 		func(w http.ResponseWriter, err error) { respondConfigErr(w, err, "handling request") })
 
 	a.SchemaFor(reflect.TypeFor[config.Settings](), settingsSchema())

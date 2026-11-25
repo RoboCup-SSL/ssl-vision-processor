@@ -65,32 +65,32 @@ type healthResponse struct {
 	Version string `json:"version"`
 }
 
-// health reports that the host is up and serving.
-func (s *VisionServer) health(*http.Request, none) (healthResponse, error) {
+// getHealth reports that the host is up and serving.
+func (s *VisionServer) getHealth(*http.Request, none) (healthResponse, error) {
 	return healthResponse{Status: "ok", Version: buildinfo.Version()}, nil
 }
 
-// topics lists the WebSocket topics /ws accepts.
-func (s *VisionServer) topics(*http.Request, none) ([]string, error) {
+// listTopics lists the WebSocket topics /ws accepts.
+func (s *VisionServer) listTopics(*http.Request, none) ([]string, error) {
 	return s.hub.Topics(), nil
 }
 
-// network reports each multicast socket's address and what it hears:
+// getNetwork reports each multicast socket's address and what it hears:
 // network.state on demand.
-func (s *VisionServer) network(*http.Request, none) (NetworkState, error) {
+func (s *VisionServer) getNetwork(*http.Request, none) (NetworkState, error) {
 	return s.status.Network(), nil
 }
 
-// getAlerts lists every problem the host sees right now, most serious first:
+// listAlerts lists every problem the host sees right now, most serious first:
 // alerts.state on demand.
-func (s *VisionServer) getAlerts(*http.Request, none) ([]alerts.Alert, error) {
+func (s *VisionServer) listAlerts(*http.Request, none) ([]alerts.Alert, error) {
 	return s.status.Alerts(), nil
 }
 
-// instances lists every vision_processor heard announcing itself on the vision
+// listInstances lists every vision_processor heard announcing itself on the vision
 // group in the last 30 seconds, with the configuration it last announced, by
 // camera_id then instance name. One unheard for 3 seconds is no longer live.
-func (s *VisionServer) instances(*http.Request, none) ([]discovery.Instance, error) {
+func (s *VisionServer) listInstances(*http.Request, none) ([]discovery.Instance, error) {
 	return s.status.Instances(), nil
 }
 
@@ -201,8 +201,8 @@ func (s *VisionServer) patchConfig(_ *http.Request, in patchConfigRequest) (revi
 	return revisionOf(next), err
 }
 
-// configFiles lists the YAML files in the config folder, for load and save-as.
-func (s *VisionServer) configFiles(*http.Request, none) ([]config.File, error) {
+// listConfigFiles lists the YAML files in the config folder, for load and save-as.
+func (s *VisionServer) listConfigFiles(*http.Request, none) ([]config.File, error) {
 	return s.store.Files()
 }
 
@@ -215,10 +215,10 @@ type saveRequest struct {
 	Force bool `json:"force"`
 }
 
-// save writes the working document to vision.yml. A 409 disk_changed means
+// saveConfig writes the working document to vision.yml. A 409 disk_changed means
 // the file was edited elsewhere since it was loaded (config.state's external
 // describes how); force overwrites it anyway.
-func (s *VisionServer) save(_ *http.Request, req saveRequest) (revisionResponse, error) {
+func (s *VisionServer) saveConfig(_ *http.Request, req saveRequest) (revisionResponse, error) {
 	if err := s.store.Save(req.Revision, req.Force); err != nil {
 		return revisionResponse{}, err
 	}
@@ -234,9 +234,9 @@ type saveAsRequest struct {
 	Name string `json:"name"`
 }
 
-// saveAs writes the working document to another file in the config folder. The
+// saveConfigAs writes the working document to another file in the config folder. The
 // host loads from, saves to, and watches that file from then on.
-func (s *VisionServer) saveAs(_ *http.Request, req saveAsRequest) (revisionResponse, error) {
+func (s *VisionServer) saveConfigAs(_ *http.Request, req saveAsRequest) (revisionResponse, error) {
 	if req.Name == "" {
 		return revisionResponse{}, &httpjson.Problem{Code: httpjson.CodeInvalid, Message: "name: required", Issues: []string{"name: required"}}
 	}
@@ -254,9 +254,9 @@ type loadRequest struct {
 	Name string `json:"name"`
 }
 
-// load switches to editing another vision.yml in the config folder. It replaces the working
+// loadConfig switches to editing another vision.yml in the config folder. It replaces the working
 // document, unsaved changes included, and applies it live.
-func (s *VisionServer) load(_ *http.Request, req loadRequest) (revisionResponse, error) {
+func (s *VisionServer) loadConfig(_ *http.Request, req loadRequest) (revisionResponse, error) {
 	if req.Name == "" {
 		return revisionResponse{}, &httpjson.Problem{Code: httpjson.CodeInvalid, Message: "name: required", Issues: []string{"name: required"}}
 	}
@@ -268,10 +268,10 @@ func (s *VisionServer) load(_ *http.Request, req loadRequest) (revisionResponse,
 	return revisionOf(s.store.Revision()), nil
 }
 
-// reload accepts vision.yml as it is on disk. It discards unsaved changes:
+// reloadConfig accepts vision.yml as it is on disk. It discards unsaved changes:
 // the "load from disk" answer to the external-change prompt, and "revert to
 // disk".
-func (s *VisionServer) reload(*http.Request, none) (revisionResponse, error) {
+func (s *VisionServer) reloadConfig(*http.Request, none) (revisionResponse, error) {
 	if err := s.store.Reload(); err != nil {
 		return revisionResponse{}, err
 	}
@@ -285,10 +285,10 @@ type cameraRequest struct {
 	ID int `path:"id"`
 }
 
-// effectiveConfig lists every setting of one camera as its vision_processor
+// getEffectiveConfig lists every setting of one camera as its vision_processor
 // runs it. Each value says where it comes from: the camera, the shared
 // defaults, the host, or vision_processor's fallback.
-func (s *VisionServer) effectiveConfig(_ *http.Request, in cameraRequest) (config.EffectiveConfig, error) {
+func (s *VisionServer) getEffectiveConfig(_ *http.Request, in cameraRequest) (config.EffectiveConfig, error) {
 	doc, _ := s.store.Working()
 
 	return doc.EffectiveConfig(in.ID)
@@ -313,10 +313,10 @@ func (s *VisionServer) unlockCalibration(_ *http.Request, in cameraRequest) (rev
 	return revisionOf(rev), err
 }
 
-// cameraDevices lists this host's capture devices: candidates for a camera's
+// listCaptureDevices lists this host's capture devices: candidates for a camera's
 // camera.path, stable by-id and by-path links first. Empty on a machine
 // without Video4Linux.
-func (s *VisionServer) cameraDevices(*http.Request, none) ([]v4l.Device, error) {
+func (s *VisionServer) listCaptureDevices(*http.Request, none) ([]v4l.Device, error) {
 	devices := v4l.List(v4l.System)
 	if devices == nil {
 		devices = []v4l.Device{}
@@ -325,14 +325,14 @@ func (s *VisionServer) cameraDevices(*http.Request, none) ([]v4l.Device, error) 
 	return devices, nil
 }
 
-// snapshots lists the debug images on this host, by camera and view.
-func (s *VisionServer) snapshots(*http.Request, none) ([]snapshot.Entry, error) {
+// listSnapshots lists the debug images on this host, by camera and view.
+func (s *VisionServer) listSnapshots(*http.Request, none) ([]snapshot.Entry, error) {
 	return snapshot.List(s.imgDir)
 }
 
-// processes lists the vision_processors the host runs itself (-runCameras), by
+// listProcesses lists the vision_processors the host runs itself (-runCameras), by
 // camera_id: processes.state on demand. Empty when it runs none.
-func (s *VisionServer) processes(*http.Request, none) ([]supervisor.Status, error) {
+func (s *VisionServer) listProcesses(*http.Request, none) ([]supervisor.Status, error) {
 	return s.procs.Statuses(), nil
 }
 
@@ -392,8 +392,8 @@ type fieldPresetResponse struct {
 	OptionalFieldLines geometry.OptionalLinesConfig `json:"optionalFieldLines"`
 }
 
-// fieldPresets lists the rulebook field dimensions, Division A and B.
-func (s *VisionServer) fieldPresets(*http.Request, none) ([]fieldPresetResponse, error) {
+// listFieldPresets lists the rulebook field dimensions, Division A and B.
+func (s *VisionServer) listFieldPresets(*http.Request, none) ([]fieldPresetResponse, error) {
 	embedded, err := defaults.Presets()
 	if err != nil {
 		return nil, err

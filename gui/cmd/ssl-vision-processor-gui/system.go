@@ -72,10 +72,10 @@ type netInterface struct {
 	Addresses []string `json:"addresses"`
 }
 
-// system describes this host and the build it runs, for a bug report: the
+// getSystem describes this host and the build it runs, for a bug report: the
 // build's git state, the OS, the process, every network interface, and its
 // latest warnings and errors.
-func (s *VisionServer) system(*http.Request, none) (systemResponse, error) {
+func (s *VisionServer) getSystem(*http.Request, none) (systemResponse, error) {
 	hostname, _ := os.Hostname()
 
 	return systemResponse{

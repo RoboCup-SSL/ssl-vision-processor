@@ -60,7 +60,7 @@ export type VideoDevice = Schemas["V4LDevice"];
 export type SnapshotEntry = Schemas["SnapshotEntry"];
 export type ProcessStatus = Schemas["SupervisorStatus"];
 
-export type ApiError = Schemas["HttpjsonErrorBody"];
+export type ApiError = Schemas["ErrorBody"];
 export type ErrorCode = ApiError["error"];
 
 export type LiveFieldSnapshot = Schemas["LivefieldSnapshot"];

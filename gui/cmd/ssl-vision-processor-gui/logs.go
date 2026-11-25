@@ -41,11 +41,11 @@ type logsResponse struct {
 	Missed bool `json:"missed"`
 }
 
-// logs serves the host's recent log records, its supervised vision_processors'
+// getLogs serves the host's recent log records, its supervised vision_processors'
 // output included, whatever level its console logs at. Poll with after set to
 // the last response's next to follow the log; add wait to be answered as soon
 // as a record is logged.
-func (s *VisionServer) logs(r *http.Request, in logsRequest) (logsResponse, error) {
+func (s *VisionServer) getLogs(r *http.Request, in logsRequest) (logsResponse, error) {
 	level := slog.LevelDebug
 
 	if in.Level != "" {

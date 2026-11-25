@@ -24,8 +24,8 @@ var checkedGETs = map[string]string{
 	"/api/config/cameras/{id}/effective": "/api/config/cameras/0/effective",
 	"/api/geometry":                      "/api/geometry",
 	"/api/geometry/presets":              "/api/geometry/presets",
-	"/api/live_field":                    "/api/live_field",
-	"/api/camera/devices":                "/api/camera/devices",
+	"/api/live-field":                    "/api/live-field",
+	"/api/capture-devices":               "/api/capture-devices",
 	"/api/snapshots":                     "/api/snapshots",
 	"/api/processes":                     "/api/processes",
 	"/api/instances":                     "/api/instances",
@@ -34,7 +34,7 @@ var checkedGETs = map[string]string{
 }
 
 // notJSON are the GET routes whose 200 isn't a JSON body.
-var notJSON = []string{"/api/snapshot/{camID}/{view}", "/ws", "/ws/video/{id}"}
+var notJSON = []string{"/api/snapshots/{id}/{view}", "/ws", "/ws/video/{id}"}
 
 // A new GET route has to be added to checkedGETs (or notJSON), so its
 // responses get checked against the spec too.

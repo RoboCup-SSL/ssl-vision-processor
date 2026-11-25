@@ -13,7 +13,7 @@ import (
 
 // liveFieldTopic carries livefield.Snapshot: every camera's latest detection
 // frame and every autoref's latest tracked frame.
-const liveFieldTopic = "live_field.frames"
+const liveFieldTopic = "live-field.state"
 
 // Detections arrive at 60 to 75 Hz per camera; publishing faster than a
 // browser draws gains nothing.
@@ -63,7 +63,7 @@ func publishLiveField(ctx context.Context, wsHub *hub.Hub, live *livefield.Feed)
 }
 
 // getLiveField serves every camera's latest detection frame and every
-// autoref's latest tracked frame, as the live_field.frames topic carries
+// autoref's latest tracked frame, as the live-field.state topic carries
 // them.
 //
 // Sources silent for a second are listed without a frame, and dropped after
