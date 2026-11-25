@@ -30,6 +30,7 @@ func TestValidateCamera(t *testing.T) {
 		want  string // "" for valid
 	}{
 		"fixture":         {map[string]any{"driver": "OPENCV", "path": "/dev/video0"}, ""},
+		"none chosen":     {map[string]any{"driver": "DUMMY"}, ""},
 		"dc1394":          {map[string]any{"driver": "DC1394", "id": 1}, ""},
 		"serial":          {map[string]any{"driver": "SPINNAKER", "device": "15000001"}, ""},
 		"manual wb":       {map[string]any{"white_balance": map[string]any{"red": 1.2, "blue": 0.9}}, ""},

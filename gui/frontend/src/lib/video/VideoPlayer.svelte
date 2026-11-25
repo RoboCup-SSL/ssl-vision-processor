@@ -100,7 +100,8 @@
     const proc = processFor(cameraId);
 
     return (
-      proc !== undefined && ["failing", "held"].includes(processHealth(proc))
+      proc !== undefined &&
+      ["failing", "held", "noCamera"].includes(processHealth(proc))
     );
   });
 
@@ -121,6 +122,8 @@
         return text.processExiting(lastLine(proc));
       case "held":
         return text.processHeld(proc.conflict ?? "");
+      case "noCamera":
+        return text.noCamera;
       case "starting":
         return text.processStarting;
       case "running":

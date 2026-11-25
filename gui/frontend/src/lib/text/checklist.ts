@@ -54,6 +54,7 @@ export const checklist = {
         ? `Sending detections, ${steady(String(fps), 3)} fps`
         : "Sending detections",
     notHeard: "Nothing heard from this camera yet",
+    noCamera: "No driver selected: choose one on the Camera page",
     notCalibrated: "Not calibrated yet",
     calibratedNotLocked:
       "Calibrated, not locked: lock it so a restart doesn't recalibrate",

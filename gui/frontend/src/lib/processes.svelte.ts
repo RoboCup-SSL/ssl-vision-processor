@@ -25,10 +25,12 @@ export function processFor(cameraId: number): ProcessStatus | undefined {
 // process_crashing alert uses the same (gui/internal/alerts crashingAfter).
 export const CRASHING_AFTER = 2;
 
-export type ProcessHealth = "running" | "starting" | "failing" | "held";
+export type ProcessHealth =
+  "running" | "starting" | "failing" | "held" | "noCamera";
 
 // One word for a supervised process, for a status dot.
 export function processHealth(p: ProcessStatus): ProcessHealth {
+  if (p.state === "no_camera") return "noCamera";
   if (p.state === "conflict") return "held";
   if (p.crashes >= CRASHING_AFTER) return "failing";
   if (p.state === "running") return "running";

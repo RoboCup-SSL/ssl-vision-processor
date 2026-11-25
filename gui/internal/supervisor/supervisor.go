@@ -6,6 +6,7 @@
 package supervisor
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -32,20 +33,25 @@ var ErrNotSupervised = errors.New("no supervised vision_processor for this camer
 // Status.Conflict.
 var ErrHeld = errors.New("held back: another camera uses its device")
 
+// ErrNoCamera means no driver is chosen for the camera, so there's nothing
+// to run.
+var ErrNoCamera = errors.New("no camera driver chosen")
+
 // Process states.
 const (
 	StateRunning    = "running"
 	StateRestarting = "restarting" // stopping, to start again at once
 	StateWaiting    = "waiting"    // exited or failed to start; starts again after a delay
 	StateStopped    = "stopped"
-	StateConflict   = "conflict" // not started: another camera uses its device
+	StateConflict   = "conflict"  // not started: another camera uses its device
+	StateNoCamera   = "no_camera" // not started: no camera driver chosen
 )
 
 // Status is one supervised vision_processor.
 type Status struct {
 	CameraID   int    `json:"cameraId"`
 	ConfigPath string `json:"configPath"`
-	State      string `json:"state" enum:"running,restarting,waiting,stopped,conflict"`
+	State      string `json:"state" enum:"running,restarting,waiting,stopped,conflict,no_camera"`
 	// Conflict says which camera already uses this one's device, while State
 	// is conflict.
 	Conflict string `json:"conflict,omitempty"`
@@ -122,13 +128,15 @@ type Supervisor struct {
 
 // proc is one config file's vision_processor.
 type proc struct {
-	status  Status
-	latest  map[string]any // the camera's rendered config now
-	started map[string]any // what the running process was started with
-	timer   *time.Timer
-	restart chan struct{}
-	cancel  context.CancelFunc
-	starts  int
+	status Status
+	// noCamera is whether the camera has no driver chosen (config.DriverNone).
+	noCamera bool
+	latest   map[string]any // the camera's rendered config now
+	started  map[string]any // what the running process was started with
+	timer    *time.Timer
+	restart  chan struct{}
+	cancel   context.CancelFunc
+	starts   int
 	// recalibrate is set when the field changed since it started.
 	recalibrate bool
 	// done is closed when the loop last spawned has returned, nil before the
@@ -161,7 +169,8 @@ func New(opts Options) *Supervisor {
 // config_path, which the store has already written. A camera whose
 // startup-only settings changed restarts after Options.Debounce; a change to
 // the field restarts every camera to recalibrate. A camera whose device
-// another camera already uses is held, not started (StateConflict).
+// another camera already uses is held, not started (StateConflict), as is one
+// with no driver chosen (StateNoCamera).
 func (s *Supervisor) Sync(doc config.Document) {
 	conflicts := deviceConflicts(doc)
 
@@ -180,6 +189,8 @@ func (s *Supervisor) Sync(doc config.Document) {
 
 		seen[c.ConfigPath] = true
 		rendered := doc.Rendered(c)
+		driver, _ := doc.CaptureDevice(c)
+		noCamera := driver == config.DriverNone
 
 		p := s.procs[c.ConfigPath]
 		if p == nil {
@@ -189,7 +200,7 @@ func (s *Supervisor) Sync(doc config.Document) {
 				restart: make(chan struct{}, 1),
 			}
 			s.procs[c.ConfigPath] = p
-			p.status.Conflict = conflicts[c.CameraID]
+			p.status.Conflict, p.noCamera = conflicts[c.CameraID], noCamera
 			s.spawnLocked(p)
 
 			continue
@@ -197,9 +208,9 @@ func (s *Supervisor) Sync(doc config.Document) {
 
 		p.status.CameraID = c.CameraID
 
-		if held := conflicts[c.CameraID]; held != p.status.Conflict {
-			p.status.Conflict = held
-			if held != "" {
+		if conflict := conflicts[c.CameraID]; conflict != p.status.Conflict || noCamera != p.noCamera {
+			p.status.Conflict, p.noCamera = conflict, noCamera
+			if p.held() {
 				s.holdLocked(p)
 			} else {
 				p.latest = rendered
@@ -209,7 +220,7 @@ func (s *Supervisor) Sync(doc config.Document) {
 			continue
 		}
 
-		if p.status.Conflict != "" {
+		if p.held() {
 			p.latest = rendered // starts with it once released
 
 			continue
@@ -255,6 +266,10 @@ func (s *Supervisor) Restart(cameraID int) error {
 			continue
 		}
 
+		if p.noCamera {
+			return ErrNoCamera
+		}
+
 		if p.status.Conflict != "" {
 			return ErrHeld
 		}
@@ -283,6 +298,9 @@ func (s *Supervisor) Statuses() []Status {
 		st := p.status
 		if st.Conflict != "" {
 			st.State = StateConflict
+		}
+		if p.noCamera {
+			st.State = StateNoCamera
 		}
 		st.PendingKeys = slices.Clone(st.PendingKeys)
 		st.Output = slices.Clone(st.Output)
@@ -321,7 +339,7 @@ func (s *Supervisor) notify() {
 // loop held and then released waits for its previous one to stop the old
 // process first.
 func (s *Supervisor) spawnLocked(p *proc) {
-	if s.ctx == nil || s.ctx.Err() != nil || p.cancel != nil || p.status.Conflict != "" {
+	if s.ctx == nil || s.ctx.Err() != nil || p.cancel != nil || p.held() {
 		return
 	}
 
@@ -343,13 +361,18 @@ func (s *Supervisor) spawnLocked(p *proc) {
 	}()
 }
 
-// holdLocked stops p's loop, and with it the process, for a device conflict.
+// held is whether p mustn't run: a device conflict, or no camera chosen.
+func (p *proc) held() bool { return p.status.Conflict != "" || p.noCamera }
+
+// holdLocked stops p's loop, and with it the process, while p is held.
 func (s *Supervisor) holdLocked(p *proc) {
 	s.stopTimerLocked(p)
 	p.status.PendingKeys = []string{}
+	// Whatever it failed on doesn't count against its next camera.
+	p.status.Crashes = 0
 
 	if p.cancel != nil {
-		slog.Warn("holding vision_processor back", "cam", p.status.CameraID, "reason", p.status.Conflict)
+		slog.Warn("holding vision_processor back", "cam", p.status.CameraID, "reason", cmp.Or(p.status.Conflict, ErrNoCamera.Error()))
 		p.cancel()
 		p.cancel = nil
 	}
@@ -619,6 +642,10 @@ func deviceConflicts(doc config.Document) map[int]string {
 		}
 
 		driver, device := doc.CaptureDevice(c)
+		if driver == config.DriverNone {
+			continue
+		}
+
 		key := driver + " " + device
 
 		if strings.HasPrefix(device, "/") {

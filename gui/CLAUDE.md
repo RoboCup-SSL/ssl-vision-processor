@@ -225,7 +225,9 @@ every file vision_processor writes to `img/` is prefixed by camera_id;
 `internal/snapshot` reads the `cam<id>` folders too); the config
 path and the rendered `bot_heights_file` are absolute for that reason. A camera
 whose device (`Document.CaptureDevice`, symlinks resolved) a lower camera_id
-already uses is held in state `conflict`. `internal/supervisor` observes the store (`Sync` on every
+already uses is held in state `conflict`, and one with no driver chosen
+(`DUMMY`, what `config.Default` writes; today's vision_processor exits on it,
+upstream PR #61 changes that) in `no_camera`. `internal/supervisor` observes the store (`Sync` on every
 change) rather than sitting in `Store.apply`: the store still writes the file,
 and the supervisor restarts a process when `config.RestartKeys` (anything not
 `live`/`host` in the schema, unknown keys included) finds a difference between

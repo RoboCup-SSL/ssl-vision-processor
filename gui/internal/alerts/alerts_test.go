@@ -92,6 +92,15 @@ func TestCollect(t *testing.T) {
 				{CameraID: 1, State: supervisor.StateConflict, Conflict: "camera 0 already uses OPENCV /dev/video0"},
 			}
 		}, "device-1", "device_conflict/error"},
+		"no camera chosen": {func(d *config.Document, _ *config.State, _ *Network) {
+			d.Cameras[1].ConfigPath = "cam1.yml"
+			d.Cameras[1].Config = noCamera
+		}, "no-camera-1", "camera_not_selected/warning"},
+		"no camera chosen on a competition field": {func(d *config.Document, _ *config.State, n *Network) {
+			d.CompetitionField = true
+			d.Cameras[1].Config = noCamera
+			n.Sources = n.Sources[:1]
+		}, "no-camera-1", "camera_not_selected/error"},
 		"crash loop": {func(_ *config.Document, _ *config.State, n *Network) {
 			n.Processes = []supervisor.Status{{
 				CameraID: 0, State: supervisor.StateWaiting, Crashes: 2, LastExit: "exit status 1",
@@ -274,4 +283,27 @@ func TestCrashingProcessNeedsTwoFailuresAndQuotesTheLastLine(t *testing.T) {
 	}
 
 	t.Fatal("three crashes in a row raised no process_crashing alert")
+}
+
+var noCamera = config.Settings{"camera": map[string]any{"driver": config.DriverNone}}
+
+// A camera whose config the host doesn't write has its own; sending, it has a
+// driver, whatever this document says.
+func TestNoCameraChosenIsFineForAnExternalCameraThatSends(t *testing.T) {
+	doc, state, net := healthy()
+	doc.Cameras[1].Config = noCamera
+
+	if got := Collect(doc, state, net); len(got) != 0 {
+		t.Errorf("Collect = %+v, want nothing", got)
+	}
+}
+
+// A camera held for having no driver isn't also crash-looping.
+func TestNoCameraChosenIsNotCrashing(t *testing.T) {
+	doc, state, net := healthy()
+	net.Processes = []supervisor.Status{{CameraID: 0, State: supervisor.StateNoCamera, Crashes: 5}}
+
+	if got := Collect(doc, state, net); len(got) != 0 {
+		t.Errorf("Collect = %+v, want nothing", got)
+	}
 }

@@ -27,11 +27,11 @@ Owner per finding: **Will** (Go/Svelte) or **Claude** (build/CI/packaging/docs i
 
 ## Status
 
-Updated 2026-11-18. **Open** 33 · **Partial** 4 · **Done** 29 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
+Updated 2026-11-25. **Open** 32 · **Partial** 4 · **Done** 30 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
 
 **Next up** (MVP gate order; see the end of this file):
-All blockers are fixed. T4-1, T2-1, L-1 and the build/docs batch (T1-5, T1-7, T1-9, T1-10, T2-7, T4-8, T6-3, T6-4, T6-6, T6-7, T7-3, L-6) are awaiting commit.
-1. T5-3, T5-2, T5-4: lab path.
+All blockers are fixed. T5-3 is awaiting commit.
+1. T5-4: the rest of the lab path (T5-2 is done).
 
 | ID | Sev | Owner | Item | Status |
 |---|---|---|---|---|
@@ -68,7 +68,7 @@ All blockers are fixed. T4-1, T2-1, L-1 and the build/docs batch (T1-5, T1-7, T1
 | T4-8 | nit | Claude | Flowbite `@source` CSS bloat | dropped |
 | T5-1 | blocker | Will | placeholder Debug page | done |
 | T5-2 | major | Will | crash-looping VP raises no alert | done |
-| T5-3 | major | Will | SPINNAKER default driver | open |
+| T5-3 | major | Will | SPINNAKER default driver | done |
 | T5-4 | major | Will | 4 warnings on a fresh install | open |
 | T5-5 | major | Will | accessibility (labels, contrast) | v2.1 |
 | T5-6 | major | Will | two navigation systems | open |
@@ -371,6 +371,8 @@ Fix: an `Error` alert per camera when `crashes ≥ 2` (or state `waiting` after 
 **T5-3 | major | Will | `cmd/ssl-vision-processor-gui/main.go:436-467` (`bootstrapConfig`), wizard**
 Every new camera defaults to the **Spinnaker (FLIR)** driver (the schema's `camera.driver` default `SPINNAKER`, vision_processor's own fallback). The planned CV package is FOSS-only (OpenCV/V4L, DC1394) and `-runCameras` targets student labs with webcams, so a new lab user's first `-runCameras` start crash-loops on a driver they don't have, and (T5-2) nothing says so. No C++ change is needed: the host owns the bootstrapped `vision.yml`.
 Fix: write `defaults.camera.driver: OPENCV` in a new config, or better, a wizard step "What cameras?" (webcam / FLIR / FireWire / mvIMPACT) that sets it and offers the `/api/camera/devices` picker.
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* not OPENCV. A new config writes `defaults.camera.driver: DUMMY`, the protocol's "no camera (initial state)" (proto `fdd7988`), so nobody gets a wrong driver. A file without a driver still means SPINNAKER. With `-runCameras` a DUMMY camera is held, not started (state `no_camera`; its restart route answers 409 `no_camera`), starts when a driver is chosen, and never counts as a device conflict. New alert `camera_not_selected` (warning, error on a competition field), except for a camera the host writes no config for that is already sending. The Camera page shows "No camera selected" and hides device, resolution and tuning until one is chosen; sidebar, video placeholder and checklist say so too. Today's vision_processor exits on DUMMY (`openCamera` has no case), so a camera run by hand still needs a driver first. Once upstream PR #61 lands, the hold can go. The wizard step stays a possible later feature.
 
 **T5-4 | major | Will | alert severities on a fresh install**
 Before the user has done anything, a first run shows **4 warnings and 1 caution**: `first_run_not_publishing`, `socket_silent`, `team_default_height` ×2, `loopback_multicast_off`. In a lab without a game controller, the two height warnings never go away. Users learn to ignore the warning count on day one, and that is exactly the count that should matter before a match.

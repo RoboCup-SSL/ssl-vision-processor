@@ -370,6 +370,32 @@ func TestDefaultIsDivisionBWithALoneRemoteCamera(t *testing.T) {
 		t.Errorf("cameras = %+v, want a lone camera 0 with no config_path", doc.Cameras)
 	}
 
+	if driver, _ := doc.CaptureDevice(doc.Cameras[0]); driver != DriverNone {
+		t.Errorf("camera 0's driver = %q, want none chosen", driver)
+	}
+
+	// Several unchosen cameras on one host don't clash over a device.
+	doc.Layout = &Layout{CameraCount: 4}
+	doc.AssignLocal("vision.yml")
+
+	if err := doc.Validate(); err != nil {
+		t.Errorf("four cameras with no driver chosen: %v", err)
+	}
+
+	// Choosing one driver for all of them gives each its own device.
+	for i := range doc.Cameras {
+		doc.Cameras[i].Config = Settings{"camera": mergedCamera(doc.Cameras[i], "OPENCV")}
+	}
+
+	if err := doc.Validate(); err != nil {
+		t.Errorf("four cameras on OPENCV: %v", err)
+	}
+
+	doc, err = Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	data, err := Marshal(doc)
 	if err != nil {
 		t.Fatal(err)
@@ -426,5 +452,33 @@ func TestValidateAcceptsBareFileNames(t *testing.T) {
 
 	if err := doc.Validate(); err != nil {
 		t.Errorf("Validate: %v", err)
+	}
+}
+
+// mergedCamera is c's own camera: block with driver set.
+func mergedCamera(c Camera, driver string) map[string]any {
+	block := map[string]any{"driver": driver}
+
+	if own, ok := c.Config["camera"].(map[string]any); ok {
+		for k, v := range own {
+			block[k] = v
+		}
+	}
+
+	return block
+}
+
+// A file written before new configs named a driver still means SPINNAKER, as
+// vision_processor reads it.
+func TestNoDriverStillMeansSpinnaker(t *testing.T) {
+	if driver, _ := (Document{}).CaptureDevice(Camera{}); driver != "SPINNAKER" {
+		t.Errorf("driver = %q, want SPINNAKER", driver)
+	}
+
+	shared := Document{Defaults: Settings{"camera": map[string]any{"driver": DriverNone}}}
+	own := Camera{Config: Settings{"camera": map[string]any{"driver": "OPENCV"}}}
+
+	if driver, device := shared.CaptureDevice(own); driver != "OPENCV" || device != "/dev/video0" {
+		t.Errorf("own driver = %s %s, want OPENCV /dev/video0", driver, device)
 	}
 }

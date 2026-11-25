@@ -86,6 +86,7 @@ export type Note =
         | "networkProblem"
         | "layoutProblem"
         | "notHeard"
+        | "noCamera"
         | "notCalibrated"
         | "calibratedNotLocked"
         | "locked"
@@ -258,6 +259,11 @@ function cameraRows(
 }
 
 function processorRow(camera: CameraDoc): { status: Status; note: Note } {
+  const unselected = hostAlerts.list.some(
+    (a) => a.code === "camera_not_selected" && a.cameraId === camera.cameraId,
+  );
+  if (unselected) return { status: "attention", note: { key: "noCamera" } };
+
   const source = network.state?.cameras.find(
     (s) => s.cameraId === camera.cameraId,
   );

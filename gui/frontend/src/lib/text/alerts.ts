@@ -59,6 +59,10 @@ export const alerts = {
     `Camera ${String(camera)}'s vision_processor isn't started`,
   deviceConflictDetail: (conflict: string): string =>
     `${conflict.charAt(0).toUpperCase()}${conflict.slice(1)}.`,
+  cameraNotSelected: (camera: number): string =>
+    `Camera ${String(camera)} has no driver selected`,
+  cameraNotSelectedDetail:
+    "Its vision_processor can't run until you choose one.",
   processCrashing: (camera: number, crashes: number): string =>
     `Camera ${String(camera)}'s vision_processor keeps exiting (${String(crashes)} times in a row)`,
   processCrashingDetail: (lastLine: string, exit: string): string =>

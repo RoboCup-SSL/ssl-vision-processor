@@ -121,13 +121,23 @@ export const RESOLUTION_DOCS = {
       "It starts by itself as soon as its device is free. Nothing needs restarting.",
     ],
   },
+  "camera-not-selected": {
+    title: "No camera driver selected",
+    cause:
+      "A new configuration doesn't guess which camera you have (driver DUMMY). vision_processor exits with that driver, so a host that runs the cameras (-runCameras) waits for you to choose one.",
+    steps: [
+      "Open the Camera page and choose the driver: OPENCV for a webcam, SPINNAKER for FLIR, MVIMPACT for Bluefox3, DC1394 for FireWire.",
+      "Choose the device too if there's more than one.",
+      "With -runCameras it starts by itself. Otherwise restart that camera's vision_processor.",
+    ],
+  },
   "process-crashing": {
     title: "A camera's vision_processor keeps exiting",
     cause:
       "The host runs every camera's vision_processor itself (-runCameras) and restarts one that exits, waiting longer each time. This one has failed several times in a row, usually because it can't open its camera: the wrong driver, a device that's missing or busy, or a driver the build doesn't include.",
     steps: [
       "Read its last output, here and in full at the bottom of the Camera page. It usually names the problem.",
-      "Check the camera's driver and device on the Camera page. A webcam needs OPENCV and a /dev/video path; the default, SPINNAKER, is for FLIR cameras only.",
+      "Check the camera's driver and device on the Camera page. A webcam needs OPENCV and a /dev/video path; SPINNAKER, what a file without a driver means, is for FLIR cameras only.",
       "Check nothing else has the camera open (another vision_processor, a video call, cheese).",
       "It restarts by itself after each change. Nothing else needs restarting.",
     ],

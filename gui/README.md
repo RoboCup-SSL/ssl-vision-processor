@@ -256,8 +256,8 @@ There are two ways to run the cameras:
    ```
 
    It prints which vision_processor it runs, and exits straight away if it can't find one. A new configuration's
-   camera 0 is ready to go, on the first webcam (`/dev/video0`) once its driver is set to OPENCV on the Camera
-   Settings page.
+   camera 0 has no camera selected, so it isn't started yet. Choose OPENCV as its driver on the Camera page and it
+   starts on the first webcam (`/dev/video0`).
 
 3. Camera Settings shows each vision_processor's state, its last lines of output, and a Restart button. Choosing the
    number of cameras on the Camera Layout page adds or removes cameras to match, each with its own config file.

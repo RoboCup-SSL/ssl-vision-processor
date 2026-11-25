@@ -454,7 +454,8 @@ const configWatchInterval = time.Second
 // bootstrapConfig creates the config file from the embedded defaults if it
 // doesn't exist yet, and with it the robot height table vision_processor
 // needs. Never touches an existing config. A host that runs its cameras
-// (local) gives camera 0 its config_path, cam0.yml, so a webcam works at once.
+// (local) gives camera 0 its config_path, cam0.yml, so choosing a driver is enough to
+// start it.
 func bootstrapConfig(dir, name string, local bool) error {
 	path := filepath.Join(dir, name)
 

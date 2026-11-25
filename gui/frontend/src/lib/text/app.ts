@@ -62,6 +62,7 @@ export const app = {
       starting: "vision_processor starting",
       failing: "vision_processor keeps exiting",
       held: "vision_processor not started: device in use",
+      noCamera: "vision_processor not started: no camera selected",
     },
   },
 

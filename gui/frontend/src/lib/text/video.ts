@@ -19,6 +19,7 @@ export const video = {
       : "vision_processor keeps exiting. Its output is on the Camera page.",
   processHeld: (conflict: string): string =>
     `vision_processor isn't started: ${conflict}.`,
+  noCamera: "No camera selected. Choose its driver on the Camera page.",
   processStarting: "Waiting for video: vision_processor is starting…",
   waitingKeyframe: "Waiting for a keyframe…",
   // The rate frames arrive from vision_processor.

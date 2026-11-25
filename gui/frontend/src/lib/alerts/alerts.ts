@@ -160,6 +160,16 @@ function present(a: HostAlert): Alert {
         detail: text.deviceConflictDetail(str("conflict")),
         actions: [howTo("device-conflict")],
       };
+    case "camera_not_selected":
+      return {
+        ...base,
+        title: text.cameraNotSelected(a.cameraId ?? 0),
+        detail: text.cameraNotSelectedDetail,
+        actions: [
+          howTo("camera-not-selected"),
+          page(text.pages.camera, a.cameraId, "camera"),
+        ],
+      };
     case "process_crashing":
       return {
         ...base,

@@ -1,6 +1,7 @@
 [
   "calibration_aspect_mismatch",
   "camera_id_conflict",
+  "camera_not_selected",
   "camera_unplaced",
   "device_conflict",
   "field_changed",

@@ -146,6 +146,17 @@ describe("automatic items", () => {
     expect(itemState("layout").status).toBe("done");
   });
 
+  it("a camera with no driver selected puts only its own row in attention", () => {
+    hostAlerts.list = [{ ...alert("camera_not_selected"), cameraId: 1 }];
+
+    const item = itemState("processors");
+    expect(item.status).toBe("attention");
+    expect(item.cameras?.map((c) => c.note?.key)).toEqual([
+      "notHeard",
+      "noCamera",
+    ]);
+  });
+
   it("a caution leaves its item done", () => {
     hostAlerts.list = [
       alert("loopback_multicast_off", "caution"),

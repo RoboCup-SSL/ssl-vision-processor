@@ -35,8 +35,14 @@
   let settings = $derived(cameraSettings(cameraId));
   let driverInfo = $derived(drivers());
   let driver = $derived(driverInfo[settings.driver]);
+  // The chosen driver; with none, the settings that depend on it are hidden,
+  // so the stand-in is never shown.
+  let chosen = $derived(settings.driver !== "DUMMY");
+  let realDriver = $derived(
+    settings.driver === "DUMMY" ? "OPENCV" : settings.driver,
+  );
   // Placeholder slider ranges; see cameraRanges.ts.
-  let ranges = $derived(CAMERA_RANGES[settings.driver]);
+  let ranges = $derived(CAMERA_RANGES[realDriver]);
   let configPath = $derived(cameraDoc(cameraId)?.configPath);
   let proc = $derived(processFor(cameraId));
   let restartError = $state<string | null>(null);
@@ -47,12 +53,15 @@
     waiting: "yellow",
     stopped: "gray",
     conflict: "red",
+    no_camera: "yellow",
   } as const;
 
   // One line under the badge: the most pressing of these.
   let procMessage = $derived.by((): { text: string; error: boolean } => {
     if (!proc) return { text: "", error: false };
     if (restartError) return { text: restartError, error: true };
+    if (proc.state === "no_camera")
+      return { text: text.process.noCamera, error: false };
     if (proc.conflict)
       return { text: text.process.conflict(proc.conflict), error: true };
     if (proc.pendingKeys.length > 0)
@@ -232,14 +241,14 @@
   });
 
   let wbChannelNotes = $derived(
-    settings.driver === "OPENCV"
+    realDriver === "OPENCV"
       ? text.whiteBalance.channelOpencv
       : [
           {
             SPINNAKER: text.whiteBalance.channelSpinnaker,
             MVIMPACT: text.whiteBalance.channelMvimpact,
             DC1394: text.whiteBalance.channelDc1394,
-          }[settings.driver],
+          }[realDriver],
           PLACEHOLDER_RANGE,
         ],
   );
@@ -285,7 +294,12 @@
 
         <div class="capture">
           <SettingsCard title="Device" class="mb-0">
-            <FormRow label="Driver" for="cam-driver" notes={text.driver}>
+            <FormRow
+              label="Driver"
+              for="cam-driver"
+              notes={text.driver}
+              warnings={chosen ? [] : [text.noDriver]}
+            >
               <Select
                 id="cam-driver"
                 size="sm"
@@ -343,7 +357,7 @@
                   />
                 </FormRow>
               {/if}
-            {:else}
+            {:else if driver.selectsBy === "path"}
               <FormRow
                 label="Path"
                 for="cam-path"
@@ -391,183 +405,190 @@
             {/if}
           </SettingsCard>
 
-          <SettingsCard title="Resolution" class="mb-0">
-            <FormRow
-              label="Size"
-              for="cam-resolution"
-              notes={resolutionNotes}
-              errors={sizeError ? [sizeError] : []}
-            >
-              <Select
-                id="cam-resolution"
-                size="sm"
-                placeholder=""
-                value={resolutionIndex}
-                onchange={(e: Event) => {
-                  const choice =
-                    RESOLUTIONS[
-                      Number((e.currentTarget as HTMLSelectElement).value)
-                    ];
-                  if (choice) setSize(choice[0], choice[1]);
-                }}
+          {#if chosen}
+            <SettingsCard title="Resolution" class="mb-0">
+              <FormRow
+                label="Size"
+                for="cam-resolution"
+                notes={resolutionNotes}
+                errors={sizeError ? [sizeError] : []}
               >
-                {#each RESOLUTIONS as [w, h], i (i)}
-                  <option value={i}>
-                    {w === 0 ? "Camera maximum" : `${String(w)} × ${String(h)}`}
-                  </option>
-                {/each}
-                <option value={-1} disabled>Custom</option>
-              </Select>
-              <div class="size">
-                <Input
-                  type="number"
+                <Select
+                  id="cam-resolution"
                   size="sm"
-                  aria-label="Width"
-                  min="0"
-                  step="1"
-                  bind:value={draftSize[0]}
-                  onchange={() => {
-                    setSize(draftSize[0], draftSize[1]);
+                  placeholder=""
+                  value={resolutionIndex}
+                  onchange={(e: Event) => {
+                    const choice =
+                      RESOLUTIONS[
+                        Number((e.currentTarget as HTMLSelectElement).value)
+                      ];
+                    if (choice) setSize(choice[0], choice[1]);
                   }}
-                />
-                ×
-                <Input
-                  type="number"
-                  size="sm"
-                  aria-label="Height"
-                  min="0"
-                  step="1"
-                  bind:value={draftSize[1]}
-                  onchange={() => {
-                    setSize(draftSize[0], draftSize[1]);
-                  }}
-                />
-              </div>
-            </FormRow>
-          </SettingsCard>
+                >
+                  {#each RESOLUTIONS as [w, h], i (i)}
+                    <option value={i}>
+                      {w === 0
+                        ? "Camera maximum"
+                        : `${String(w)} × ${String(h)}`}
+                    </option>
+                  {/each}
+                  <option value={-1} disabled>Custom</option>
+                </Select>
+                <div class="size">
+                  <Input
+                    type="number"
+                    size="sm"
+                    aria-label="Width"
+                    min="0"
+                    step="1"
+                    bind:value={draftSize[0]}
+                    onchange={() => {
+                      setSize(draftSize[0], draftSize[1]);
+                    }}
+                  />
+                  ×
+                  <Input
+                    type="number"
+                    size="sm"
+                    aria-label="Height"
+                    min="0"
+                    step="1"
+                    bind:value={draftSize[1]}
+                    onchange={() => {
+                      setSize(draftSize[0], draftSize[1]);
+                    }}
+                  />
+                </div>
+              </FormRow>
+            </SettingsCard>
+          {/if}
         </div>
       </div>
 
-      <div class="tuning">
-        <SettingsCard title="Brightness">
-          <SliderField
-            id="cam-exposure"
-            label="Exposure"
-            value={toDisplay(ranges.exposure, settings.exposure)}
-            min={ranges.exposure.min}
-            max={ranges.exposure.max}
-            step={ranges.exposure.step}
-            unit={ranges.exposure.unit}
-            detail={settings.exposure === 0
-              ? undefined
-              : text.exposure.ms(settings.exposure)}
-            wheelStep={100}
-            auto={{ value: 0, fallback: ranges.exposure.fallback }}
-            notes={exposureNotes}
-            onchange={(v: number) => {
-              set("exposure", toFile(ranges.exposure, v));
-            }}
-          />
-
-          <SliderField
-            id="cam-gain"
-            label="Gain"
-            value={toDisplay(ranges.gain, settings.gain)}
-            min={ranges.gain.min}
-            max={ranges.gain.max}
-            step={ranges.gain.step}
-            unit={ranges.gain.unit}
-            auto={{ value: 0, fallback: ranges.gain.fallback }}
-            notes={gainNotes}
-            onchange={(v: number) => {
-              set("gain", toFile(ranges.gain, v));
-            }}
-          />
-
-          {#if driver.gamma}
+      {#if chosen}
+        <div class="tuning">
+          <SettingsCard title="Brightness">
             <SliderField
-              id="cam-gamma"
-              label="Gamma"
-              value={toDisplay(ranges.gamma, settings.gamma)}
-              min={ranges.gamma.min}
-              max={ranges.gamma.max}
-              step={ranges.gamma.step}
-              unit={ranges.gamma.unit}
-              auto={{
-                value: 1,
-                fallback: ranges.gamma.fallback,
-                label: "Linear",
-              }}
-              notes={gammaNotes}
-              warnings={gammaWarnings}
+              id="cam-exposure"
+              label="Exposure"
+              value={toDisplay(ranges.exposure, settings.exposure)}
+              min={ranges.exposure.min}
+              max={ranges.exposure.max}
+              step={ranges.exposure.step}
+              unit={ranges.exposure.unit}
+              detail={settings.exposure === 0
+                ? undefined
+                : text.exposure.ms(settings.exposure)}
+              wheelStep={100}
+              auto={{ value: 0, fallback: ranges.exposure.fallback }}
+              notes={exposureNotes}
               onchange={(v: number) => {
-                set("gamma", toFile(ranges.gamma, v));
+                set("exposure", toFile(ranges.exposure, v));
               }}
             />
-          {/if}
-        </SettingsCard>
 
-        <SettingsCard title="White balance">
-          <FormRow label="Mode" for="cam-wb" notes={wbNotes}>
-            <Select
-              id="cam-wb"
-              size="sm"
-              placeholder=""
-              value={wbMode}
-              onchange={(e: Event) => {
-                setWBMode(
-                  (e.currentTarget as HTMLSelectElement).value as WBMode,
-                );
-              }}
-            >
-              {#if driver.wbProfiles}
-                <option value="OUTDOOR"
-                  >Automatic, outdoor (green carpet)</option
-                >
-                <option value="INDOOR">Automatic, indoor (gray carpet)</option>
-              {:else}
-                <option value="auto">Automatic</option>
-              {/if}
-              <option value="manual">Manual red / blue</option>
-            </Select>
-          </FormRow>
-
-          {#if wbMode === "manual"}
             <SliderField
-              id="cam-wb-red"
-              label="Red"
-              value={toDisplay(ranges.whiteBalance, manualWB.red)}
-              min={ranges.whiteBalance.min}
-              max={ranges.whiteBalance.max}
-              step={ranges.whiteBalance.step}
-              unit={ranges.whiteBalance.unit}
-              notes={wbChannelNotes}
+              id="cam-gain"
+              label="Gain"
+              value={toDisplay(ranges.gain, settings.gain)}
+              min={ranges.gain.min}
+              max={ranges.gain.max}
+              step={ranges.gain.step}
+              unit={ranges.gain.unit}
+              auto={{ value: 0, fallback: ranges.gain.fallback }}
+              notes={gainNotes}
               onchange={(v: number) => {
-                set("white_balance", {
-                  ...manualWB,
-                  red: toFile(ranges.whiteBalance, v),
-                });
+                set("gain", toFile(ranges.gain, v));
               }}
             />
-            <SliderField
-              id="cam-wb-blue"
-              label="Blue"
-              value={toDisplay(ranges.whiteBalance, manualWB.blue)}
-              min={ranges.whiteBalance.min}
-              max={ranges.whiteBalance.max}
-              step={ranges.whiteBalance.step}
-              unit={ranges.whiteBalance.unit}
-              notes={wbChannelNotes}
-              onchange={(v: number) => {
-                set("white_balance", {
-                  ...manualWB,
-                  blue: toFile(ranges.whiteBalance, v),
-                });
-              }}
-            />
-          {/if}
-        </SettingsCard>
-      </div>
+
+            {#if driver.gamma}
+              <SliderField
+                id="cam-gamma"
+                label="Gamma"
+                value={toDisplay(ranges.gamma, settings.gamma)}
+                min={ranges.gamma.min}
+                max={ranges.gamma.max}
+                step={ranges.gamma.step}
+                unit={ranges.gamma.unit}
+                auto={{
+                  value: 1,
+                  fallback: ranges.gamma.fallback,
+                  label: "Linear",
+                }}
+                notes={gammaNotes}
+                warnings={gammaWarnings}
+                onchange={(v: number) => {
+                  set("gamma", toFile(ranges.gamma, v));
+                }}
+              />
+            {/if}
+          </SettingsCard>
+
+          <SettingsCard title="White balance">
+            <FormRow label="Mode" for="cam-wb" notes={wbNotes}>
+              <Select
+                id="cam-wb"
+                size="sm"
+                placeholder=""
+                value={wbMode}
+                onchange={(e: Event) => {
+                  setWBMode(
+                    (e.currentTarget as HTMLSelectElement).value as WBMode,
+                  );
+                }}
+              >
+                {#if driver.wbProfiles}
+                  <option value="OUTDOOR"
+                    >Automatic, outdoor (green carpet)</option
+                  >
+                  <option value="INDOOR">Automatic, indoor (gray carpet)</option
+                  >
+                {:else}
+                  <option value="auto">Automatic</option>
+                {/if}
+                <option value="manual">Manual red / blue</option>
+              </Select>
+            </FormRow>
+
+            {#if wbMode === "manual"}
+              <SliderField
+                id="cam-wb-red"
+                label="Red"
+                value={toDisplay(ranges.whiteBalance, manualWB.red)}
+                min={ranges.whiteBalance.min}
+                max={ranges.whiteBalance.max}
+                step={ranges.whiteBalance.step}
+                unit={ranges.whiteBalance.unit}
+                notes={wbChannelNotes}
+                onchange={(v: number) => {
+                  set("white_balance", {
+                    ...manualWB,
+                    red: toFile(ranges.whiteBalance, v),
+                  });
+                }}
+              />
+              <SliderField
+                id="cam-wb-blue"
+                label="Blue"
+                value={toDisplay(ranges.whiteBalance, manualWB.blue)}
+                min={ranges.whiteBalance.min}
+                max={ranges.whiteBalance.max}
+                step={ranges.whiteBalance.step}
+                unit={ranges.whiteBalance.unit}
+                notes={wbChannelNotes}
+                onchange={(v: number) => {
+                  set("white_balance", {
+                    ...manualWB,
+                    blue: toFile(ranges.whiteBalance, v),
+                  });
+                }}
+              />
+            {/if}
+          </SettingsCard>
+        </div>
+      {/if}
     </div>
 
     {#if proc}
@@ -585,7 +606,7 @@
             size="xs"
             color="alternative"
             class="ml-auto"
-            disabled={proc.state === "conflict"}
+            disabled={proc.state === "conflict" || proc.state === "no_camera"}
             onclick={() => void restartNow()}
           >
             {text.process.restartNow}

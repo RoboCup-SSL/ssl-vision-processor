@@ -42,6 +42,7 @@ const (
 	CodeFirstRun          = "first_run_not_publishing"
 	CodeDeviceConflict    = "device_conflict"
 	CodeProcessCrashing   = "process_crashing"
+	CodeCameraNotSelected = "camera_not_selected"
 )
 
 // crashingAfter is how many failed runs in a row make a supervised
@@ -79,6 +80,7 @@ func Codes() []string {
 		CodeRenderFailed, CodeCameraIDConflict, CodeRegionUncovered, CodeCameraUnplaced, CodeFileChanged,
 		CodeSocketProblem, CodeSocketSilent, CodeHeightsUnreadable, CodeTeamDefaultHeight, CodeLoopbackMulticast,
 		CodeSenderConflict, CodeFirstRun, CodeDeviceConflict, CodeProcessCrashing,
+		CodeCameraNotSelected,
 	}, config.WarningCodes...)
 
 	slices.Sort(codes)
@@ -131,7 +133,8 @@ func Collect(doc config.Document, state config.State, net Network) []Alert {
 	}
 
 	for _, p := range net.Processes {
-		if p.State != supervisor.StateConflict && p.Crashes >= crashingAfter {
+		held := p.State == supervisor.StateConflict || p.State == supervisor.StateNoCamera
+		if !held && p.Crashes >= crashingAfter {
 			last := LastLine(p.Output)
 			add(Alert{
 				ID: "crashing-" + strconv.Itoa(p.CameraID), Code: CodeProcessCrashing, Severity: Error, CameraID: ptr(p.CameraID),
@@ -148,6 +151,29 @@ func Collect(doc config.Document, state config.State, net Network) []Alert {
 			ID: "device-" + strconv.Itoa(p.CameraID), Code: CodeDeviceConflict, Severity: Error, CameraID: ptr(p.CameraID),
 			Params:  map[string]any{"conflict": p.Conflict},
 			Message: fmt.Sprintf("Camera %d's vision_processor isn't started: %s.", p.CameraID, p.Conflict),
+		})
+	}
+
+	for _, c := range doc.Cameras {
+		driver, _ := doc.CaptureDevice(c)
+		if driver != config.DriverNone {
+			continue
+		}
+
+		// A camera the host writes no config for has its own; if it's
+		// sending, it has a driver, whatever this document says.
+		if c.ConfigPath == "" && len(receivingAddresses(net.Sources, c.CameraID)) > 0 {
+			continue
+		}
+
+		severity := Warning
+		if doc.CompetitionField {
+			severity = Error
+		}
+
+		add(Alert{
+			ID: "no-camera-" + strconv.Itoa(c.CameraID), Code: CodeCameraNotSelected, Severity: severity, CameraID: ptr(c.CameraID),
+			Message: fmt.Sprintf("Camera %d has no camera driver chosen, so its vision_processor can't run.", c.CameraID),
 		})
 	}
 

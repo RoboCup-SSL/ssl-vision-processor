@@ -58,8 +58,8 @@ type Range struct {
 type Driver struct {
 	ID string `json:"id"`
 	// SelectsBy is how the block picks a device: "id", an index in the SDK's
-	// camera list, or "path", a device or file path.
-	SelectsBy string `json:"selectsBy" enum:"id,path"`
+	// camera list, "path", a device or file path, or "none".
+	SelectsBy string `json:"selectsBy" enum:"id,path,none"`
 	// Serial is whether device can name the camera's serial number, ahead of
 	// the index.
 	Serial bool `json:"serial"`
@@ -149,6 +149,7 @@ var settings = map[string]Setting{
 }
 
 var drivers = []Driver{
+	{ID: DriverNone, SelectsBy: "none"},
 	{ID: "SPINNAKER", SelectsBy: "id", Serial: true, Gamma: true, WhiteBalanceProfiles: true},
 	{ID: "MVIMPACT", SelectsBy: "id"},
 	{ID: "DC1394", SelectsBy: "id", Gamma: true},

@@ -592,3 +592,39 @@ func TestWorkDirLinksImages(t *testing.T) {
 		t.Errorf("workDir over a real img = %v, want refused", err)
 	}
 }
+
+// A camera with no driver chosen isn't started, doesn't clash with another,
+// starts once one is chosen, and stops if it's taken away.
+func TestNoCameraChosenHeldUntilChosen(t *testing.T) {
+	none := config.Settings{"camera": map[string]any{"driver": config.DriverNone}}
+	h := newHarness(t, Options{})
+	path := h.camera(0, "", none)
+	h.camera(1, "", none)
+
+	time.Sleep(100 * time.Millisecond)
+
+	for id := range 2 {
+		if st := h.status(id); st.State != StateNoCamera || st.Conflict != "" {
+			t.Errorf("camera %d = %+v, want held with no camera", id, st)
+		}
+	}
+
+	if n := starts(path); n != 0 {
+		t.Fatalf("unchosen camera started %d times", n)
+	}
+
+	if err := h.sup.Restart(0); !errors.Is(err, ErrNoCamera) {
+		t.Errorf("Restart(0) = %v, want ErrNoCamera", err)
+	}
+
+	h.camera(0, "", config.Settings{"camera": map[string]any{"driver": "OPENCV"}})
+	eventually(t, "camera 0 running", func() bool { return h.status(0).State == StateRunning && starts(path) == 1 })
+
+	pid := h.status(0).PID
+	h.camera(0, "", none)
+	eventually(t, "process gone", func() bool { return syscall.Kill(pid, 0) != nil })
+
+	if st := h.status(0); st.State != StateNoCamera {
+		t.Errorf("camera 0 = %+v, want held again", st)
+	}
+}

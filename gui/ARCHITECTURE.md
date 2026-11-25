@@ -202,7 +202,9 @@ filled in (`Document.CaptureDevice`: OPENCV opens `/dev/video<id>` when no devic
 `id`-th camera) and device paths resolved through symlinks. A camera whose device a lower camera_id already uses is
 held, not started: state `conflict`, a `device_conflict` alert, and a 409 from its restart route. It starts on its own
 once its device changes. `Document.Validate` already rejects two cameras on one device on the same `instance`; this
-also catches cameras on different instances, and two names for one device node. A daemon holding a camera is out of
+also catches cameras on different instances, and two names for one device node. A camera with no driver chosen (DUMMY, which today's
+vision_processor exits on) is held too: state `no_camera`, a `camera_not_selected` alert, and a 409 `no_camera`. A
+daemon holding a camera is out of
 scope: the process's own output says the device is busy.
 
 It watches the store like any other subscriber: on each change it renders every camera's
@@ -268,7 +270,7 @@ counting while suspended, with `CLOCK_MONOTONIC`, which doesn't. Neither jumps f
 means the machine slept, and every socket is reopened.
 
 The Camera Settings tab edits each camera's `camera:` block, shown with vision_processor's own fallbacks applied
-(`src/driver/cameradriver.cpp`; an unset driver means SPINNAKER). Controls follow the driver: an index for
+(`src/driver/cameradriver.cpp`; an unset driver means SPINNAKER; a new config says DUMMY, the protocol's "no camera"). Controls follow the driver: an index for
 SPINNAKER, MVIMPACT and DC1394, plus a serial number for SPINNAKER, a path for OPENCV, gamma hidden for
 MVIMPACT, and the OUTDOOR and INDOOR auto white balance profiles only for SPINNAKER. The serial and the path are
 both `device`, written in place of its former name `path`, which still reads. vision_processor reads `camera:`

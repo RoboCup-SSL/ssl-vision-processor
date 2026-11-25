@@ -27,6 +27,7 @@ func Default() (Document, error) {
 		FirstRun:           true,
 		Field:              field,
 		OptionalFieldLines: optional,
+		Defaults:           Settings{"camera": map[string]any{"driver": DriverNone}},
 		Cameras:            []Camera{{CameraID: 0}},
 	}
 

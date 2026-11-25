@@ -31,6 +31,9 @@ describe("processHealth", () => {
       "failing",
     );
     expect(processHealth(proc({ state: "conflict", crashes: 3 }))).toBe("held");
+    expect(processHealth(proc({ state: "no_camera", crashes: 3 }))).toBe(
+      "noCamera",
+    );
   });
 });
 

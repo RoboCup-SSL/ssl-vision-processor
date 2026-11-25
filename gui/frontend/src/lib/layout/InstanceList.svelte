@@ -17,6 +17,7 @@
     starting: "yellow",
     failing: "red",
     held: "red",
+    noCamera: "yellow",
   } as const;
 
   // Cameras with unsaved changes get a dot, same idea as the tab asterisks.

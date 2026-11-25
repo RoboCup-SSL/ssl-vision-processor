@@ -10,7 +10,11 @@ import (
 
 // CameraDrivers are vision_processor's camera drivers (src/driver). Which
 // ones a given build has depends on the SDKs it was compiled against.
-var CameraDrivers = []string{"SPINNAKER", "MVIMPACT", "DC1394", "OPENCV"}
+var CameraDrivers = []string{DriverNone, "SPINNAKER", "MVIMPACT", "DC1394", "OPENCV"}
+
+// DriverNone is the protocol's "no camera" driver, what a new config starts
+// with until someone chooses one. Today's vision_processor exits on it.
+const DriverNone = "DUMMY"
 
 // cameraBlock is the YAML shape of a camera: block, as
 // src/driver/cameradriver.cpp reads it.
@@ -28,7 +32,7 @@ type cameraBlock struct {
 }
 
 // deviceKey identifies the physical camera a camera block opens on host, or
-// is empty when the block doesn't say which driver. Two cameras with the same
+// is empty when the block doesn't say which driver, or says DriverNone. Two cameras with the same
 // key would fight over one device.
 func deviceKey(host string, block any) string {
 	driver, device, ok := captureDevice(block, "")
@@ -40,7 +44,8 @@ func deviceKey(host string, block any) string {
 }
 
 // CaptureDevice is the driver and device camera c's vision_processor opens,
-// with vision_processor's fallbacks filled in: see captureDevice.
+// with vision_processor's fallbacks filled in: see captureDevice. DriverNone
+// has no device.
 func (d Document) CaptureDevice(c Camera) (driver, device string) {
 	driver, device, _ = captureDevice(d.Effective(c)["camera"], settings["camera.driver"].Default.(string))
 
@@ -51,7 +56,7 @@ func (d Document) CaptureDevice(c Camera) (driver, device string) {
 // src/driver/cameradriver.cpp picks them: device (or its former name path),
 // else /dev/video<id> for OPENCV, else "id <id>", the driver's id-th camera.
 // A block naming no driver uses defaultDriver; ok is false when that's empty
-// too.
+// too, or for DriverNone, which opens nothing.
 func captureDevice(block any, defaultDriver string) (driver, device string, ok bool) {
 	var c cameraBlock
 
@@ -67,8 +72,8 @@ func captureDevice(block any, defaultDriver string) (driver, device string, ok b
 		driver = *c.Driver
 	}
 
-	if driver == "" {
-		return "", "", false
+	if driver == "" || driver == DriverNone {
+		return driver, "", false
 	}
 
 	id := 0

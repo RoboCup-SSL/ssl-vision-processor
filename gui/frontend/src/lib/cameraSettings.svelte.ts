@@ -11,7 +11,9 @@ import { config, cameraDoc } from "./config.svelte";
 import { fallback, schema } from "./schema.svelte";
 import type { VideoDevice } from "./apiTypes";
 
-export type Driver = "SPINNAKER" | "MVIMPACT" | "DC1394" | "OPENCV";
+// DUMMY is "no camera chosen", what a new config starts with.
+export type Driver = "DUMMY" | CameraDriver;
+export type CameraDriver = "SPINNAKER" | "MVIMPACT" | "DC1394" | "OPENCV";
 
 export type WhiteBalance = "OUTDOOR" | "INDOOR" | { red: number; blue: number };
 
@@ -37,7 +39,7 @@ export type CameraKey = keyof CameraSettings;
 export interface DriverInfo {
   label: string;
   // Selected by index in the SDK's camera list, or (OpenCV) by path.
-  selectsBy: "id" | "path";
+  selectsBy: "id" | "path" | "none";
   // Also selected by serial number, in device.
   serial: boolean;
   gamma: boolean;
@@ -46,6 +48,7 @@ export interface DriverInfo {
 }
 
 const DRIVER_LABELS: Record<Driver, string> = {
+  DUMMY: "No camera selected",
   SPINNAKER: "Spinnaker (FLIR)",
   MVIMPACT: "mvIMPACT (Bluefox3)",
   DC1394: "DC1394 (IIDC FireWire)",

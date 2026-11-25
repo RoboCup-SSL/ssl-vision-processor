@@ -21,7 +21,7 @@
 //   - exposure: ms, in the 20 µs steps of the AVT shutter timebase.
 //   - gain, white balance: raw registers, IIDC's 12-bit value field.
 //   - gamma: below 1 turns on the camera's lookup table (0.45 on AVT).
-import type { Driver } from "./cameraSettings.svelte";
+import type { CameraDriver } from "./cameraSettings.svelte";
 
 export interface Range {
   // In display units: what the slider and number box show.
@@ -42,7 +42,7 @@ export interface CameraRanges {
   whiteBalance: Range;
 }
 
-export const CAMERA_RANGES: Record<Driver, CameraRanges> = {
+export const CAMERA_RANGES: Record<CameraDriver, CameraRanges> = {
   SPINNAKER: {
     exposure: {
       min: 10,

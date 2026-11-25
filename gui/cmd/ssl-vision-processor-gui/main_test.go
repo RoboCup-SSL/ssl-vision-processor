@@ -64,7 +64,7 @@ func TestBootstrapConfigLeavesExistingFileAlone(t *testing.T) {
 	}
 }
 
-// With -runCameras, a webcam works on the first run: camera 0 has a file to
+// With -runCameras, choosing a driver is enough on the first run: camera 0 has a file to
 // run with.
 func TestBootstrapConfigRunCamerasGivesCameraZeroAFile(t *testing.T) {
 	dir := t.TempDir()

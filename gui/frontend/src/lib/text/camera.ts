@@ -21,6 +21,7 @@ export const camera = {
       waiting: "Waiting to start",
       stopped: "Stopped",
       conflict: "Held back",
+      no_camera: "No camera selected",
     },
     pid: (pid: number): string => `pid ${String(pid)}`,
     restarts: (n: number): string =>
@@ -31,6 +32,7 @@ export const camera = {
     lastExit: (how: string): string => `Last run: ${how}.`,
     conflict: (why: string): string =>
       `Not started: ${why}. Give it its own device and it starts.`,
+    noCamera: "Not started: choose a driver above and it starts.",
     crashes: (n: number): string =>
       `Failed ${String(n)} times in a row; retrying, waiting longer each time. See its output below.`,
     restartNow: "Restart now",
@@ -42,8 +44,10 @@ export const camera = {
 
   driver: [
     "SPINNAKER, MVIMPACT and DC1394 need vision_processor built with their SDKs.",
-    "Unset means SPINNAKER.",
+    "A file without a driver means SPINNAKER. New configurations start with no camera selected.",
   ],
+  noDriver:
+    "Choose the driver for this camera. Its vision_processor can't run without one.",
   cameraIndex: ["Position in the SDK's camera list, in detection order."],
   serial: [
     "Stays with the camera, where the index shifts when another camera is missing. List them with build/spinnaker_probe --list.",
