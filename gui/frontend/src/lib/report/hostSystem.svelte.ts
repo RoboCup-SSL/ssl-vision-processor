@@ -2,7 +2,7 @@
 // menu's issue link. Loaded again each time either opens: a restarted host
 // may be a different build.
 
-import { requestJSON } from "../api";
+import { api, unwrap } from "../api";
 import type { SystemInfo } from "../apiTypes";
 
 export const hostSystem = $state<{
@@ -12,9 +12,7 @@ export const hostSystem = $state<{
 
 export async function loadHostSystem(): Promise<void> {
   try {
-    hostSystem.info = (await (
-      await requestJSON("/api/system")
-    ).json()) as SystemInfo;
+    hostSystem.info = await unwrap(api.GET("/api/system"));
     hostSystem.error = null;
   } catch (err) {
     hostSystem.error = err instanceof Error ? err.message : String(err);

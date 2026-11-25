@@ -38,6 +38,7 @@ export type Change = Schemas["ConfigChange"];
 export type Section = Change["section"];
 export type CameraStatus = Schemas["ConfigCameraStatus"];
 export type Warning = Schemas["ConfigWarning"];
+export type PutConfigRequest = Schemas["PutConfigRequest"];
 export type RevisionResponse = Schemas["RevisionResponse"];
 
 export type NetworkState = Schemas["NetworkState"];

@@ -2,7 +2,7 @@
 // processes.state topic. Empty when the host runs none: then each one is
 // started and restarted by hand.
 import { onTopic } from "./bus.svelte";
-import { requestJSON } from "./api";
+import { api, unwrap } from "./api";
 import type { ProcessStatus } from "./apiTypes";
 
 export type { ProcessStatus };
@@ -49,10 +49,9 @@ export function lastLine(p: ProcessStatus): string {
 }
 
 export async function restartProcess(cameraId: number): Promise<void> {
-  const response = await requestJSON(
-    `/api/processes/${String(cameraId)}/restart`,
-    { method: "POST" },
+  processes.list = await unwrap(
+    api.POST("/api/processes/{id}/restart", {
+      params: { path: { id: cameraId } },
+    }),
   );
-
-  processes.list = (await response.json()) as ProcessStatus[];
 }

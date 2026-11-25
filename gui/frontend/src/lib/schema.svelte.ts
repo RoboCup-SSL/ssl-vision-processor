@@ -3,7 +3,7 @@
 // whether a change needs a restart. The one copy of what src/Resources.cpp
 // does with config.yml, so nothing here repeats it. loadConfig loads it before
 // the document, so anything rendered from the document can rely on it.
-import { requestJSON } from "./api";
+import { api, unwrap } from "./api";
 import type { Setting, SettingsSchema as Schema } from "./apiTypes";
 
 // Each setting's type, fallback, bounds and when a change takes effect: the
@@ -22,10 +22,9 @@ let loading: Promise<void> | null = null;
 // Loads the schema once; later calls wait on the same request. A failure is
 // thrown to the caller and retried on the next call.
 export function loadSchema(): Promise<void> {
-  loading ??= requestJSON("/api/schema")
-    .then((response) => response.json())
+  loading ??= unwrap(api.GET("/api/schema"))
     .then((value) => {
-      schema.value = value as Schema;
+      schema.value = value;
     })
     .catch((err: unknown) => {
       loading = null;

@@ -340,7 +340,8 @@ The frontend's API types are generated from `openapi.json` into
 `frontend/src/lib/generated/api.ts` by `make`, before the frontend builds;
 neither is committed, nor is the Redoc bundle `make` fetches into
 `internal/api/viewer/`. Import the types by name from
-`frontend/src/lib/apiTypes.ts`; never write a TS copy of a Go type. For the generated types to be exact, a Go
+`frontend/src/lib/apiTypes.ts`; never write a TS copy of a Go type, nor an API
+URL or `fetch` by hand: `frontend/src/lib/api.ts`'s client is typed by the spec. For the generated types to be exact, a Go
 response never sends `null` for a slice, array or map, or for an `omitempty`
 field, and fixed-value strings carry an `enum:` tag. `responses_test.go`
 checks real responses against the spec for that.

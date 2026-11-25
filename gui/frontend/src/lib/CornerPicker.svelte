@@ -4,8 +4,7 @@
   const text = geometry.cornerPicker;
   import SettingsCard from "./SettingsCard.svelte";
   import { Button, P } from "flowbite-svelte";
-  import { requestJSON } from "./api";
-  import type { SnapshotEntry } from "./apiTypes";
+  import { api, apiPath, unwrap } from "./api";
   import { untrack } from "svelte";
   import { config, cameraDoc } from "./config.svelte";
   import { cameraCount, regionLabel, slotSlice } from "./cameraLayout";
@@ -176,8 +175,7 @@
 
   async function refreshFrame(): Promise<void> {
     try {
-      const response = await requestJSON("/api/snapshots");
-      const all = (await response.json()) as SnapshotEntry[];
+      const all = await unwrap(api.GET("/api/snapshots"));
       hasFrame = all.some((s) => s.cameraId === cameraId && s.view === view);
     } catch {
       hasFrame = false;
@@ -341,7 +339,7 @@
   >
     {#if hasFrame}
       <img
-        src={`/api/snapshots/${String(cameraId)}/${view}?t=${String(cacheBuster)}`}
+        src={`${apiPath("/api/snapshots/{id}/{view}", { id: cameraId, view })}?t=${String(cacheBuster)}`}
         alt={`cam ${String(cameraId)} calibration input`}
         onload={(e: Event) => {
           handleImageLoad(e.currentTarget as HTMLImageElement);

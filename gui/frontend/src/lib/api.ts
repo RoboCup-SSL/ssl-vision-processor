@@ -1,56 +1,56 @@
-// Shared fetch helpers, used by every module that owns request state
-// (geometry.svelte.ts, App.svelte's snapshot poll):
-// the same "set a loading/saving flag, clear the error, run the request,
-// catch and format any failure, always clear the flag" and "throw the
-// backend's own error text on a non-2xx response" shapes were previously
-// hand-repeated at every call site.
-
-// Runs fn with setLoading(true) for its duration. Clears the error first;
-// sets it (formatted the same way everywhere) if fn throws.
-export async function withLoadingState(
-  setLoading: (loading: boolean) => void,
-  setError: (message: string | null) => void,
-  fn: () => Promise<void>,
-): Promise<void> {
-  setLoading(true);
-  setError(null);
-
-  try {
-    await fn();
-  } catch (err) {
-    setError(err instanceof Error ? err.message : String(err));
-  } finally {
-    setLoading(false);
-  }
-}
-
+// The host's HTTP API, typed by its OpenAPI spec (generated/api.ts): a wrong
+// path, method, parameter or body doesn't compile.
+import createClient from "openapi-fetch";
 import type { ApiError } from "./apiTypes";
+import type { paths } from "./generated/api";
 
-export type { ApiError };
+// Call it as api.GET("/api/config"), api.POST("/api/config/load", { body }).
+// It rejects only when the host doesn't answer; unwrap also throws for an
+// error answer.
+export const api = createClient<paths>({
+  baseUrl: location.origin,
+  // Looked up per call, so tests can replace it.
+  fetch: (request) => globalThis.fetch(request),
+});
 
-// The host's error for a non-2xx response, as text for a banner: each issue
-// on its own line when there are several.
-export async function errorMessage(response: Response): Promise<string> {
-  const text = await response.text();
+// What an error answer carries: the host's error body, or the text of
+// something in between, such as a proxy.
+type ErrorAnswer = ApiError | string | undefined;
 
-  try {
-    const body = JSON.parse(text) as ApiError;
-
-    return body.issues?.join("\n") ?? body.message;
-  } catch {
-    return text || `${String(response.status)} ${response.statusText}`;
+// The host's error, as text for a banner: each issue on its own line when
+// there are several.
+export function errorMessage(error: ErrorAnswer, response: Response): string {
+  if (typeof error === "object") {
+    return error.issues?.join("\n") ?? error.message;
   }
+
+  if (error) return error;
+
+  return `${String(response.status)} ${response.statusText}`;
 }
 
-// fetch that throws the host's error message on a non-2xx status.
-export async function requestJSON(
-  url: string,
-  init?: RequestInit,
-): Promise<Response> {
-  const response = await fetch(url, init);
-  if (!response.ok) {
-    throw new Error(await errorMessage(response));
-  }
+// The data of a call's answer, throwing the host's error message if it
+// answered with one.
+export async function unwrap<T>(
+  call: Promise<{ data?: T; error?: ErrorAnswer; response: Response }>,
+): Promise<T> {
+  const { data, error, response } = await call;
+  if (!response.ok) throw new Error(errorMessage(error, response));
 
-  return response;
+  return data as T;
+}
+
+// One of the spec's paths with its {parameters} filled in, for what isn't
+// fetched here: an image's src, a WebSocket.
+export function apiPath(
+  path: keyof paths,
+  params: Record<string, string | number> = {},
+): string {
+  return path.replace(/\{(\w+)\}/g, (_, name: string) => {
+    const value = params[name];
+    // text-ok: an internal invariant, not shown to users.
+    if (value === undefined) throw new Error(`${path}: no ${name}`);
+
+    return encodeURIComponent(String(value));
+  });
 }

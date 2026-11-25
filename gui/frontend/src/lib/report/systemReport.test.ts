@@ -25,19 +25,21 @@ describe("buildReport", () => {
   });
 
   it("asks for the configuration only when it's included", async () => {
-    const fetch = vi.fn<(url: string) => Promise<Response>>(() =>
+    const fetch = vi.fn<(request: Request) => Promise<Response>>(() =>
       Promise.resolve(new Response(JSON.stringify([]))),
     );
     vi.stubGlobal("fetch", fetch);
 
     const without = await buildReport();
-    const urls = fetch.mock.calls.map(([url]) => url);
+    const paths = () =>
+      fetch.mock.calls.map(([request]) => new URL(request.url).pathname);
+    const urls = paths();
     expect(urls).toContain("/api/alerts");
     expect(urls).not.toContain("/api/config");
     expect(without).not.toHaveProperty("config");
 
     const report = await buildReport({ includeConfig: true });
-    expect(fetch.mock.calls.map(([url]) => url)).toContain("/api/config");
+    expect(paths()).toContain("/api/config");
     expect(report.config).toEqual([]);
   });
 

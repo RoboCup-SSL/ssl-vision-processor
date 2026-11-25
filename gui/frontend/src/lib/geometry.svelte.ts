@@ -6,7 +6,7 @@ import type {
   SSL_FieldLineSegmentJson,
   SSL_FieldCircularArcJson,
 } from "../proto/vision/ssl_vision_geometry_pb";
-import { requestJSON } from "./api";
+import { api, unwrap } from "./api";
 import type { FieldConfig, FieldPreset } from "./apiTypes";
 
 // The editable field (dimensions, optional lines) and a rulebook preset
@@ -62,8 +62,7 @@ export const virtualField = $state<{
 // Go handler's graceful degradation) just leaves the list empty.
 export async function loadFieldPresets(): Promise<void> {
   try {
-    const response = await requestJSON("/api/geometry/presets");
-    virtualField.presets = (await response.json()) as FieldPreset[];
+    virtualField.presets = await unwrap(api.GET("/api/geometry/presets"));
   } catch {
     // An empty list just means there's nothing to offer.
   }
@@ -73,8 +72,7 @@ export async function loadFieldPresets(): Promise<void> {
 // regenerates from the field whenever the working document changes.
 export async function refreshFieldMarkings(): Promise<void> {
   try {
-    const response = await requestJSON("/api/geometry");
-    const geometry = (await response.json()) as GeometryResponse;
+    const geometry: GeometryResponse = await unwrap(api.GET("/api/geometry"));
     virtualField.fieldLines = geometry.geometry?.field?.fieldLines ?? [];
     virtualField.fieldArcs = geometry.geometry?.field?.fieldArcs ?? [];
   } catch {

@@ -77,8 +77,10 @@ Node 22 (`.nvmrc`); the nix dev shell provides it.
   has and sorts it into errors, warnings, and cautions; `docs.ts` holds the
   resolution docs its "How to fix" buttons open. To add an alert, push it in
   `collect()` and point its actions at a page and/or a doc.
-- `src/lib/api.ts` holds the fetch helpers (`requestJSON`, `withLoadingState`)
-  every panel's load and save functions are built on.
+- `src/lib/api.ts` is the HTTP API client (`openapi-fetch`), typed by the
+  host's OpenAPI spec: a wrong path, parameter or body doesn't compile. Call it
+  as `unwrap(api.GET("/api/health"))`; `apiPath` builds the URLs that aren't
+  fetched (an image's `src`, a WebSocket).
 - `src/lib/bus.svelte.ts` is a single `WebSocket` client. It exposes
   `connection.state`, `topicState(name)` (the topic's latest message as
   `current`, for components) and `onTopic(name, fn)` (for state modules). Both

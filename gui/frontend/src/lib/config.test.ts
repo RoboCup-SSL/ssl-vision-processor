@@ -42,25 +42,22 @@ function sent(method: string, url: string): Request[] {
   return requests.filter((r) => r.method === method && r.url === url);
 }
 
-function fakeFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const method = init.method ?? "GET";
-  const body =
-    typeof init.body === "string"
-      ? (JSON.parse(init.body) as unknown)
-      : undefined;
+async function fakeFetch(request: globalThis.Request): Promise<Response> {
+  const { method } = request;
+  const url = new URL(request.url).pathname;
+  const text = await request.text();
+  const body = text ? (JSON.parse(text) as unknown) : undefined;
   requests.push({ method, url, body });
 
   const queue = replies.get(`${method} ${url}`) ?? [];
   const answer = queue.length > 1 ? queue.shift() : queue[0];
-  if (answer instanceof Error) return Promise.reject(answer);
+  if (answer instanceof Error) throw answer;
   const { status, body: out } = answer ?? { status: 200, body: {} };
 
-  return Promise.resolve(
-    new Response(JSON.stringify(out), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    }),
-  );
+  return new Response(JSON.stringify(out), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 async function settle(ms = 0): Promise<void> {
@@ -213,9 +210,9 @@ describe("edits", () => {
     const { config } = await loaded();
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
-    vi.mocked(fetch).mockImplementationOnce(async (url, init) => {
+    vi.mocked(fetch).mockImplementationOnce(async (request) => {
       await gate;
-      return fakeFetch(url as string, init);
+      return fakeFetch(request as globalThis.Request);
     });
 
     docOf(config).field.fieldLength = 9100;

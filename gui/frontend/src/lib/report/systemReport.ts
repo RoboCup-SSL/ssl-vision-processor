@@ -7,7 +7,8 @@
 // vision_processor's own state (its logs, its announced config) isn't in it
 // yet.
 
-import { requestJSON } from "../api";
+import { api, unwrap } from "../api";
+import { getConfig } from "../config.svelte";
 import type {
   ConfigResponse,
   HostAlert,
@@ -48,9 +49,9 @@ export function isUnavailable(value: object): value is Unavailable {
   return "error" in value && typeof value.error === "string";
 }
 
-async function fetchOr<T>(url: string): Promise<T | Unavailable> {
+async function orUnavailable<T>(answer: Promise<T>): Promise<T | Unavailable> {
   try {
-    return (await (await requestJSON(url)).json()) as T;
+    return await answer;
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) };
   }
@@ -166,10 +167,10 @@ export async function buildReport(
 ): Promise<SystemReport> {
   const now = new Date();
   const [host, network, alerts, config, browserInfo] = await Promise.all([
-    fetchOr<SystemInfo>("/api/system"),
-    fetchOr<NetworkState>("/api/network"),
-    fetchOr<HostAlert[]>("/api/alerts"),
-    options.includeConfig ? fetchOr<ConfigResponse>("/api/config") : undefined,
+    orUnavailable(unwrap(api.GET("/api/system"))),
+    orUnavailable(unwrap(api.GET("/api/network"))),
+    orUnavailable(unwrap(api.GET("/api/alerts"))),
+    options.includeConfig ? orUnavailable(getConfig()) : undefined,
     browser(),
   ]);
 

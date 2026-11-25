@@ -18,8 +18,9 @@ function page(from: number, to: number, missed = false): object {
   return { records, next: to, missed };
 }
 
-function fakeFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  urls.push(url);
+function fakeFetch(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  urls.push(url.pathname + url.search);
   const next = pages.shift();
 
   if (next instanceof Error) return Promise.reject(next);
@@ -27,7 +28,7 @@ function fakeFetch(url: string, init: RequestInit = {}): Promise<Response> {
     return Promise.resolve(new Response(JSON.stringify(next), { status: 200 }));
 
   return new Promise((_, reject) => {
-    init.signal?.addEventListener("abort", () => {
+    request.signal.addEventListener("abort", () => {
       reject(new DOMException("aborted", "AbortError"));
     });
   });

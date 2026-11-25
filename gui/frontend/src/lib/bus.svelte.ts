@@ -1,13 +1,14 @@
 // The WebSocket to the host: what it publishes, by topic (the host's
 // cmd/.../topics.go lists them), and whether it's connected.
 import { createSubscriber } from "svelte/reactivity";
+import { apiPath } from "./api";
 import type { Topic, TopicMap } from "./apiTypes";
 
 export type ConnectionState = "connecting" | "open" | "closed";
 
 // Same-origin: the Go host serves /ws itself, alongside /api and the frontend.
 // wss:// when the page itself was loaded over https.
-const DEFAULT_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
+const DEFAULT_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${apiPath("/ws")}`;
 const BACKOFF_INITIAL_MS = 1_000;
 // Low, since the host is on the local network: a retry every few seconds
 // costs nothing, and the page comes back soon after a host restart.

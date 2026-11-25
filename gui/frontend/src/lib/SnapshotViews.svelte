@@ -1,8 +1,7 @@
 <script lang="ts">
   import { A, Button, P } from "flowbite-svelte";
   import SettingsCard from "./SettingsCard.svelte";
-  import { requestJSON } from "./api";
-  import type { SnapshotEntry } from "./apiTypes";
+  import { api, apiPath, unwrap } from "./api";
   import { snapshots as text, type SnapshotView } from "./text/snapshots";
 
   // One camera's debug images from img/, listed when shown and on Refresh,
@@ -25,8 +24,7 @@
 
   async function load(camera: number): Promise<void> {
     try {
-      const response = await requestJSON("/api/snapshots");
-      const all = (await response.json()) as SnapshotEntry[];
+      const all = await unwrap(api.GET("/api/snapshots"));
       written = new Set(
         all.filter((s) => s.cameraId === camera).map((s) => s.view),
       );
@@ -42,7 +40,7 @@
   });
 
   const src = (view: string): string =>
-    `/api/snapshots/${String(cameraId)}/${view}?t=${String(stamp)}`;
+    `${apiPath("/api/snapshots/{id}/{view}", { id: cameraId, view })}?t=${String(stamp)}`;
 </script>
 
 <SettingsCard {title}>

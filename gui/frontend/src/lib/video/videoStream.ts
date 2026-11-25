@@ -8,6 +8,7 @@
 // falls more than maxLag behind the newest frame, and trims what's been
 // watched so memory stays bounded.
 
+import { apiPath } from "../api";
 import { video as text } from "../text/video";
 
 export type Mode = "full" | "keyframes";
@@ -97,7 +98,7 @@ export class VideoStream {
   private connect(): void {
     const scheme = location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(
-      `${scheme}://${location.host}/ws/video/${String(this.cameraId)}?mode=${this.mode}`,
+      `${scheme}://${location.host}${apiPath("/ws/video/{id}", { id: this.cameraId })}?mode=${this.mode}`,
     );
 
     ws.binaryType = "arraybuffer";

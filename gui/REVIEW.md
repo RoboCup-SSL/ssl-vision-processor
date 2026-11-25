@@ -27,12 +27,11 @@ Owner per finding: **Will** (Go/Svelte) or **Claude** (build/CI/packaging/docs i
 
 ## Status
 
-Updated 2026-11-25. **Open** 26 · **Partial** 4 · **Done** 39 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
+Updated 2026-11-25. **Open** 25 · **Partial** 4 · **Done** 40 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
 
 **Next up** (MVP gate order; see the end of this file):
-All blockers are fixed. T3-1 and T4-6 are awaiting commit.
-1. API freeze: T3-2 (Will approved `openapi-fetch`).
-2. T1-3, T6-1, T6-5, T4-3.
+All blockers are fixed. T3-2 is awaiting commit; with it the API freeze (T3-1, T3-2, T3-3) is done.
+1. T1-3, T6-1, T6-5, T4-3.
 
 **Needs the lab PoE machine:** T2-10.
 
@@ -60,7 +59,7 @@ All blockers are fixed. T3-1 and T4-6 are awaiting commit.
 | T2-9 | major | Will | duplicate video packets (several interfaces) break the picture, no warning | done |
 | T2-10 | major | Will + Claude | console warnings while vision/GC use the PoE camera NICs | open (needs lab machine) |
 | T3-1 | major | Will | WS topic contract in three places | done |
-| T3-2 | major | Will | generated `paths` unused | open |
+| T3-2 | major | Will | generated `paths` unused | done |
 | T3-3 | major | Will | naming pass before freezing API 1.0 | done |
 | T3-4 | minor | Will | response-spec test coverage | done |
 | T3-5 | nit | Will | OpenAPI tag descriptions | done |
@@ -294,11 +293,13 @@ Overall: the REST half is well disciplined. Every route goes through `api.Route`
 The WS topic contract is hand-maintained in three places and has already drifted. The spec's topic table lists 5 topics; the host serves 7 (`instances.state` at `main.go:790` and `live_field.frames` are missing). Topic names are string literals on both sides. Each frontend subscriber asserts its own payload type (`topic<ConfigState>("config.state")`), so a wrong name or type compiles.
 Fix: one topic registry in Go (name → payload type → equivalent route) that drives `/api/topics`, the spec's topic table (or an `x-topics` extension with schema refs), and a test that every hub topic is registered. Generate a TS `TopicMap` from it so `topic("config.state")` infers its type and an unknown name fails to compile.
 
-*Done 2026-11-25 (Claude, at Will's request; uncommitted):* `cmd/.../topics.go` is the only topic list: typed `newTopic[T]` values that publish themselves. The hub, `/api/topics`, the reference's table and the spec's `Topics` schema (name → data, from the GET route each topic mirrors) come from it, and the frontend's `TopicMap` from that schema, so an unknown topic or a wrong payload doesn't compile. All 7 topics are documented. `TestEveryTopicMatchesItsSchema` publishes each and checks it against its schema.
+*Done 2026-11-25 (Claude, at Will's request; committed `1493391`):* `cmd/.../topics.go` is the only topic list: typed `newTopic[T]` values that publish themselves. The hub, `/api/topics`, the reference's table and the spec's `Topics` schema (name → data, from the GET route each topic mirrors) come from it, and the frontend's `TopicMap` from that schema, so an unknown topic or a wrong payload doesn't compile. All 7 topics are documented. `TestEveryTopicMatchesItsSchema` publishes each and checks it against its schema.
 
 **T3-2 | major | Will | `frontend/src/lib/*.svelte.ts`, `api.ts`**
 The frontend uses only `components["schemas"]` from the generated file, never `paths`. There are 30 hand-written `/api/...` URL strings and 12 `response.json()` results cast to a type, so a wrong path, method, query parameter or body shape still type-checks, which is exactly the drift the generated types exist to catch.
 Fix: `openapi-fetch` (same author as `openapi-typescript`, ~6 kB, no runtime schema) typed against `paths`. It makes `client.GET("/api/config/cameras/{id}/effective", {params: {path: {id}}})` checked end to end and removes most casts. `requestJSON`/`errorMessage` can stay as its error middleware.
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* every call goes through `api.ts`'s `openapi-fetch` client, typed by the generated `paths`; `unwrap` throws the host's message, `apiPath` fills in the image and WebSocket URLs. `requestJSON` and the unused `withLoadingState` are gone. Two casts remain, both where the GUI's generic view of `defaults` and `config` meets the spec's typed one (`getConfig`, `putDoc`), plus the league messages. New `api.test.ts`.
 
 **T3-3 | major | Will | public route and topic names; `docs.go:19`**
 `specVersion` is `1.0.0`, and its comment promises that changing or removing anything means `/api/v2`. Once the API ships in a release with docs at `/api/docs`, other teams will script against these names; it's cheap to rename now and costly later. Current inconsistencies:
@@ -366,7 +367,7 @@ Fix: pull the coordinate and colour math into `.ts` modules (which also closes m
 The bus is the last `svelte/store` user (`readable`). Consumers wrap it in `$effect` plus a manual `subscribe`, and App.svelte needs a 10-line comment explaining why a `$store` reference wouldn't have gated the subscription.
 Fix: a runes-native `topicState(name)` built on `createSubscriber` (svelte/reactivity), which subscribes while something reads it. Do it together with T3-1's typed `TopicMap`.
 
-*Done 2026-11-25 (Claude, at Will's request; uncommitted):* `bus.svelte.ts` replaces `wrapper-bus.ts`: `connection.state`, `onTopic(name, fn)` for state modules, `topicState(name).current` (`createSubscriber`) for components. No `svelte/store` left.
+*Done 2026-11-25 (Claude, at Will's request; committed `1493391`):* `bus.svelte.ts` replaces `wrapper-bus.ts`: `connection.state`, `onTopic(name, fn)` for state modules, `topicState(name).current` (`createSubscriber`) for components. No `svelte/store` left.
 
 **T4-7 | nit | Will | hex colours**
 `App.svelte:151-165` hand-styles a warning box in hex, against the token rule (it goes away with T4-1). In canvas/SVG drawing, where hex is allowed, the field green `#0a5c2e` is repeated in three files (`FieldSketch`, `WizardFieldPreview`, `WizardDimensionsPreview`) and the danger stroke `#b00020` in `WeightTriangle`.

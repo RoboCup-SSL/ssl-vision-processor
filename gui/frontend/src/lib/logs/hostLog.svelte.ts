@@ -2,8 +2,8 @@
 // long-polled while the panel is open, at the panel's own level, so the
 // host's console level doesn't matter.
 
-import { requestJSON } from "../api";
-import type { LogLevel, LogRecord, LogsResponse } from "../apiTypes";
+import { api, unwrap } from "../api";
+import type { LogLevel, LogRecord } from "../apiTypes";
 
 // Records kept in this tab, and asked for when the panel opens.
 const KEEP = 1000;
@@ -94,14 +94,21 @@ export function followLog(level: LogLevel): () => void {
     let first = true;
 
     while (!stopped()) {
-      // The first request answers at once, with what's already logged.
-      const wait = first ? "" : `&wait=${String(WAIT)}`;
-      const url = `/api/logs?after=${String(after)}&level=${level}&limit=${String(KEEP)}${wait}`;
-
       try {
-        const page = (await (
-          await requestJSON(url, { signal })
-        ).json()) as LogsResponse;
+        const page = await unwrap(
+          api.GET("/api/logs", {
+            params: {
+              query: {
+                after,
+                level,
+                limit: KEEP,
+                // The first request answers at once, with what's logged.
+                ...(first ? {} : { wait: WAIT }),
+              },
+            },
+            signal,
+          }),
+        );
         if (stopped()) return;
 
         // The first page leaving older records out is expected.

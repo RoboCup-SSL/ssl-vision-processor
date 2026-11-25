@@ -7,6 +7,7 @@
 //
 // vision_processor reads camera: only at startup, so nothing here takes
 // effect until it restarts.
+import { api, unwrap } from "./api";
 import { config, cameraDoc } from "./config.svelte";
 import { fallback, schema } from "./schema.svelte";
 import type { VideoDevice } from "./apiTypes";
@@ -168,9 +169,7 @@ export type { VideoDevice } from "./apiTypes";
 
 export async function loadVideoDevices(): Promise<VideoDevice[]> {
   try {
-    const response = await fetch("/api/capture-devices");
-
-    return response.ok ? ((await response.json()) as VideoDevice[]) : [];
+    return await unwrap(api.GET("/api/capture-devices"));
   } catch {
     return [];
   }

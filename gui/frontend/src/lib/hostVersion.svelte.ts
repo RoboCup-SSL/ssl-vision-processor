@@ -2,8 +2,7 @@
 // the host's own binary, so the version it reported when this page connected
 // is the bundle's. A different one after a reconnect means the page is stale.
 import { untrack } from "svelte";
-import { requestJSON } from "./api";
-import type { HealthResponse } from "./apiTypes";
+import { api, unwrap } from "./api";
 import { connection } from "./bus.svelte";
 
 export const hostVersion = $state<{
@@ -23,8 +22,7 @@ export function hostUpdated(): boolean {
 
 export async function checkHostVersion(): Promise<void> {
   try {
-    const response = await requestJSON("/api/health");
-    const { version } = (await response.json()) as HealthResponse;
+    const { version } = await unwrap(api.GET("/api/health"));
     hostVersion.page ??= version;
     hostVersion.host = version;
   } catch {

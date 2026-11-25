@@ -3,7 +3,7 @@
 // file. Components bind straight into config.doc -- a root effect below
 // notices any change and debounces a PUT, so no component needs to call a
 // setter or remember to save.
-import { errorMessage, requestJSON } from "./api";
+import { api, errorMessage, unwrap } from "./api";
 import type {
   ApiError,
   CameraDoc,
@@ -12,6 +12,7 @@ import type {
   ConfigDocument,
   ConfigResponse,
   ConfigState,
+  PutConfigRequest,
   Section,
 } from "./apiTypes";
 import { onTopic } from "./bus.svelte";
@@ -86,12 +87,20 @@ export function changesFor(section: Section, cameraId?: number): Change[] {
   );
 }
 
+// The GUI edits defaults and each camera's config generically, guided by
+// GET /api/schema, where the spec types them key by key; these two are where
+// one becomes the other.
+export async function getConfig(): Promise<ConfigResponse> {
+  return (await unwrap(api.GET("/api/config"))) as ConfigResponse;
+}
+
+type SpecDocument = PutConfigRequest["document"];
+
 export async function loadConfig(): Promise<void> {
   try {
     // Before the document, so everything rendered from it has the schema.
     await loadSchema();
-    const response = await requestJSON("/api/config");
-    const data = (await response.json()) as ConfigResponse;
+    const data = await getConfig();
     lastSynced = JSON.stringify(data.document);
     config.doc = data.document;
     config.revision = data.state.revision;
@@ -163,13 +172,14 @@ function retryLater(): void {
 // False when the host never answered (restarting, network down): the edit
 // stays unsent. Any answer, even a refusal, counts as delivered.
 async function putDoc(json: string): Promise<boolean> {
-  let response: Response;
+  let answer;
 
   try {
-    response = await fetch("/api/config", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: `{"revision":${String(config.revision)},"document":${json}}`,
+    answer = await api.PUT("/api/config", {
+      body: {
+        revision: config.revision,
+        document: JSON.parse(json) as SpecDocument,
+      },
     });
   } catch {
     config.error = app.notSent;
@@ -177,18 +187,16 @@ async function putDoc(json: string): Promise<boolean> {
     return false;
   }
 
-  if (response.ok) {
+  if (answer.data) {
     lastSynced = json;
-    config.revision = (
-      (await response.json()) as { revision: number }
-    ).revision;
+    config.revision = answer.data.revision;
     config.error = null;
     await refreshFieldMarkings();
 
     return true;
   }
 
-  if (response.status === 409) {
+  if (answer.response.status === 409) {
     // Another tab edited first. Take the host's version rather than
     // clobbering it.
     config.error = app.editedElsewhere;
@@ -199,7 +207,7 @@ async function putDoc(json: string): Promise<boolean> {
 
   // Refused (T4-3: the form keeps the refused value until the next edit).
   lastSynced = json;
-  config.error = await errorMessage(response);
+  config.error = errorMessage(answer.error, answer.response);
 
   return true;
 }
@@ -232,22 +240,18 @@ $effect.root(() => {
   });
 });
 
+// Runs a call that changes the document on the host, then reloads it. A 409
+// comes back for the caller to handle; any other error throws.
 async function action(
-  url: string,
-  init: RequestInit = {},
+  call: () => Promise<{ error?: ApiError; response: Response }>,
 ): Promise<ConflictResponse | null> {
   config.busy = true;
 
   try {
-    const response = await fetch(url, init);
+    const { error, response } = await call();
 
-    if (response.status === 409) {
-      return (await response.json()) as ConflictResponse;
-    }
-
-    if (!response.ok) {
-      throw new Error(await errorMessage(response));
-    }
+    if (response.status === 409 && error) return error;
+    if (!response.ok) throw new Error(errorMessage(error, response));
 
     config.error = null;
 
@@ -256,14 +260,6 @@ async function action(
     config.busy = false;
     await loadConfig();
   }
-}
-
-function post(url: string, body?: unknown): Promise<ConflictResponse | null> {
-  return action(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
 }
 
 // Writes the working document to vision.yml. A conflict comes back rather
@@ -275,31 +271,45 @@ export async function saveConfig(
   await flushEdits();
 
   return guarded(() =>
-    post("/api/config/save", { revision: config.revision, force }),
+    action(() =>
+      api.POST("/api/config/save", {
+        body: { revision: config.revision, force },
+      }),
+    ),
   );
 }
 
 export async function saveConfigAs(name: string): Promise<void> {
   await flushEdits();
   await guarded(() =>
-    post("/api/config/save-as", { revision: config.revision, name }),
+    action(() =>
+      api.POST("/api/config/save-as", {
+        body: { revision: config.revision, name },
+      }),
+    ),
   );
 }
 
 export async function loadConfigFrom(name: string): Promise<void> {
-  await guarded(() => post("/api/config/load", { name }));
+  await guarded(() =>
+    action(() => api.POST("/api/config/load", { body: { name } })),
+  );
 }
 
 // Accepts vision.yml as it is on disk, discarding unsaved edits.
 export async function reloadFromDisk(): Promise<void> {
-  await guarded(() => post("/api/config/reload"));
+  await guarded(() => action(() => api.POST("/api/config/reload")));
 }
 
 export async function lockCalibration(cameraId: number): Promise<void> {
   await flushEdits();
 
   const conflict = await guarded(() =>
-    post(`/api/config/cameras/${String(cameraId)}/calibration`),
+    action(() =>
+      api.POST("/api/config/cameras/{id}/calibration", {
+        params: { path: { id: cameraId } },
+      }),
+    ),
   );
   if (conflict) config.error = conflict.message;
 }
@@ -307,9 +317,11 @@ export async function lockCalibration(cameraId: number): Promise<void> {
 export async function unlockCalibration(cameraId: number): Promise<void> {
   await flushEdits();
   await guarded(() =>
-    action(`/api/config/cameras/${String(cameraId)}/calibration`, {
-      method: "DELETE",
-    }),
+    action(() =>
+      api.DELETE("/api/config/cameras/{id}/calibration", {
+        params: { path: { id: cameraId } },
+      }),
+    ),
   );
 }
 
