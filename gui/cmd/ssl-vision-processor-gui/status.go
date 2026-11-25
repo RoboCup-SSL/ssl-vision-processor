@@ -95,6 +95,8 @@ func (h *hostStatus) Alerts() []alerts.Alert {
 		Referee:           n.Referee,
 		Loopback:          n.Loopback,
 		LoopbackMulticast: n.LoopbackMulticast,
+		Networked:         multicast.Networked(n.Interfaces),
+		VideoDuplicates:   h.sockets.video.Duplicates(time.Now()),
 		Processes:         h.procs.Statuses(),
 	})
 }

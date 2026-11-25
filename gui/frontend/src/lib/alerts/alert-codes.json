@@ -4,6 +4,7 @@
   "camera_not_selected",
   "camera_unplaced",
   "device_conflict",
+  "duplicate_packets",
   "field_changed",
   "file_changed",
   "first_run_not_publishing",

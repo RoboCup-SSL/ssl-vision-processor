@@ -61,7 +61,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
 };
 
 // Which host alert codes put an automatic item in "attention". Cautions
-// don't: they're often fine, so they leave the item done.
+// don't: they're often fine, so they leave the item done (teams aside).
 const ALERT_CODES: Partial<Record<ItemId, string[]>> = {
   network: ["socket_problem", "loopback_multicast_off"],
   layout: ["camera_unplaced", "region_uncovered", "camera_id_conflict"],
@@ -91,6 +91,7 @@ export type Note =
         | "calibratedNotLocked"
         | "locked"
         | "teamsProblem"
+        | "noHeights"
         | "firstRun"
         | "saved";
     };
@@ -349,6 +350,15 @@ export function itemState(id: ItemId): ItemState {
         })),
       );
     case "teams":
+      // A caution here means no heights are set at all: not a problem yet,
+      // but not done either.
+      if (
+        !alertOpen(id) &&
+        hostAlerts.list.some((a) => a.code === "team_default_height")
+      ) {
+        return { id, status: "todo", note: { key: "noHeights" } };
+      }
+
       return alertItem(id, { key: "teamsProblem" });
     case "save": {
       const unsaved = config.state?.changes.length ?? 0;

@@ -61,7 +61,11 @@ type sockets struct {
 // opener opens sockets on address over the interfaces marked Used,
 // delivering datagrams to receive. Swapped out in tests, which can't rely on
 // joining a real multicast group.
-type opener func(address string, ifaces []Interface, opts Options, receive func([]byte, *net.UDPAddr)) sockets
+type opener func(address string, ifaces []Interface, opts Options, receive receiver) sockets
+
+// receiver takes one datagram, its sender, and the interface it arrived on
+// ("" if unknown).
+type receiver func(data []byte, from *net.UDPAddr, iface string)
 
 // Endpoint is one multicast group the host listens on, and optionally sends to.
 type Endpoint struct {
@@ -84,6 +88,7 @@ type Endpoint struct {
 	heard     uint64
 	lastHeard time.Time
 	source    string
+	arrivals  arrivals
 }
 
 // Status is an endpoint's address and what it has heard there.
@@ -99,6 +104,8 @@ type Status struct {
 	Receiving bool       `json:"receiving"`
 	// Problem is why the sockets aren't fully open, if they aren't.
 	Problem string `json:"problem,omitempty"`
+	// Duplicates are the senders heard on several interfaces at once.
+	Duplicates []Duplicate `json:"duplicates,omitempty"`
 }
 
 // NewEndpoint prepares an endpoint on address (e.g. "224.5.23.2:10006")
@@ -117,6 +124,8 @@ func NewEndpoint(name, address string, ifaces []Interface, opts Options, consume
 		poke:    make(chan struct{}, 1),
 		address: address,
 		ifaces:  ifaces,
+
+		arrivals: arrivals{},
 	}
 }
 
@@ -144,6 +153,7 @@ func (e *Endpoint) SetAddress(address string) {
 	e.heard = 0
 	e.lastHeard = time.Time{}
 	e.source = ""
+	e.arrivals = arrivals{}
 	e.mu.Unlock()
 
 	e.reopen()
@@ -162,6 +172,7 @@ func (e *Endpoint) SetInterfaces(ifaces []Interface) {
 	}
 
 	e.ifaces = ifaces
+	e.arrivals = arrivals{}
 	e.mu.Unlock()
 
 	e.reopen()
@@ -273,8 +284,8 @@ func (e *Endpoint) interfaces() []Interface {
 }
 
 func (e *Endpoint) start(address string, ifaces []Interface, retrying bool) sockets {
-	s := e.open(address, ifaces, e.opts, func(data []byte, from *net.UDPAddr) {
-		e.receive(address, data, from)
+	s := e.open(address, ifaces, e.opts, func(data []byte, from *net.UDPAddr, iface string) {
+		e.receive(address, data, from, iface)
 	})
 
 	e.mu.Lock()
@@ -299,7 +310,7 @@ func (e *Endpoint) start(address string, ifaces []Interface, retrying bool) sock
 // receive handles a datagram that arrived on address. A closing socket can
 // still deliver one after a move; it's dropped rather than counted against
 // the new address.
-func (e *Endpoint) receive(address string, data []byte, from *net.UDPAddr) {
+func (e *Endpoint) receive(address string, data []byte, from *net.UDPAddr, iface string) {
 	if !e.consume(data, from) {
 		return
 	}
@@ -313,6 +324,10 @@ func (e *Endpoint) receive(address string, data []byte, from *net.UDPAddr) {
 
 	e.heard++
 	e.lastHeard = time.Now()
+
+	if ifaces := e.arrivals.note(from, iface, e.lastHeard); ifaces != nil {
+		warnDuplicate(e.name, from, ifaces)
+	}
 
 	if from != nil {
 		e.source = from.IP.String()
@@ -342,6 +357,8 @@ func (e *Endpoint) Status(now time.Time) Status {
 		Heard:   e.heard,
 		Source:  e.source,
 		Problem: e.problem,
+
+		Duplicates: e.arrivals.duplicates(now),
 	}
 
 	if !e.lastHeard.IsZero() {
@@ -371,7 +388,7 @@ func modeOf(address string) string {
 
 // openSockets is the real opener: a plain receiving socket (openSocket) and,
 // for Options.Send, a sender on every used interface (openSender).
-func openSockets(address string, ifaces []Interface, opts Options, receive func([]byte, *net.UDPAddr)) sockets {
+func openSockets(address string, ifaces []Interface, opts Options, receive receiver) sockets {
 	stopReceiver, receiverProblem := openSocket(address, ifaces, opts, receive)
 
 	if !opts.Send {

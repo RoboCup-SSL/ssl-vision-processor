@@ -7,6 +7,7 @@ package alerts
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -43,6 +44,7 @@ const (
 	CodeDeviceConflict    = "device_conflict"
 	CodeProcessCrashing   = "process_crashing"
 	CodeCameraNotSelected = "camera_not_selected"
+	CodeDuplicatePackets  = "duplicate_packets"
 )
 
 // crashingAfter is how many failed runs in a row make a supervised
@@ -80,7 +82,7 @@ func Codes() []string {
 		CodeRenderFailed, CodeCameraIDConflict, CodeRegionUncovered, CodeCameraUnplaced, CodeFileChanged,
 		CodeSocketProblem, CodeSocketSilent, CodeHeightsUnreadable, CodeTeamDefaultHeight, CodeLoopbackMulticast,
 		CodeSenderConflict, CodeFirstRun, CodeDeviceConflict, CodeProcessCrashing,
-		CodeCameraNotSelected,
+		CodeCameraNotSelected, CodeDuplicatePackets,
 	}, config.WarningCodes...)
 
 	slices.Sort(codes)
@@ -98,6 +100,11 @@ type Network struct {
 	Referee           referee.State
 	Loopback          string
 	LoopbackMulticast bool
+	// Networked is whether any interface besides loopback is in use.
+	Networked bool
+	// VideoDuplicates are, by camera, senders of its video heard on several
+	// interfaces; the other sockets' are in their Status.
+	VideoDuplicates map[int][]multicast.Duplicate
 	// Conflicts are things claimed by more senders than they should be.
 	Conflicts []peers.Conflict
 	// Processes are the host's own vision_processors (-runCameras).
@@ -261,8 +268,13 @@ func Collect(doc config.Document, state config.State, net Network) []Alert {
 			}
 
 			severity := Warning
-			if socket.kind == "gc" {
+
+			switch {
+			case socket.kind == "gc":
 				severity = Error
+			case socket.status.LastHeard == nil && !doc.CompetitionField && !running(net.Processes):
+				// A lab where no vision_processor has been started yet.
+				severity = Caution
 			}
 
 			params["everHeard"] = socket.status.LastHeard != nil
@@ -287,8 +299,14 @@ func Collect(doc config.Document, state config.State, net Network) []Alert {
 			}
 
 			severity := Warning
-			if doc.CompetitionField {
+
+			switch {
+			case doc.CompetitionField:
 				severity = Error
+			case issue == IssueNoHeight && net.Referee.Heard == nil:
+				// Nothing set, and no game controller to name a team: a lab
+				// may never need it.
+				severity = Caution
 			}
 
 			team := teamName(net, color)
@@ -319,11 +337,20 @@ func Collect(doc config.Document, state config.State, net Network) []Alert {
 		})
 	}
 
-	if !net.LoopbackMulticast {
+	for _, d := range duplicates(net) {
 		add(Alert{
-			ID: "loopback-multicast", Code: CodeLoopbackMulticast, Severity: Caution,
+			ID: "duplicates-" + strings.Join(d.interfaces, "-"), Code: CodeDuplicatePackets, Severity: Warning,
+			Params:  map[string]any{"interfaces": d.interfaces, "streams": d.streams, "senders": d.senders},
+			Message: fmt.Sprintf("Packets arrive on %v at once, so each is heard more than once (%v from %v).", d.interfaces, d.streams, d.senders),
+		})
+	}
+
+	// With a network, programs on this machine hear each other through it.
+	if !net.LoopbackMulticast && !net.Networked {
+		add(Alert{
+			ID: "loopback-multicast", Code: CodeLoopbackMulticast, Severity: Warning,
 			Params:  map[string]any{"interface": net.Loopback},
-			Message: fmt.Sprintf("Multicast is off on %s, so vision_processor on this machine can't be heard here.", net.Loopback),
+			Message: fmt.Sprintf("Multicast is off on %s and no network is in use, so programs on this machine can't hear each other.", net.Loopback),
 		})
 	}
 
@@ -466,4 +493,58 @@ func LastLine(output []string) string {
 	}
 
 	return ""
+}
+
+// running is whether the host is running any vision_processor itself: one
+// announces itself every second, so silence then is a fault.
+func running(processes []supervisor.Status) bool {
+	return slices.ContainsFunc(processes, func(p supervisor.Status) bool { return p.State == supervisor.StateRunning })
+}
+
+// duplicate is everything arriving on one set of interfaces at once.
+type duplicate struct {
+	interfaces []string
+	streams    []string // "vision", "gc", "tracker", "camera 0 video"
+	senders    []string
+}
+
+// duplicates groups every socket's duplicates by the interfaces involved: one
+// wiring mistake is one alert, however many senders it doubles.
+func duplicates(net Network) []*duplicate {
+	byInterfaces := map[string]*duplicate{}
+
+	record := func(stream string, found []multicast.Duplicate) {
+		for _, f := range found {
+			key := strings.Join(f.Interfaces, " ")
+
+			d := byInterfaces[key]
+			if d == nil {
+				d = &duplicate{interfaces: f.Interfaces}
+				byInterfaces[key] = d
+			}
+
+			if !slices.Contains(d.streams, stream) {
+				d.streams = append(d.streams, stream)
+			}
+
+			if !slices.Contains(d.senders, f.Address) {
+				d.senders = append(d.senders, f.Address)
+			}
+		}
+	}
+
+	record("vision", net.Vision.Duplicates)
+	record("gc", net.GC.Duplicates)
+	record("tracker", net.Tracker.Duplicates)
+
+	for _, id := range slices.Sorted(maps.Keys(net.VideoDuplicates)) {
+		record(fmt.Sprintf("camera %d video", id), net.VideoDuplicates[id])
+	}
+
+	out := []*duplicate{}
+	for _, key := range slices.Sorted(maps.Keys(byInterfaces)) {
+		out = append(out, byInterfaces[key])
+	}
+
+	return out
 }

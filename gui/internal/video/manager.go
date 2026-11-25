@@ -2,8 +2,10 @@ package video
 
 import (
 	"errors"
+	"maps"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/RoboCup-SSL/ssl-vision-processor/gui/internal/multicast"
 )
@@ -58,6 +60,24 @@ func (m *Manager) Configure(streams map[int]Stream, ifaces []multicast.Interface
 			src.configure(st.Active, st.Address, ifaces)
 		}
 	}
+}
+
+// Duplicates lists, by camera, the senders heard on several interfaces at
+// once on each open stream.
+func (m *Manager) Duplicates(now time.Time) map[int][]multicast.Duplicate {
+	m.mu.Lock()
+	sources := maps.Clone(m.sources)
+	m.mu.Unlock()
+
+	out := map[int][]multicast.Duplicate{}
+
+	for id, src := range sources {
+		if d := src.duplicates(now); len(d) > 0 {
+			out[id] = d
+		}
+	}
+
+	return out
 }
 
 // Reopen reopens every open stream's socket, after a suspend.

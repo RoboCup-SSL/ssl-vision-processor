@@ -65,3 +65,31 @@ func TestSelectAutoAndManual(t *testing.T) {
 		t.Errorf("manual skipped %v, marked %+v, want only enp10s0 skipped", skipped, marked)
 	}
 }
+
+// With no network, automatic selection uses loopback, but only then and only
+// with multicast on.
+func TestSelectAutoFallsBackToLoopback(t *testing.T) {
+	lo := net.FlagUp | net.FlagRunning | net.FlagLoopback
+	on := describe(facts("lo", lo|net.FlagMulticast, "127.0.0.1"))
+	off := describe(facts("lo", lo, "127.0.0.1"))
+	unplugged := describe(facts("eth0", physical&^net.FlagRunning, "10.0.0.2"))
+	plugged := describe(facts("eth0", physical, "10.0.0.2"))
+	docker := describe(facts("docker0", physical, "172.17.0.1"))
+
+	for name, tc := range map[string]struct {
+		ifaces    []Interface
+		auto      bool
+		lo        bool
+		networked bool
+	}{
+		"no network":                 {[]Interface{on, unplugged, docker}, true, true, false},
+		"no network, multicast off":  {[]Interface{off, unplugged}, true, false, false},
+		"network":                    {[]Interface{on, plugged}, true, false, true},
+		"manual follows its choices": {[]Interface{on, plugged}, false, true, true},
+	} {
+		got, _ := Select(tc.ifaces, tc.auto, nil)
+		if got[0].Used != tc.lo || Networked(got) != tc.networked {
+			t.Errorf("%s: lo used %v, networked %v; want %v, %v", name, got[0].Used, Networked(got), tc.lo, tc.networked)
+		}
+	}
+}

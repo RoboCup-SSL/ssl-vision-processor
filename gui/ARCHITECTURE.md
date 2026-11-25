@@ -257,8 +257,9 @@ raises no alert, since running without an autoref is normal; one that can't open
 Which interfaces the host's own sockets use is `host.interfaces`, a section no vision_processor reads, since
 interface names only mean something on one machine. `auto` (the default) uses interfaces that are up, have
 carrier, support multicast, and have an IPv4 address, and skips loopback and virtual ones (Docker and VM bridges,
-VPN tunnels); it is re-evaluated every second. Otherwise `skip` is a blacklist. At startup the host warns if the
-loopback interface has multicast off, as Ubuntu ships it, and suggests the command that enables it.
+VPN tunnels); it is re-evaluated every second. Otherwise `skip` is a blacklist. With nothing
+else to use, `auto` falls back to loopback if it has multicast on. With no network and loopback multicast off, as
+Ubuntu ships it, the host warns at startup, raises an alert, and suggests the commands that enable it.
 
 Every endpoint receives on one plain socket that hears only the group it joined (Linux `IP_MULTICAST_ALL` off; Go
 binds a multicast address as `0.0.0.0`, so binding the group alone doesn't do it), joined on all used interfaces at

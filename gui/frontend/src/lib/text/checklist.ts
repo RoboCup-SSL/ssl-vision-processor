@@ -60,6 +60,7 @@ export const checklist = {
       "Calibrated, not locked: lock it so a restart doesn't recalibrate",
     locked: "Calibrated and locked",
     teamsProblem: "A team height alert is open.",
+    noHeights: "No robot heights set, and no game controller heard yet",
     firstRun: "Not saved yet: nothing is published until the first save",
     unsaved: (n: number): string =>
       `${String(n)} unsaved ${plural(n, "change")}`,

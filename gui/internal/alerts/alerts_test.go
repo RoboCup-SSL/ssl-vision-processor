@@ -24,6 +24,7 @@ func healthy() (config.Document, config.State, Network) {
 		Sources:           []detections.Source{{CameraID: 0, Address: "10.0.0.1", Receiving: true}, {CameraID: 1, Address: "10.0.0.2", Receiving: true}},
 		Referee:           referee.State{Heard: &now, Yellow: referee.Team{Name: "A"}, Blue: referee.Team{Name: "B"}, Heights: map[string]float64{"A": 150, "B": 140}},
 		LoopbackMulticast: true,
+		Networked:         true,
 	}
 }
 
@@ -73,9 +74,33 @@ func TestCollect(t *testing.T) {
 		"socket problem": {func(_ *config.Document, _ *config.State, n *Network) {
 			n.Vision.Problem = "no usable network interface"
 		}, "socket-vision", "socket_problem/error"},
-		"vision silent": {func(_ *config.Document, _ *config.State, n *Network) {
+		"vision never heard": {func(_ *config.Document, _ *config.State, n *Network) {
+			n.Vision.Receiving = false
+		}, "silent-vision", "socket_silent/caution"},
+		"vision went silent": {func(_ *config.Document, _ *config.State, n *Network) {
+			n.Vision.Receiving = false
+			n.Vision.LastHeard = n.Referee.Heard
+		}, "silent-vision", "socket_silent/warning"},
+		"vision never heard on a competition field": {func(d *config.Document, _ *config.State, n *Network) {
+			d.CompetitionField = true
 			n.Vision.Receiving = false
 		}, "silent-vision", "socket_silent/warning"},
+		"vision never heard though one runs here": {func(_ *config.Document, _ *config.State, n *Network) {
+			n.Vision.Receiving = false
+			n.Processes = []supervisor.Status{{State: supervisor.StateRunning}}
+		}, "silent-vision", "socket_silent/warning"},
+		"no height, no game controller heard": {func(_ *config.Document, _ *config.State, n *Network) {
+			n.Referee.Heard = nil
+			n.Referee.Yellow.Name = ""
+		}, "team-height-yellow", "team_default_height/caution"},
+		"no height, game controller heard": {func(_ *config.Document, _ *config.State, n *Network) {
+			n.Referee.Yellow.Name = ""
+		}, "team-height-yellow", "team_default_height/warning"},
+		"half-entered height, no game controller heard": {func(d *config.Document, _ *config.State, n *Network) {
+			n.Referee.Heard = nil
+			n.Referee.Yellow.Name = ""
+			d.Teams = &config.Teams{ByColor: &config.ColorOverrides{Yellow: &config.TeamOverride{}}}
+		}, "team-height-yellow", "team_default_height/warning"},
 		"gc silent on a competition field": {func(d *config.Document, _ *config.State, n *Network) {
 			d.CompetitionField = true
 			n.GC.Receiving = false
@@ -137,10 +162,16 @@ func TestCollect(t *testing.T) {
 				{Address: "10.0.0.1:50000"}, {Address: "10.0.0.2:50000"},
 			}}}
 		}, "sender-video-camera 1 video", "sender_conflict/error"},
+		"packets on two interfaces": {func(_ *config.Document, _ *config.State, n *Network) {
+			both := []string{"eth0", "eth1"}
+			n.Vision.Duplicates = []multicast.Duplicate{{Address: "10.0.0.1:10006", Interfaces: both}, {Address: "10.0.0.2:10006", Interfaces: both}}
+			n.VideoDuplicates = map[int][]multicast.Duplicate{0: {{Address: "10.0.0.1:50000", Interfaces: both}}}
+		}, "duplicates-eth0-eth1", "duplicate_packets/warning"},
 		"loopback": {func(_ *config.Document, _ *config.State, n *Network) {
 			n.LoopbackMulticast = false
+			n.Networked = false
 			n.Loopback = "lo"
-		}, "loopback-multicast", "loopback_multicast_off/caution"},
+		}, "loopback-multicast", "loopback_multicast_off/warning"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			doc, state, net := healthy()
@@ -302,6 +333,15 @@ func TestNoCameraChosenIsFineForAnExternalCameraThatSends(t *testing.T) {
 func TestNoCameraChosenIsNotCrashing(t *testing.T) {
 	doc, state, net := healthy()
 	net.Processes = []supervisor.Status{{CameraID: 0, State: supervisor.StateNoCamera, Crashes: 5}}
+
+	if got := Collect(doc, state, net); len(got) != 0 {
+		t.Errorf("Collect = %+v, want nothing", got)
+	}
+}
+
+func TestLoopbackMulticastOffIsFineWithANetwork(t *testing.T) {
+	doc, state, net := healthy()
+	net.LoopbackMulticast = false
 
 	if got := Collect(doc, state, net); len(got) != 0 {
 		t.Errorf("Collect = %+v, want nothing", got)

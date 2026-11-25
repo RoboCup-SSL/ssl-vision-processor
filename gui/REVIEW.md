@@ -27,11 +27,12 @@ Owner per finding: **Will** (Go/Svelte) or **Claude** (build/CI/packaging/docs i
 
 ## Status
 
-Updated 2026-11-25. **Open** 32 · **Partial** 4 · **Done** 30 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
+Updated 2026-11-25. **Open** 32 · **Partial** 4 · **Done** 33 · **v2.1** 1 · **Dropped/merged** 3. Each finding below keeps its own *Progress* or *Done* note; this table is the index. Statuses: open, partial, done, v2.1 (deferred to that release), dropped, merged.
 
 **Next up** (MVP gate order; see the end of this file):
-All blockers are fixed. T5-3 is awaiting commit.
-1. T5-4: the rest of the lab path (T5-2 is done).
+All blockers are fixed. T5-4, T2-8 and T2-9 are awaiting commit; with T5-4 the lab path (T5-2, T5-3, T5-4) is done.
+
+**Needs the lab PoE machine:** T2-10.
 
 | ID | Sev | Owner | Item | Status |
 |---|---|---|---|---|
@@ -53,6 +54,9 @@ All blockers are fixed. T5-3 is awaiting commit.
 | T2-5 | minor | Will | CLI help | open |
 | T2-6 | minor | Will | log keys and messages | open |
 | T2-7 | nit | Will | staticcheck hits | done |
+| T2-8 | major | Will | one vision_processor's video restarts are reported as two senders | done |
+| T2-9 | major | Will | duplicate video packets (several interfaces) break the picture, no warning | done |
+| T2-10 | major | Will + Claude | console warnings while vision/GC use the PoE camera NICs | open (needs lab machine) |
 | T3-1 | major | Will | WS topic contract in three places | open |
 | T3-2 | major | Will | generated `paths` unused | open |
 | T3-3 | major | Will | naming pass before freezing API 1.0 | open |
@@ -69,7 +73,7 @@ All blockers are fixed. T5-3 is awaiting commit.
 | T5-1 | blocker | Will | placeholder Debug page | done |
 | T5-2 | major | Will | crash-looping VP raises no alert | done |
 | T5-3 | major | Will | SPINNAKER default driver | done |
-| T5-4 | major | Will | 4 warnings on a fresh install | open |
+| T5-4 | major | Will | 4 warnings on a fresh install | done |
 | T5-5 | major | Will | accessibility (labels, contrast) | v2.1 |
 | T5-6 | major | Will | two navigation systems | open |
 | T5-7 | minor | Will | first-run wording | open |
@@ -258,6 +262,26 @@ The staticcheck hits from Phase 0: deprecated `tint.NewHandler` → `tint.NewTex
 
 *Done 2026-11-18 (Claude, at Will's request):* `tint.NewHandler` → `tint.NewTextHandler`. staticcheck is now clean and enforced (T1-7).
 
+**T2-8 | major | Will | `internal/peers/watch.go`, video watch in `cmd/.../peers.go`**
+Senders are told apart by IP and port. vision_processor's streamer reopens its socket, on a new port, whenever the streamed view changes size, and it cycles views. For 3 s both ports count, so one vision_processor is reported as "several senders claim the same thing". 393 such warnings in Will's log (2026-11-07/08), every one with both senders on the same machine.
+Fix: for video, a new port (and RTP SSRC) from the same IP replaces the old one once the old one stops; a conflict needs both to keep sending, interleaved.
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* the video watch has `Restarts`: a sender that stopped within 100 ms of another starting on its IP is the same program. Two that keep sending are still a conflict, on one machine or two.
+
+**T2-9 | major | Will | `internal/video/assembler.go`, `internal/multicast/socket.go`**
+The video socket joins its group on every used interface, so a stream that reaches the machine on two of them arrives twice from the same IP and port. The assembler reads a repeated sequence number as packet loss: with every packet doubled, a synthetic 60-frame stream yields no frames. Nothing warns about it. The double delivery was reproduced in a namespace with a local sender, only with `accept_local=1` and loose or no rp_filter: with the default `accept_local=0` the kernel drops a machine's own packets coming back in. A sender on another machine reaching both interfaces is untested. Not known to be what Will sees in the lab (T2-10).
+Fix: drop packets already seen (same SSRC, recent sequence number), and alert when one sender's packets arrive on several interfaces (needs the arrival interface from IP_PKTINFO).
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* the assembler ignores packets at or up to 1024 behind the newest. Every endpoint (vision, game controller, tracker, video) notes the interface each counted packet arrives on; a sender on several at once is logged once, listed in `Status.duplicates`, and raises `duplicate_packets` (warning, one per interface set, with a how-to). Checked in namespaces: a sender on another machine, with the host's static and link-local interfaces on one switch, was doubled and caught with `rp_filter=2`; with `rp_filter=1` the kernel dropped the copies.
+
+**T2-10 | major | Will + Claude | interface selection; cause unknown, needs the lab machine**
+Reported by Will 2026-11-25: on a lab machine with a field network NIC and a dual-port PoE NIC for FLIR cameras, the console prints warnings. They stopped when he unticked the PoE interfaces for the vision/GC network on the Network page. Not video related, though video may be affected too. The PoE ports are always static or link-local, on another subnet than the field network. The warning text isn't recorded and nothing has been reproduced.
+Workaround: untick those interfaces on the Network page.
+To collect there, with the PoE interfaces ticked: the exact warning lines and which program prints them, `ip -br addr`, `ip route`, `sysctl net.ipv4.conf.all.rp_filter`, and `GET /api/network` and `/api/alerts`. Then the same with them unticked.
+Idea, pending the cause: automatic selection skips link-local (169.254/16) interfaces while another is usable. Static PoE ports look like any other NIC, so those would need a hint on the Network page instead.
+
+*2026-11-25:* T2-9's alert may name the cause: check whether it appears there with the PoE interfaces ticked. It won't if the prints come from something other than one sender being heard twice.
+
 ### Track 3: API / OpenAPI contract
 
 Overall: the REST half is well disciplined. Every route goes through `api.Route`/`Raw`, every one has an operation summary and tag, `TestMain` in `declared_test.go` fails on any undeclared error code, and the error envelope is uniform. The weak half is the WebSocket contract and the frontend's use of the spec.
@@ -372,7 +396,7 @@ Fix: an `Error` alert per camera when `crashes ≥ 2` (or state `waiting` after 
 Every new camera defaults to the **Spinnaker (FLIR)** driver (the schema's `camera.driver` default `SPINNAKER`, vision_processor's own fallback). The planned CV package is FOSS-only (OpenCV/V4L, DC1394) and `-runCameras` targets student labs with webcams, so a new lab user's first `-runCameras` start crash-loops on a driver they don't have, and (T5-2) nothing says so. No C++ change is needed: the host owns the bootstrapped `vision.yml`.
 Fix: write `defaults.camera.driver: OPENCV` in a new config, or better, a wizard step "What cameras?" (webcam / FLIR / FireWire / mvIMPACT) that sets it and offers the `/api/camera/devices` picker.
 
-*Done 2026-11-25 (Claude, at Will's request; uncommitted):* not OPENCV. A new config writes `defaults.camera.driver: DUMMY`, the protocol's "no camera (initial state)" (proto `fdd7988`), so nobody gets a wrong driver. A file without a driver still means SPINNAKER. With `-runCameras` a DUMMY camera is held, not started (state `no_camera`; its restart route answers 409 `no_camera`), starts when a driver is chosen, and never counts as a device conflict. New alert `camera_not_selected` (warning, error on a competition field), except for a camera the host writes no config for that is already sending. The Camera page shows "No camera selected" and hides device, resolution and tuning until one is chosen; sidebar, video placeholder and checklist say so too. Today's vision_processor exits on DUMMY (`openCamera` has no case), so a camera run by hand still needs a driver first. Once upstream PR #61 lands, the hold can go. The wizard step stays a possible later feature.
+*Done 2026-11-25 (Claude, at Will's request; committed `34b48f2`):* not OPENCV. A new config writes `defaults.camera.driver: DUMMY`, the protocol's "no camera (initial state)" (proto `fdd7988`), so nobody gets a wrong driver. A file without a driver still means SPINNAKER. With `-runCameras` a DUMMY camera is held, not started (state `no_camera`; its restart route answers 409 `no_camera`), starts when a driver is chosen, and never counts as a device conflict. New alert `camera_not_selected` (warning, error on a competition field), except for a camera the host writes no config for that is already sending. The Camera page shows "No camera selected" and hides device, resolution and tuning until one is chosen; sidebar, video placeholder and checklist say so too. Today's vision_processor exits on DUMMY (`openCamera` has no case), so a camera run by hand still needs a driver first. Once upstream PR #61 lands, the hold can go. The wizard step stays a possible later feature.
 
 **T5-4 | major | Will | alert severities on a fresh install**
 Before the user has done anything, a first run shows **4 warnings and 1 caution**: `first_run_not_publishing`, `socket_silent`, `team_default_height` ×2, `loopback_multicast_off`. In a lab without a game controller, the two height warnings never go away. Users learn to ignore the warning count on day one, and that is exactly the count that should matter before a match.
@@ -380,6 +404,8 @@ Fix:
 - `team_default_height` should be a caution while no GC has been heard (a warning once one has). With `CompetitionField` on, keep it a warning.
 - `socket_silent` on the vision group should be info/caution until a vision_processor has ever been heard.
 - Check the loopback caution's wording. "vision_processor on this machine can't be heard here" is only true when no other interface carries the multicast; on a machine with a NIC, the local VP is normally heard via `IP_MULTICAST_LOOP` on that interface.
+
+*Done 2026-11-25 (Claude, at Will's request; uncommitted):* vision silent is a caution until something is heard, except on a competition field or while a vision_processor this host runs is running. The default-height alert is a caution only with nothing set and no game controller heard (still an error on a competition field; a lab can clear it with a height per color). Loopback multicast off is hidden while a network is in use and a warning otherwise. The checklist's Teams step stays to do on that height caution. Automatic interface selection falls back to loopback when nothing else is usable and its multicast is on. The how-to was incomplete: a plain sender like vision_processor also needs a multicast route (`ip route add 224.0.0.0/4 dev lo src 127.0.0.1`), or its sends fail with ENETUNREACH. Checked in a network namespace.
 
 **T5-5 | major | Will | accessibility (axe, every page)**
 - **Critical `label`:** unlabeled form controls on Camera (3), Geometry (4) and Color (1), in light and dark, at every width.

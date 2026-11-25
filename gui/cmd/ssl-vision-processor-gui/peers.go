@@ -42,7 +42,7 @@ func newPeerWatches() *peerWatches {
 		// vision_processor announces once a second.
 		instance: peers.NewWatch(peers.Options{Kind: peers.KindInstance, Window: discovery.Stale, MinCount: 2}, names),
 		referee:  peers.NewWatch(peers.Options{Kind: peers.KindReferee, Window: 3 * time.Second, MinCount: 2}, names),
-		video:    peers.NewWatch(peers.Options{Kind: peers.KindVideo, Window: 3 * time.Second, MinCount: 10}, names),
+		video:    peers.NewWatch(peers.Options{Kind: peers.KindVideo, Window: 3 * time.Second, MinCount: 10, Restarts: true}, names),
 	}
 }
 

@@ -118,6 +118,17 @@ func (s *source) configure(active bool, address string, ifaces []multicast.Inter
 	}
 }
 
+func (s *source) duplicates(now time.Time) []multicast.Duplicate {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.endpoint == nil {
+		return nil
+	}
+
+	return s.endpoint.Status(now).Duplicates
+}
+
 // reopen reopens a running socket, after a suspend.
 func (s *source) reopen() {
 	s.mu.Lock()

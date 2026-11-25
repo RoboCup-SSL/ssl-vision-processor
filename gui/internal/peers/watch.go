@@ -30,6 +30,10 @@ type Options struct {
 	// WithSelf marks something this host sends too, so a single other
 	// sender is already a conflict.
 	WithSelf bool
+	// Restarts is for a program that reopens its socket on a new port as it
+	// runs: a sender that stopped when another on its IP began is the same
+	// one, not a second.
+	Restarts bool
 }
 
 // Conflict is something claimed by more senders than it should be.
@@ -61,7 +65,24 @@ type subject struct {
 type heard struct {
 	from  *net.UDPAddr
 	times []time.Time // within Window, newest last
+	// first is when it began sending, after any silence longer than Window.
+	first time.Time
 	last  time.Time
+}
+
+// overlap is how long after another began a sender must still be heard to
+// count as sending alongside it, against packets arriving out of order.
+const overlap = 100 * time.Millisecond
+
+// replaced reports whether h stopped as another of senders on its IP began.
+func (h *heard) replaced(senders map[string]*heard) bool {
+	for _, other := range senders {
+		if other != h && other.from.IP.Equal(h.from.IP) && other.first.After(h.first) && h.last.Before(other.first.Add(overlap)) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // NewWatch returns a Watch naming senders through names.
@@ -99,7 +120,12 @@ func (w *Watch) Record(name string, cameraID *int, from *net.UDPAddr, now time.T
 		sub.senders[key] = h
 	}
 
-	h.times = append(w.trim(h.times, now), now)
+	h.times = w.trim(h.times, now)
+	if len(h.times) == 0 {
+		h.first = now
+	}
+
+	h.times = append(h.times, now)
 	h.last = now
 
 	active, changed := w.update(sub, now)
@@ -183,7 +209,7 @@ func (w *Watch) update(sub *subject, now time.Time) ([]*net.UDPAddr, bool) {
 
 	for _, h := range sub.senders {
 		h.times = w.trim(h.times, now)
-		if len(h.times) >= w.opts.MinCount {
+		if len(h.times) >= w.opts.MinCount && (!w.opts.Restarts || !h.replaced(sub.senders)) {
 			active = append(active, h.from)
 		}
 	}

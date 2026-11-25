@@ -172,3 +172,60 @@ func TestDescribe(t *testing.T) {
 		t.Errorf("Describe of loopback = %q", got)
 	}
 }
+
+// vision_processor's streamer reopens its socket whenever the streamed view
+// changes size: one sender, on a new port each time.
+func TestRestartsOnANewPortAreOneSender(t *testing.T) {
+	w := NewWatch(Options{Kind: KindVideo, Window: 3 * time.Second, MinCount: 10, Restarts: true}, testNames())
+	now := time.Now()
+	send := func(from string, n int) {
+		for range n {
+			now = now.Add(2 * time.Millisecond)
+			w.Record("camera 0 video", nil, addr(from), now)
+
+			if c := w.Conflicts(now); len(c) != 0 {
+				t.Fatalf("%s: %+v", from, c)
+			}
+		}
+	}
+
+	send("10.0.0.1:40000", 300)
+	send("10.0.0.1:40001", 300)
+	send("10.0.0.1:40002", 300)
+	// A straggler from the closed socket.
+	w.Record("camera 0 video", nil, addr("10.0.0.1:40003"), now)
+	w.Record("camera 0 video", nil, addr("10.0.0.1:40002"), now.Add(time.Millisecond))
+	send("10.0.0.1:40003", 300)
+}
+
+// Two that keep sending are a conflict, on one machine or two, even if one
+// also restarts; so is one that takes over from another machine.
+func TestRestartsStillFindsTwoSenders(t *testing.T) {
+	for _, other := range []string{"10.0.0.1:40009", "10.0.0.2:40000"} {
+		w := NewWatch(Options{Kind: KindVideo, Window: 3 * time.Second, MinCount: 10, Restarts: true}, testNames())
+		now := time.Now()
+
+		for i := range 400 {
+			now = now.Add(2 * time.Millisecond)
+			w.Record("camera 0 video", nil, addr("10.0.0.1:40000"), now)
+
+			if i > 100 {
+				w.Record("camera 0 video", nil, addr(other), now)
+			}
+		}
+
+		if c := w.Conflicts(now); len(c) != 1 || len(c[0].Senders) != 2 {
+			t.Errorf("%s alongside: %+v, want 2 senders", other, c)
+		}
+
+		for range 100 {
+			now = now.Add(2 * time.Millisecond)
+			w.Record("camera 0 video", nil, addr("10.0.0.1:40001"), now)
+			w.Record("camera 0 video", nil, addr(other), now)
+		}
+
+		if c := w.Conflicts(now); len(c) != 1 {
+			t.Errorf("%s after the other restarted: %+v, want a conflict", other, c)
+		}
+	}
+}

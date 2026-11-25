@@ -236,6 +236,19 @@ function present(a: HostAlert): Alert {
         ],
       };
     }
+    case "duplicate_packets": {
+      const list = (key: string) => (p[key] as string[] | undefined) ?? [];
+
+      return {
+        ...base,
+        title: text.duplicates(list("interfaces")),
+        detail: text.duplicatesDetail(list("streams"), list("senders")),
+        actions: [
+          howTo("duplicate-packets"),
+          page(text.pages.network, undefined, "network"),
+        ],
+      };
+    }
     case "loopback_multicast_off":
       return {
         ...base,

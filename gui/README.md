@@ -178,7 +178,7 @@ Multicast addresses are set on the GUI's Network page; these are the defaults.
 | Live video, per camera        | UDP `224.5.23.100:10100` for camera 0, `.101` for camera 1, and so on | In         |
 
 The GUI uses every network interface that is up, has a cable or link, supports multicast, and has an IPv4 address.
-It skips loopback, Docker and VM bridges, and VPNs. The Network page lets you exclude interfaces.
+It skips Docker and VM bridges, VPNs, and loopback unless there's nothing else. The Network page lets you exclude interfaces.
 
 Three settings can trip you up on a stock Ubuntu machine. All need root, so the GUI can't change them for you.
 
@@ -203,12 +203,16 @@ sudo sysctl --system
 ```
 
 **Nothing is heard with vision_processor on the same machine and no network cable.** Traffic then has to go over
-loopback, where Ubuntu turns multicast off. The GUI logs this at startup. Turn it on, which lasts until the next
-reboot:
+loopback, where Ubuntu turns multicast off. The GUI logs this at startup and raises an alert. Turn it on and route
+multicast there, which lasts until the next reboot, then restart vision_processor:
 
 ```sh
 sudo ip link set lo multicast on
+sudo ip route add 224.0.0.0/4 dev lo src 127.0.0.1
 ```
+
+With automatic interfaces, the GUI uses loopback by itself while there's no network. Before connecting one again,
+remove the route, or multicast keeps going to loopback only: `sudo ip route del 224.0.0.0/4 dev lo`.
 
 ### Browser
 

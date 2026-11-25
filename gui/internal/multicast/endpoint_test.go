@@ -23,7 +23,7 @@ type fakeNet struct {
 	mu      sync.Mutex
 	opened  []string
 	stopped []string
-	receive func([]byte, *net.UDPAddr)
+	receive receiver
 	sent    [][]byte
 	open    chan string
 	// problems is what each successive open reports as unhealthy; opens
@@ -35,7 +35,7 @@ func newFakeNet() *fakeNet {
 	return &fakeNet{open: make(chan string, 8)}
 }
 
-func (f *fakeNet) opener(address string, _ []Interface, opts Options, receive func([]byte, *net.UDPAddr)) sockets {
+func (f *fakeNet) opener(address string, _ []Interface, opts Options, receive receiver) sockets {
 	f.mu.Lock()
 	f.opened = append(f.opened, address)
 	f.receive = receive
@@ -75,7 +75,15 @@ func (f *fakeNet) deliver(data []byte) {
 	receive := f.receive
 	f.mu.Unlock()
 
-	receive(data, &net.UDPAddr{IP: net.IPv4(10, 0, 0, 7), Port: 10006})
+	receive(data, &net.UDPAddr{IP: net.IPv4(10, 0, 0, 7), Port: 10006}, "eth0")
+}
+
+func (f *fakeNet) deliverOn(iface string, data []byte) {
+	f.mu.Lock()
+	receive := f.receive
+	f.mu.Unlock()
+
+	receive(data, &net.UDPAddr{IP: net.IPv4(10, 0, 0, 7), Port: 10006}, iface)
 }
 
 func (f *fakeNet) waitOpen(t *testing.T, want string) {
@@ -184,7 +192,7 @@ func TestEndpointDropsLatePacketFromOldSocket(t *testing.T) {
 	e.SetAddress("224.5.23.9:10010")
 	f.waitOpen(t, "224.5.23.9:10010")
 
-	oldReceive([]byte("late"), nil)
+	oldReceive([]byte("late"), nil, "")
 
 	if s := e.Status(time.Now()); s.Heard != 0 {
 		t.Fatalf("late packet from the old socket counted: %+v", s)
@@ -517,5 +525,38 @@ func TestTrackerConsumer(t *testing.T) {
 	// uuid is required.
 	if trackerConsume(marshal(t, &vision.SSL_WrapperPacket{}), from) {
 		t.Fatal("a packet without a uuid counted as heard")
+	}
+}
+
+// Only what the consumer counts is compared, so noise and the host's own
+// packets never look like duplicates; a new interface selection starts over.
+func TestEndpointReportsDuplicates(t *testing.T) {
+	e, f, stop := startEndpoint(t, "224.5.23.2:10006", Options{}, func(data []byte, _ *net.UDPAddr) bool {
+		return string(data) == "valid"
+	})
+	defer stop()
+
+	for range arrivalCount {
+		f.deliverOn("eth0", []byte("valid"))
+		f.deliverOn("eth1", []byte("own"))
+	}
+
+	if d := e.Status(time.Now()).Duplicates; len(d) != 0 {
+		t.Errorf("Duplicates = %+v, want none", d)
+	}
+
+	for range arrivalCount {
+		f.deliverOn("eth1", []byte("valid"))
+	}
+
+	if d := e.Status(time.Now()).Duplicates; len(d) != 1 || len(d[0].Interfaces) != 2 {
+		t.Errorf("Duplicates = %+v, want one sender on two interfaces", d)
+	}
+
+	e.SetInterfaces([]Interface{{Name: "eth0", Address: "10.0.0.2", Used: true}, {Name: "eth9", Address: "10.0.0.9", Used: true}})
+	f.waitOpen(t, "224.5.23.2:10006")
+
+	if d := e.Status(time.Now()).Duplicates; len(d) != 0 {
+		t.Errorf("Duplicates after a new selection = %+v, want none", d)
 	}
 }

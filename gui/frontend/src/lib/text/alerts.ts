@@ -81,9 +81,13 @@ export const alerts = {
     video: (camera: number): string =>
       `Camera ${String(camera)}'s video is coming from several senders`,
   },
+  duplicates: (interfaces: string[]): string =>
+    `The same packets arrive on ${interfaces.join(" and ")}`,
+  duplicatesDetail: (streams: string[], senders: string[]): string =>
+    `Each is heard more than once: ${streams.join(", ")}, from ${senders.join(", ")}.`,
   loopback: (iface: string): string => `Multicast is off on ${iface}`,
   loopbackDetail:
-    "Only matters when programs on this machine talk over loopback.",
+    "No network is in use either, so programs on this machine can't hear each other.",
 
   // Titles for the host's per-camera warning codes (gui/internal/config's
   // status.go). The host's own message is the detail. Unlisted codes show

@@ -158,12 +158,21 @@ describe("automatic items", () => {
   });
 
   it("a caution leaves its item done", () => {
-    hostAlerts.list = [
-      alert("loopback_multicast_off", "caution"),
-      alert("team_default_height", "caution"),
-    ];
+    hostAlerts.list = [alert("socket_problem", "caution")];
     expect(itemState("network").status).toBe("done");
+  });
+
+  it("teams stays to do while no heights are set", () => {
     expect(itemState("teams").status).toBe("done");
+
+    hostAlerts.list = [alert("team_default_height", "caution")];
+    expect(itemState("teams")).toMatchObject({
+      status: "todo",
+      note: { key: "noHeights" },
+    });
+
+    hostAlerts.list = [alert("team_default_height")];
+    expect(itemState("teams").status).toBe("attention");
   });
 
   it("a per-camera item with no cameras isn't done", () => {

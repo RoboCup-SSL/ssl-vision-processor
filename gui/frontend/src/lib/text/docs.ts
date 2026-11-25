@@ -92,6 +92,16 @@ export const RESOLUTION_DOCS = {
       "Stop the game controller that shouldn't run, or move it to another address and port.",
     ],
   },
+  "duplicate-packets": {
+    title: "The same packets arrive on several interfaces",
+    cause:
+      "One sender's multicast reaches this machine through more than one network interface: two interfaces on one network, or a switch or cable joining two networks that should be separate. Each packet is then heard more than once, which wastes bandwidth and CPU.",
+    steps: [
+      "Open the Network page and turn off automatic host interfaces.",
+      "Leave on only the interface on the field network. Camera (PoE) interfaces don't need to be used.",
+      "If the networks should be separate, check the cabling and the switch's VLANs.",
+    ],
+  },
   "sender-conflict-video": {
     title: "A camera's video comes from several senders",
     cause:
@@ -163,11 +173,14 @@ export const RESOLUTION_DOCS = {
   "loopback-multicast-off": {
     title: "Multicast is off on the loopback interface",
     cause:
-      "Programs on this machine that multicast over loopback (e.g. a vision_processor and the GUI on one laptop with no network) won't hear each other.",
+      "This machine has no network in use, so its programs (a vision_processor and the GUI on one laptop) can only reach each other over loopback, where Ubuntu turns multicast off.",
     steps: [
-      "Enable it until the next reboot:",
+      "Connect a network, or turn loopback multicast on until the next reboot:",
       "$ sudo ip link set lo multicast on",
-      "Not needed when every program uses a real network interface.",
+      "$ sudo ip route add 224.0.0.0/4 dev lo src 127.0.0.1",
+      "With automatic interfaces the GUI then uses lo by itself. Restart any vision_processor already running.",
+      "Before connecting a network again, remove the route, or multicast keeps going to loopback only:",
+      "$ sudo ip route del 224.0.0.0/4 dev lo",
     ],
   },
   "region-uncovered": {

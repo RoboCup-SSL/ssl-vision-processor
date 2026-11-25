@@ -182,7 +182,7 @@ func run() int {
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 
-	warnLoopbackMulticast()
+	warnLoopbackMulticast(h.store)
 	warnFirewall(ufwConfig, *address, udpPorts(h.store))
 
 	// Reverse lookups can be slow; until they finish, the host is still
@@ -714,12 +714,17 @@ func cameraStreams(doc config.Document) map[int]video.Stream {
 	return streams
 }
 
-// warnLoopbackMulticast logs once at startup if the loopback interface has
-// multicast off, as Ubuntu ships it. The fix needs root, so it's only
-// suggested.
-func warnLoopbackMulticast() {
+// warnLoopbackMulticast logs once at startup if no network is in use and the
+// loopback interface has multicast off, as Ubuntu ships it. The fix needs
+// root, so it's only suggested.
+func warnLoopbackMulticast(store *config.Store) {
+	if _, _, _, ifaces := currentNetwork(store); multicast.Networked(ifaces) {
+		return
+	}
+
 	if name, enabled, ok := multicast.LoopbackMulticast(); ok && !enabled {
-		slog.Warn("multicast is off on the loopback interface", "interface", name, "enable with", "sudo ip link set "+name+" multicast on")
+		slog.Warn("no network is in use and multicast is off on the loopback interface, so programs on this machine can't hear each other", "interface", name,
+			"enable with", "sudo ip link set "+name+" multicast on && sudo ip route add 224.0.0.0/4 dev "+name+" src 127.0.0.1")
 	}
 }
 

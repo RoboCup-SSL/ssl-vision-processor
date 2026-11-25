@@ -31,7 +31,7 @@
         return {
           name: i.name,
           detail: detail(i.address, i.autoReason),
-          checked: i.autoUse,
+          checked: i.used,
           disabled: true,
         };
       }
@@ -78,7 +78,7 @@
     // the switch itself changes nothing.
     const skip =
       !auto && selection.skip.length === 0
-        ? ifaces.filter((i) => i.usable && !i.autoUse).map((i) => i.name)
+        ? ifaces.filter((i) => i.usable && !i.used).map((i) => i.name)
         : selection.skip;
 
     writeInterfaces(auto, skip);
@@ -91,8 +91,11 @@
     writeInterfaces(false, skip);
   }
 
+  // Only matters with no network in use, as in the host's alert.
   let loopbackOff = $derived(
-    network.state !== null && !network.state.loopbackMulticast,
+    network.state !== null &&
+      !network.state.loopbackMulticast &&
+      !ifaces.some((i) => i.used && i.autoReason !== "loopback"),
   );
 </script>
 

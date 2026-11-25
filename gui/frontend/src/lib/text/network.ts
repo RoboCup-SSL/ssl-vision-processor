@@ -11,14 +11,15 @@ export const network = {
   reopening: (address: string): string => `Reopening on ${address}…`,
 
   interfaces: {
-    autoHint: "(skips loopback, disconnected, and virtual interfaces)",
+    autoHint:
+      "(skips disconnected and virtual interfaces, and loopback unless it's the only one)",
     waiting: "Waiting for the host…",
     scope:
       "Only this host's sockets; vision_processors use their system's default route. Broadcast receiving listens on every interface.",
     loopbackOff: (iface: string): string =>
-      `Multicast is off on \`${iface}\`. Programs on this machine that multicast over loopback won't hear each other. To enable it until reboot:`,
+      `Multicast is off on \`${iface}\`. No network is in use either, so programs on this machine won't hear each other. To enable it until reboot:`,
     loopbackFix: (iface: string): string =>
-      `sudo ip link set ${iface} multicast on`,
+      `sudo ip link set ${iface} multicast on\nsudo ip route add 224.0.0.0/4 dev ${iface} src 127.0.0.1`,
   },
 
   errors: {

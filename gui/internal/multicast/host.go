@@ -93,7 +93,7 @@ func describe(f ifaceFacts) Interface {
 
 	switch {
 	case f.flags&net.FlagLoopback != 0:
-		i.AutoReason = "loopback"
+		i.AutoReason = onLoopback
 	case !up:
 		i.AutoReason = "down"
 	case f.flags&net.FlagRunning == 0:
@@ -117,17 +117,28 @@ func isVirtual(name string) bool {
 	})
 }
 
+// onLoopback is the AutoReason of a loopback interface.
+const onLoopback = "loopback"
+
+// Networked reports whether ifaces uses any interface besides loopback.
+func Networked(ifaces []Interface) bool {
+	return slices.ContainsFunc(ifaces, func(i Interface) bool { return i.Used && i.AutoReason != onLoopback })
+}
+
 // Select marks which interfaces the host uses, automatically or by skipping
-// the named ones, and returns the names of all the others: the skip list for
+// the named ones. With nothing else to use, automatic selection falls back to
+// loopback if it has multicast on, for a machine with no network. It returns
+// the marked interfaces and the names of all the others: the skip list for
 // the sockets.
 func Select(ifaces []Interface, auto bool, skip []string) ([]Interface, []string) {
 	out := slices.Clone(ifaces)
+	lonely := auto && !slices.ContainsFunc(out, func(i Interface) bool { return i.AutoUse })
 
 	var skipped []string
 
 	for i := range out {
 		if auto {
-			out[i].Used = out[i].AutoUse
+			out[i].Used = out[i].AutoUse || lonely && out[i].Usable && out[i].AutoReason == onLoopback
 		} else {
 			out[i].Used = out[i].Usable && !slices.Contains(skip, out[i].Name)
 		}

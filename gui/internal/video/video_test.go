@@ -225,6 +225,58 @@ func TestAssemblerDropsUntilKeyframeAfterLoss(t *testing.T) {
 	}
 }
 
+// A stream arriving on two interfaces: every packet twice, the copy right
+// behind the original or a few packets later, across a sequence wrap.
+func TestAssemblerIgnoresCopies(t *testing.T) {
+	clip := loadClip(t, "320x240.h264")
+
+	for _, lag := range []int{0, 1, 7, 40} {
+		p := &packetizer{ssrc: 1, seq: 65530}
+
+		var pkts []*rtp.Packet
+		for _, au := range clip {
+			pkts = append(pkts, p.packets(au)...)
+		}
+
+		var a assembler
+
+		got := 0
+
+		for i, pkt := range pkts {
+			got += len(a.push(pkt))
+
+			if i >= lag {
+				got += len(a.push(pkts[i-lag]))
+			}
+		}
+
+		if got != len(clip) {
+			t.Errorf("copies %d packets behind: %d frames, want %d", lag, got, len(clip))
+		}
+	}
+}
+
+// A sender that starts over far back with the same SSRC is still followed.
+func TestAssemblerFollowsAJumpBack(t *testing.T) {
+	clip := loadClip(t, "320x240.h264")
+
+	var a assembler
+
+	p := &packetizer{ssrc: 1, seq: 30000}
+	for _, au := range clip[:5] {
+		assemble(&a, p.packets(au))
+	}
+
+	p = &packetizer{ssrc: 1, seq: 100, timestamp: 900000}
+	if got := assemble(&a, p.packets(clip[0])); len(got) != 0 {
+		t.Errorf("%d frames from the first frame after a gap, want none", len(got))
+	}
+
+	if got := assemble(&a, p.packets(clip[0])); len(got) != 1 {
+		t.Errorf("%d frames from the next keyframe, want 1", len(got))
+	}
+}
+
 func TestAssemblerRestartsOnNewSSRC(t *testing.T) {
 	small := loadClip(t, "160x120.h264")
 	big := loadClip(t, "320x240.h264")

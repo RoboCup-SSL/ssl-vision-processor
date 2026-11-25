@@ -30,7 +30,7 @@ var errNoInterface = errors.New("no usable network interface")
 // broadcast (or unicast to this host) on every interface. The returned
 // problem is "" if the socket is fully set up. Even with a problem, stop is
 // safe to call.
-func openSocket(address string, ifaces []Interface, opts Options, receive func([]byte, *net.UDPAddr)) (stop func(), problem string) {
+func openSocket(address string, ifaces []Interface, opts Options, receive receiver) (stop func(), problem string) {
 	noop := func() {}
 
 	addr, err := net.ResolveUDPAddr("udp4", address)
@@ -69,6 +69,12 @@ func openSocket(address string, ifaces []Interface, opts Options, receive func([
 		}
 	}
 
+	// For the interface each datagram arrives on.
+	pc4 := ipv4.NewPacketConn(conn)
+	if err := pc4.SetControlMessage(ipv4.FlagInterface, true); err != nil {
+		slog.Debug("can't tell which interface packets arrive on", "address", address, "err", err)
+	}
+
 	var done sync.WaitGroup
 
 	done.Add(1)
@@ -77,14 +83,16 @@ func openSocket(address string, ifaces []Interface, opts Options, receive func([
 		defer done.Done()
 
 		buf := make([]byte, 65536)
+		names := map[int]string{}
 
 		for {
-			n, from, err := conn.ReadFromUDP(buf)
+			n, cm, src, err := pc4.ReadFrom(buf)
 			if err != nil {
 				return // closed by stop
 			}
 
-			receive(buf[:n], from)
+			from, _ := src.(*net.UDPAddr)
+			receive(buf[:n], from, interfaceName(names, cm))
 		}
 	}()
 
@@ -92,6 +100,25 @@ func openSocket(address string, ifaces []Interface, opts Options, receive func([
 		_ = conn.Close()
 		done.Wait()
 	}, problem
+}
+
+// interfaceName is the interface cm says its datagram arrived on, "" if it
+// doesn't. names caches them by index, for as long as the socket is open.
+func interfaceName(names map[int]string, cm *ipv4.ControlMessage) string {
+	if cm == nil || cm.IfIndex == 0 {
+		return ""
+	}
+
+	name, ok := names[cm.IfIndex]
+	if !ok {
+		if ifi, err := net.InterfaceByIndex(cm.IfIndex); err == nil {
+			name = ifi.Name
+		}
+
+		names[cm.IfIndex] = name
+	}
+
+	return name
 }
 
 // join joins addr's group on every used interface. It fails only if it

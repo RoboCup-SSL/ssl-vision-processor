@@ -26,6 +26,9 @@ const (
 // drops frames until a keyframe arrives rather than passing on a corrupt
 // picture. A new SSRC means the encoder restarted (vision_processor does this
 // whenever the streamed view changes size), which starts over the same way.
+//
+// A packet at or behind the newest one is ignored: it's a copy (the stream
+// arriving on two interfaces), or too late for a frame already given up on.
 type assembler struct {
 	started   bool
 	ssrc      uint32
@@ -39,6 +42,10 @@ type assembler struct {
 	needKey  bool   // dropping until a keyframe
 }
 
+// behindWindow is how far behind the newest sequence number a packet still
+// counts as a copy or late. Further back, the sender started over.
+const behindWindow = 1024
+
 // push takes one packet and returns any frames it completed: the previous
 // frame when this packet starts a new one, and this one if it carries the
 // marker bit. Payload bytes are copied; pkt may reuse its buffer.
@@ -47,6 +54,8 @@ func (a *assembler) push(pkt *rtp.Packet) [][][]byte {
 
 	if !a.started || pkt.SSRC != a.ssrc {
 		*a = assembler{started: true, ssrc: pkt.SSRC, timestamp: pkt.Timestamp, needKey: true}
+	} else if a.seq-pkt.SequenceNumber < behindWindow {
+		return nil
 	} else {
 		gap := pkt.SequenceNumber != a.seq+1
 		if gap {
